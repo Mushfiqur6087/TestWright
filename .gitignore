@@ -1,0 +1,10 @@
+# Python cache directories
+__pycache__/
+**/__pycache__/
+
+# Claude local config directory
+.claude/
+
+# Claude instruction files
+claude.md
+CLAUDE.md
