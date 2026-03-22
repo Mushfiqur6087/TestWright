@@ -1,114 +1,228 @@
 # Moodle Teacher Functional Description
 
-**Test Account:** testteacher / Test@1234
-
+---
 
 ## 1. Login
 
-The login page displays a centered card with the heading "Log in to Moodle Test Site" at the top. The form contains a Username field and a Password field, followed by a blue "Log in" button. Below the button is a "Lost password?" link which is currently disabled on this test site. A separate section below states "Some courses may allow guest access" with an "Access as a guest" button that allows users to browse courses without authentication. A "Cookies notice" button at the bottom provides information about cookie usage. When the teacher enters valid credentials and clicks Log in, the system validates against the database and redirects to the Dashboard upon success. If the credentials are invalid or fields are empty, an error message appears and the username field remains populated for correction.
+The login page displays a centered card with the heading "Log in to Moodle Test Site." The form contains two required fields — **Username** and **Password** — followed by a blue **"Log in"** button. Below the button is a **"Lost password?"** link (currently disabled on this test site). A separate section below the form states "Some courses may allow guest access" with an **"Access as a guest"** button for unauthenticated browsing. A **"Cookies notice"** button at the bottom provides cookie usage information.
+
+When the teacher submits the form, the system validates the credentials against stored accounts. If authentication succeeds, the system redirects to the Dashboard. If credentials are invalid or either field is left empty, an inline authentication error message appears, the password field is cleared, and the Username field remains populated to allow correction without re-entry. Empty fields block submission with inline validation before the request is sent.
+
+---
 
 ## 2. Dashboard
 
-The Dashboard serves as the teacher's home base after logging in. At the top, a personalized greeting displays "Hi, [Name]!" with a waving hand emoji. The main content area displays the Timeline block and Calendar block. The Timeline block shows upcoming activities and deadlines across all courses, with a "Next 7 days" dropdown to filter the time range, a "Sort by dates" dropdown for ordering, and a search field to find activities by type or name. When no activities are pending, it displays "No activities require action" with an icon. The Calendar block shows a monthly view with the current month and year displayed prominently. It includes an "All courses" dropdown to filter events by course, a "New event" button to create calendar entries, and navigation arrows to move between months (showing previous and next month names). The current date is highlighted, and dates with events display event names. At the bottom of the Calendar block, "Full calendar" and "Import or export calendars" links provide access to additional calendar features.
+The Dashboard serves as the teacher's home base after logging in. A personalized greeting at the top displays **"Hi, [Name]!"** with a waving hand emoji. The main content area contains two blocks displayed side by side: the **Timeline block** and the **Calendar block**.
 
-When Edit mode is toggled on, the Dashboard displays additional controls. A "Reset page to default" button appears at the top right to restore the default layout. A "+ Add a block" button appears below the Dashboard heading, allowing teachers to add new blocks. Clicking this opens an "Add a block" modal with available block types including: Comments, Course overview, Latest badges, Learning plans, Logged in user, Mentees, Online users, Private files, Random glossary entry, Recently accessed courses, Starred courses, Tags, Text, and Upcoming events. The modal has an X button to close and a "Cancel" button. Each existing block displays a move icon (four arrows) and a three-dot menu for block options when in edit mode.
+The **Timeline block** aggregates upcoming teaching actions across all enrolled courses. It includes a **"Next 7 days"** dropdown to filter the visible time range, a **"Sort by dates"** dropdown to control ordering, and a search field to find activities by type or name. When no pending items exist within the selected range, the block displays a no-action state with an illustrative icon.
 
-## 3. My Courses
+The **Calendar block** shows a monthly view with the current month and year displayed as a heading. It includes an **"All courses"** dropdown to filter events by a specific course, a **"New event"** button to create personal or course calendar entries, and left/right navigation arrows to move between months (labeled with the previous and next month names). The current date is visually highlighted, and dates containing scheduled events display the event names inline. At the bottom of the Calendar block, two links are available: **"Full calendar"** (opens a dedicated calendar view) and **"Import or export calendars"** (opens calendar data management).
 
-The My Courses page provides a view of all courses where the teacher is enrolled. The page has a "My courses" heading with "Course overview" as a subheading. The page displays courses as visual cards showing the course image, course name as a clickable link, and the category name below. An "All" dropdown allows filtering courses by status. A "Search" field allows teachers to find specific courses by typing part of the course name. A "Sort by course name" dropdown allows sorting the course list. A "Card" dropdown allows switching between different view layouts. Each course card includes a three-dot menu at the bottom right which opens a dropdown with "Star this course" and "Remove from view" options. Clicking a course name navigates directly to that course's main page.
+---
 
-## 4. Course Page
+## 3. Dashboard — Edit Mode
 
-The Course Page displays the complete course content organized into sections. At the top, the course full name appears as a heading, followed by a horizontal navigation bar with tabs for Course, Settings, Participants, Grades, Activities, and a More dropdown. The main content area shows the course sections, each with a collapsible chevron arrow and section name. A "Collapse all" link at the top right allows collapsing all sections at once. Each section contains activities and resources such as assignments, forums, files, and pages, each with an icon indicating its type and the activity name as a clickable link. The Course Index on the left side provides a collapsible navigation tree showing all sections and activities. At the top of the Course Index, a "Close course index" button allows hiding the sidebar. Sections in the Course Index can be expanded or collapsed to show their contained activities.
+When **Edit mode** is toggled on, additional controls appear on the Dashboard. A **"Reset page to default"** button appears at the top right to restore the original layout. A **"+ Add a block"** button appears below the Dashboard heading, opening an **"Add a block"** page that lists all available block types in a vertical menu: Comments, Course overview, Latest announcements, Latest badges, Learning plans, Logged in user, Mentees, Online users, Private files, Random glossary entry, Recently accessed courses, Starred courses, Tags, Text, and Upcoming events. A **"Cancel"** link at the bottom of that page returns to the Dashboard without adding a block.
 
-## 5. Adding Activities
+In Edit mode, each existing block displays a **move icon** (four-directional arrow) and a **three-dot options menu** for block-level actions such as configure, move, and delete. Layout customizations are persisted per user and can be fully reverted by clicking **"Reset page to default."**
 
-To add activities or resources to a course, the teacher must first enable editing by toggling "Edit mode" on using the toggle in the top-right corner. When enabled, the course page transforms to reveal content management controls. A "Bulk actions" link with a pencil icon appears near the course title for managing multiple items. Each section displays a pencil icon next to the section name for inline editing, and a three-dot menu on the right for additional section options. Each activity shows a pencil icon for inline editing and a three-dot menu for activity options.
+---
 
-A "+" button appears at the bottom of each section. Clicking this button shows a dropdown with two options: "Activity or resource" and "Subsection". Selecting "Activity or resource" opens the Activity Chooser modal. The Activity Chooser has a title "Add an activity or resource" with an X button to close. A Search field at the top allows filtering by name. The left sidebar shows category filters: All, Assessment, Collaboration, Communication, Resources, and Interactive content. The main area displays a grid of available activities and resources, each with an icon, name, an info button, and a star button to mark as favorite. Available options include Assignment, Book, Choice, Database, Feedback, File, Folder, Forum, Glossary, H5P, IMS content package, Lesson, Page, Quiz, SCORM package, Text and media area, URL, Wiki, and Workshop. An "Add" button at the bottom right confirms the selection.
+## 4. My Courses
 
-When adding an Assignment, the configuration form appears with the heading "New Assignment" and an "Expand all" link to expand all sections. The form contains multiple collapsible sections:
+The My Courses page displays all courses to which the teacher has access. The page heading reads **"My courses"** with the subheading **"Course overview."**
 
-The General section contains an "Assignment name" field (required), a "Description" rich text editor with formatting toolbar, a "Display description on course page" checkbox, an "Activity instructions" rich text editor, and an "Additional files" upload area with drag-and-drop support showing "Maximum size for new files: 100 MB".
+Courses are displayed as visual cards, each showing the course banner image, the course name as a clickable link, and the category name beneath it. Four controls appear above the course grid: an **"All"** status dropdown to filter courses by enrollment state, a **"Search"** text field to locate a course by partial name, a **"Sort by course name"** dropdown to control ordering, and a **"Card"** layout dropdown to switch between Card, List, and Summary views.
 
-The Availability section contains date/time settings with Enable checkboxes for "Allow submissions from", "Due date", "Cut-off date", and "Remind me to grade by". Each has day, month, year, hour, and minute dropdowns plus a calendar picker icon. An "Always show description" checkbox is also present.
+Each course card includes a **three-dot menu** at the bottom right corner. Clicking it opens a dropdown with two options: **"Star this course"** (pins the course to the top of the list) and **"Remove from view"** (hides the course from this page without affecting enrollment). Clicking the course name navigates directly to that course's main page.
 
-The Submission types section contains checkboxes for "Online text" and "File submissions", a "Maximum number of uploaded files" dropdown, a "Maximum submission size" dropdown showing "Site upload limit (100 MB)", and an "Accepted file types" field with a "Choose" button.
+---
 
-Additional collapsible sections include: Feedback types, Submission settings, Group submission settings, Notifications, Grade, Common module settings, Restrict access, Completion conditions, Tags, and Competencies. A "Send content change notification" checkbox appears near the bottom. Required fields are indicated with a "Required" label.
+## 5. Course Page
 
-At the bottom of the form, three buttons appear: "Save and return to course" creates the activity and returns to the course page, "Save and display" creates and opens the activity, and "Cancel" discards changes.
+The Course page displays the complete content of a single course organized into collapsible sections. At the top, the full course name appears as the page heading, followed by a horizontal navigation tab bar. For teachers, the available tabs are: **Course**, **Settings**, **Participants**, **Grades**, **Activities**, and **More**. The Settings tab is visible to teachers only and is not shown to students.
 
-## 6. Course Settings
+The main content area lists course sections, each preceded by a collapsible **chevron arrow** and a section name. A **"Collapse all"** link at the top right of the content area collapses every section simultaneously. Within each section, activities and resources are listed with a type icon and the activity name as a clickable link.
 
-The Course Settings page allows teachers to configure course properties and is accessed from the Settings tab in the course navigation without requiring Edit mode. A "Collapse all" link at the top right allows collapsing all sections. The form contains multiple collapsible sections:
+The **Course Index sidebar** on the left side of the page provides a persistent collapsible navigation tree showing all sections and their contained activities. Sections can be individually expanded or collapsed. The currently active item is highlighted. A close button **(X)** at the top of the Course Index hides the sidebar to maximize the content area width. The system renders course content according to teacher permissions and the current edit-state mode.
 
-General section contains Course full name (required), Course short name (required), Course category field with search dropdown (required), Course visibility dropdown, Course start date with date/time dropdowns, Course end date with Enable checkbox and date/time dropdowns, and Course ID number field.
+---
 
-Description section contains Course summary rich text editor and a file upload area for course images.
+## 6. Course Edit Mode and Activity Chooser
 
-Course format section contains Format dropdown, Hidden sections dropdown, and Course layout dropdown.
+Enabling **Edit mode** transforms the Course page into a full authoring interface. Each section and activity row gains a set of inline controls:
 
-Appearance section contains Force language dropdown, Number of announcements dropdown, Show gradebook to students dropdown, Show activity reports dropdown, and Show activity dates dropdown.
+- **Edit icons** appear next to each activity name for quick renaming.
+- A **section-level action menu** (three-dot) provides options to edit, duplicate, hide, delete, or move the section.
+- An **activity-level action menu** (three-dot) per activity provides options to edit settings, move, duplicate, hide from students, set access restrictions, and delete.
+- A **bulk actions toolbar** appears at the top of the content area, allowing teachers to select multiple activities and apply batch operations.
+- An **"+ Add an activity or resource"** button appears at the bottom of each section.
 
-Files and uploads section contains Maximum upload size dropdown.
+Clicking **"+ Add an activity or resource"** opens the **Activity Chooser modal**. The modal contains:
+- A **category filter bar** at the top to narrow the displayed tiles (e.g., All, Activities, Resources, Recommended).
+- A **search field** to find a specific activity or resource type by name.
+- **Activity/resource tiles** displayed in a grid, including (for example): Assignment, Forum, Quiz, File, Page, Lesson, SCORM, URL, and Workshop. Each tile shows the item's icon and name.
+- A **star/favorite toggle** on each tile to mark frequently used types for quick access.
+- An **"Add"** confirmation button once a tile is selected.
 
-Completion tracking section contains Enable completion tracking dropdown and Show activity completion conditions dropdown.
+Clicking **"Add"** on a selected activity type opens that activity's creation form. An **"+ Add a subsection"** control is also available within each section to nest content hierarchically.
 
-Groups section contains Group mode dropdown, Force group mode dropdown, and Default grouping dropdown.
+---
 
-Tags section contains Tags field with search dropdown.
+## 7. Assignment Creation
 
-Required fields are indicated with a "Required" label. The form has "Save and display" and "Cancel" buttons at the bottom.
+The assignment creation form opens after selecting "Assignment" from the Activity Chooser. The form is organized into collapsible sections. **Assignment name** is a required text field at the top.
 
-## 7. Participants
+The form's collapsible panels and their fields are:
 
-The Participants page displays all users enrolled in the course. At the top, an "Enrolled users" dropdown and an "Enrol users" button allow managing course enrollment. Below this, a Match filter system provides flexible filtering with "Any" and "Select" dropdowns, an X button to remove filters, and an "+ Add condition" link to add more filter criteria. "Clear filters" and "Apply filters" buttons control the filter application. A count displays the number of participants found (e.g., "4 participants found").
+- **General** — contains the required **Assignment name** field and a **Description** rich text editor. An optional **Additional files** upload area allows attaching supplementary resources for students.
+- **Availability** — contains **Allow submissions from** (date/time picker with an **Enable** toggle), **Due date** (date/time picker with an **Enable** toggle), and **Cut-off date** (date/time picker with an **Enable** toggle). Disabled toggles exclude that date from enforcement.
+- **Submission types** — contains checkboxes for **Online text** and **File submissions**. When **File submissions** is enabled, additional controls appear: **Maximum number of uploaded files** (numeric), **Maximum submission size** (dropdown), and **Accepted file types** (tag-based field).
+- **Feedback types** — contains options for feedback comments, feedback files, and offline grading worksheet.
+- **Submission settings** — contains options for requiring students to click a submit button, requiring submission statements, attempts reopened settings, and maximum attempts.
+- **Group submission settings** — contains controls for students to submit in groups, requiring all group members to submit, and grouping selection.
+- **Notifications** — contains toggles for notifying graders of new submissions and notifying graders of late submissions.
+- **Grade** — contains the **Grade** type and maximum points field, grading method selector, and grade category and grade to pass fields.
+- **Access restrictions** — contains an **"+ Add restriction"** button that opens a restriction-type picker.
+- **Activity completion** — contains completion tracking options and required conditions.
+- **Tags** — contains a tag entry field.
+- **Competencies** — contains course competency linking controls.
 
-Alphabetical filter buttons appear for First name and Last name, showing "All" and individual letters A through Z to quickly filter participants by name initials.
+At the bottom of the form, three action buttons are available: **"Save and return to course"** (creates the assignment and redirects to the course page), **"Save and display"** (creates the assignment and opens the newly created assignment's main page), and **"Cancel"** (discards all changes and returns to the course page). Required fields and date/file constraints are validated inline before saving; errors highlight the relevant field and block submission.
 
-The main content area shows a table with the following columns: a checkbox for bulk selection, First name / Last name (sortable with arrows), Email address, Roles (with a pencil icon for editing roles), Groups, Last access to course, and Status. Each participant row displays a circular icon with user initials, the participant's name as a clickable link, their email address, their role, group membership, last access time, and an Active status badge. Action icons appear at the end of each row: an info icon to view details, an edit icon, and a delete icon.
+---
 
-At the bottom of the table, "With selected users..." text appears with a "Choose..." dropdown for bulk actions on selected participants. An "Enrol users" button at the bottom right opens a dialog to search for and enroll additional users, assigning them a role and optionally setting enrollment duration. Teachers can click any participant name to view their profile or access their grade report.
+## 8. Course Settings
 
-## 8. Assignment (Teacher View)
+The Course Settings form is organized into collapsible panels. The form is organized into collapsible panels. Fields include:
 
-The Assignment page displays breadcrumbs showing the navigation path and an assignment icon with the heading "ASSIGNMENT" and the assignment name. Tabs at the top provide access to Assignment, Settings, Submissions, Advanced grading, and More dropdown. The page shows the Opened date, Due date, and assignment description text. A "Grade" button allows teachers to start grading. The Grading summary section displays a table with rows for Hidden from students (Yes/No), Participants count, Submitted count, Needs grading count, and Time remaining until due date.
+- **Course full name** (required text field)
+- **Course short name** (required text field)
+- **Course category** (required dropdown)
+- **Course visibility** (Show/Hide dropdown)
+- **Course start date** (date/time picker)
+- **Course end date** (date/time picker with Enable toggle)
+- **Course ID number** (optional text field)
+- **Course summary** (rich text editor)
+- **Course image** (file upload area)
+- **Course format** (dropdown: e.g., Topics format, Weekly format)
+- **Layout controls** (section display options dependent on selected format)
+- **Appearance settings** (language, news items, show activity dates, show activity completion conditions)
+- **Files and uploads** — **Maximum upload size** (dropdown)
+- **Completion tracking** — Enable/Disable toggle
+- **Groups** — Group mode and Grouping dropdowns
+- **Tags** — tag entry field
 
-## 9. Assignment Submissions
+At the bottom, **"Save and display"** persists the configuration and returns to the course page; **"Cancel"** leaves existing settings unchanged. Required field and format validations are enforced inline; errors highlight the relevant field and block saving.
 
-The Submissions tab displays all student submissions in a table format. At the top, a "Search users" field, "Filter by name" dropdown, Status filter (defaulting to "All"), and Advanced dropdown allow filtering submissions. A "Grade" button appears on the right, and a "Quick grading" checkbox with "Actions" dropdown provide grading options. The table columns include: Select (checkbox), First name / Last name (sortable), Email address, Status, Grade, Last modified (submission), Online text, File submissions, Submission comments, Last modified (grade), Feedback comments, Feedback files, and Final grade. Each row shows a student with circular icon containing initials, their name as a link, email address, and submission status (e.g., "No submission"). Three-dot menus in various columns provide additional options for each submission.
+---
 
-## 10. Advanced Grading
+## 9. Participants Management
 
-The Advanced grading tab provides options for creating advanced grading methods. At the top, "Change active grading method to" dropdown is set to "Rubric". Two card options are displayed: "Define new grading form from scratch" and "Create new grading form from a template". A notification message states: "Please note: the advanced grading form is not ready at the moment. Simple grading method will be used until the form has a valid status." This indicates that advanced grading features like rubrics need to be set up before they can be used for grading assignments.
+The Participants page lists all users enrolled in the course.
 
-## 11. Gradebook (Grader Report)
+At the top, an **enrolled-users scope selector** dropdown filters the list by enrollment context. An **"Enrol users"** button opens the enrollment dialog (described below).
 
-The Gradebook page is accessed via the Grades tab in the course navigation. At the top, a "Grader report" dropdown allows selecting different report types, a "Search users" field filters the grade table, and a "Filter by name" dropdown provides additional filtering. The main content displays a spreadsheet-style table with the course name header showing a three-dot menu. The first column shows "First name / Last name" with user icons and names as links, followed by an "Email address" column. Subsequent columns represent individual assignments (e.g., "BUS301 - Case Study Analysis", "BUS301 - Business Plan Draft", "BUS301 - Final Presentation") and an "r" column, with a "Course total" column at the end. Each column header has a three-dot menu. Grade cells contain either numeric values or are empty, with three-dot menus for additional options. An "Overall average" row at the bottom shows averages for each column. A "Save changes" button appears at the bottom of the page when Edit mode is enabled.
+Below that, a **Match filter system** allows flexible participant filtering with an **"Any"** dropdown, a **"Select"** attribute dropdown, an **"X"** remove button per condition, and an **"+ Add condition"** link. **"Clear filters"** and **"Apply filters"** buttons control execution. A participant count updates after filtering.
 
-## 12. Profile
+**Alphabetical filter buttons** for First name and Last name (showing "All" and letters A–Z) allow quick initial-based filtering.
 
-The Profile page displays the user's information and is accessed by clicking the user initials in the top navigation bar and selecting Profile. At the top, the user's circular icon with initials is shown alongside their full name and a "Message" button. Below the name, a description text displays the user's profile description. When Edit mode is enabled, a "Reset page to default" button appears at the top right.
+The main content area is a table with columns for: checkbox (bulk selection), **First name / Last name** (sortable, clickable link to participant profile), **Email address**, **Roles**, **Groups**, **Last access to course**, and **Status**. Each row also provides a **row-level action menu** with options such as viewing the participant's profile in course context, editing their role, and sending a message.
 
-The page displays several information cards. The User details card shows an "Edit profile" link in the top right corner, the Email address with visibility note (e.g., "Visible to other course participants"), and the Timezone setting. The Privacy and policies card contains a "Data retention summary" link. The Course details card lists all Course profiles with links to each enrolled course. The Miscellaneous card provides links to Blog entries, Forum posts, Forum discussions, and Learning plans. The Reports card contains links to Browser sessions and Grades overview. The Login activity card displays First access to site and Last access to site with dates and relative time indicators.
+At the bottom of the table, a **"With selected users…"** label appears alongside a **"Choose…"** dropdown for bulk actions on checked participants.
 
-Clicking "Edit profile" opens the profile editing form with the user's name as a heading and an "Expand all" link. The form contains collapsible sections:
+The **Enrol users dialog** contains: a **user search field** to find users by name or email, a **Role** assignment dropdown, and an optional **Enrollment duration** control. Confirming enrollment adds the selected user to the course at the specified role.
 
-General section contains First name (required), Last name (required), Email address (required), Email visibility dropdown (e.g., "Visible to course participants"), MoodleNet profile ID field, City/town field, Select a country dropdown, Timezone dropdown, and Description rich text editor.
+Teachers can open any participant's profile or grade context, edit roles where permissions allow, perform row-level actions, and run bulk operations on selected users.
 
-User picture section shows Current picture (or "None" if not set), New picture upload area with drag-and-drop support showing "Maximum file size: 100 MB, maximum number of files: 1", accepted file types for images (.gif, .jpe, .jpeg, .jpg, .png, .webp), and Picture description field.
+---
 
-Additional collapsible sections include Additional names, Interests, and Optional. Required fields are marked with "Required" label. The form has "Update profile" and "Cancel" buttons at the bottom.
+## 10. Assignment — Teacher View
 
-## Navigation
+The Assignment main page (teacher view) displays assignment details and grading controls. Breadcrumbs at the top show the full navigation path from the course home to the current assignment, with each segment as a clickable link.
 
-The Moodle navigation structure provides multiple ways to access features throughout the system.
+The page displays the assignment's **metadata** section containing: **Opened** (date and time the assignment became available), **Due date** (submission deadline), and the full **Description** with any attached files.
 
-The Top Navigation Bar appears on every page and contains the site name "MoodleTest" on the left which links to the home page. Next to it are links for Home, Dashboard, and My courses that provide quick access to the main areas of the system. On the right side of the navigation bar, a notifications bell icon shows alerts when clicked, a messaging icon opens the messaging drawer for conversations, and the user's initials displayed in a circular icon (e.g., "JT") opens the user menu when clicked.
+A prominent **"Grade"** action button opens the grading interface for individual students.
 
-Clicking on the user initials icon opens the User Menu dropdown. The menu displays Profile at the top which navigates to the user's profile page. Below that, Grades shows the user's personal grades across all courses. Calendar opens the calendar view. Private files provides access to personal file storage. Reports shows user activity reports. A separator line divides these items from Preferences, which opens user settings. Another separator appears before the final Log out option that ends the session and returns to the login page.
+The **Grading summary** panel below the description displays the following read-only metrics:
+- **Number of participants** — total enrolled students
+- **Number of submissions** — total submissions received
+- **Needs grading** — count of submitted work awaiting a grade
+- **Visibility** — whether the assignment is currently visible to students
+- **Time remaining** — countdown to the due date
 
-When viewing a course, Course Navigation tabs appear as a horizontal bar below the course title. The tabs include Course (the main content view), Settings (course configuration), Participants (enrolled users), Grades (gradebook), Activities (list of all activities), and a More dropdown for additional options. 
+A horizontal tab bar below the summary provides navigation to: **Assignment** (the current metadata view), **Settings** (assignment configuration), **Submissions** (the full submission table), **Advanced grading** (grading method setup), and **More** (additional options).
 
-When viewing an assignment or other activity, Assignment Navigation displays breadcrumbs at the top showing the navigation path from the course (e.g., "BUS301 / New section / BUS301 - Case Study Analysis"). Each breadcrumb segment is a clickable link to navigate back to that level. Below the breadcrumbs, an assignment icon and "ASSIGNMENT" label appear above the assignment name. Activity-specific tabs appear below the title: Assignment (the main view), Settings (activity configuration), Submissions (student submission list), Advanced grading (rubrics and grading forms), and a More dropdown for additional options. These tabs change based on the activity type being viewed.
+---
+
+## 11. Assignment Submissions
+
+The Submissions view presents a full table of all student submission records. It presents a full table of all student submission records.
+
+Above the table, **search and filter controls** allow narrowing by student name, submission status, and grading status.
+
+The submissions table contains the following columns: **Student identity** (name and initials icon, clickable to profile), **Submission status** (e.g., "Submitted for grading," "No submission," "Draft — not submitted"), **Grading status** (e.g., "Graded," "Not graded"), **Submission date/time**, **Time since submission**, **Online text** (preview of submitted text if applicable), **File submissions** (links to uploaded files if applicable), **Submission comments**, **Feedback comments** (teacher-entered feedback), **Feedback files**, and **Final grade**.
+
+Each row includes an **action menu** that opens the grading workflow for that student. A **"Quick grading"** mode can be enabled above the table to allow inline grade entry directly in the table without opening individual grading pages. Teacher actions (submitting a grade or feedback) update the grading status and control feedback visibility to the student.
+
+---
+
+## 12. Advanced Grading
+
+The Advanced Grading section allows teachers to define a structured grading method beyond a simple numeric grade. It allows teachers to define a structured grading method beyond a simple numeric grade.
+
+The page presents a **grading method selector** (e.g., Rubric) and options to create a grading form **from scratch** or **from a template**. When "Rubric" is selected and a new form is being created, the teacher defines criteria rows and performance level descriptors with associated point values.
+
+The system validates that the grading form is complete and published before it becomes active for the assignment. If the grading form is incomplete or in draft state, the system falls back to simple direct grading for that assignment until the form reaches a valid, published status. Once a valid advanced grading form exists, it is used in place of the simple grade input field throughout the assignment grading workflow.
+
+---
+
+## 13. Gradebook — Grader Report
+
+The Gradebook Grader report provides a spreadsheet-style view of grades. A **report-type selector** dropdown at the top left allows switching between available report views (e.g., Grader report, User report, Overview report).
+
+Above the grade table, **user search and filter controls** allow narrowing the visible rows by student name or group.
+
+The main content area is a spreadsheet-style grade table. Columns represent individual graded activities; rows represent enrolled students. Each cell displays the student's grade for that activity. A **per-column action menu** (accessible via a dropdown on the column header) provides options to edit the activity's grade settings. A **per-cell action menu** (three-dot) on individual grade cells allows editing that specific grade entry.
+
+An **overall average row** at the bottom of the table displays the class average for each graded activity.
+
+When **Edit mode** is enabled, grade cells become editable inline. Teachers can enter or modify grade values directly in the spreadsheet. A **"Save changes"** action applies edits. Validation prevents invalid grade entries outside the configured grade range for each activity; out-of-range values are flagged inline and block saving.
+
+---
+
+## 14. Profile
+
+The Profile page displays the teacher's personal information. The top of the page shows the teacher's circular initials icon, their full name, and a **"Message"** button. A profile description text block appears below the name if the teacher has set one.
+
+The page is organized into the following information cards:
+
+- **User details** — includes an **"Edit profile"** link in the top-right corner of the card, the teacher's email address with a visibility note, and their timezone setting.
+- **Privacy and policies** — contains a **"Data retention summary"** link.
+- **Course details** — lists all course profiles with links to each course the teacher is associated with.
+- **Miscellaneous** — provides links to Blog entries, Forum posts, Forum discussions, and Learning plans.
+- **Reports** — contains links to Browser sessions and Grades overview.
+- **Login activity** — displays First access to site and Last access to site with exact dates and relative time indicators.
+
+---
+
+## 15. Profile Edit
+
+The Edit profile form contains collapsible sections for personal details and preferences. The form heading shows the teacher's name with an **"Expand all"** link at the top right to open all collapsible sections simultaneously.
+
+The form is divided into collapsible panels:
+
+- **General** — contains: First name (required), Last name (required), Email address (required), Email visibility dropdown, MoodleNet profile ID field, City/town field, Select a country dropdown, Timezone dropdown, and Description (rich text editor).
+- **User picture** — shows the Current picture, a New picture upload area with drag-and-drop support (subject to file type and size constraints), and a Picture description field.
+- **Additional names** — optional fields for alternative name formats.
+- **Interests** — a tag-based field for personal interests.
+- **Optional fields** — any site-defined custom fields.
+
+Required fields are labeled "Required." The **"Update profile"** button validates all required fields and upload constraints before saving; a successful save refreshes the profile page with updated information. The **"Cancel"** button exits the form without making any changes.
+
+---
+
+## 18. Logout
+
+Selecting **Log out** terminates the current authenticated session. Selecting it terminates the current authenticated session and redirects the browser to the login page. Access to all protected pages — including course pages, grading interfaces, participant management, and profile settings — requires re-authentication after logout.

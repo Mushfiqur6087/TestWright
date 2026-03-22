@@ -1,156 +1,248 @@
-# PHP Travels Functional Overview
+# PHP Travels Functional Description
 
-**Website URL:** [https://phptravels.com/demo](https://phptravels.com/demo)
+**Website URL:** https://phptravels.com/demo
 
-**Navigation:** PHP Travels is a comprehensive travel booking platform. When visitors arrive, they land on the home page with a top navigation bar featuring options for Home, Hotels, Flights, Tours, Cars, Visa, Offers, Blog, and Account/Login. The home page displays a prominent search widget that allows users to search for Hotels, Flights, Tours, or Cars through tabs. The right side of the navigation shows currency/language selectors and a Login/Signup option. After successful authentication, users can access their dashboard which displays booking history, profile settings, and account management options. The main navigation remains consistent across all pages, with additional contextual menus appearing based on the current section.
+**Navigation:** PHP Travels is a comprehensive travel booking platform. When visitors arrive, they land on the home page with a top navigation bar featuring links for **Home**, **Hotels**, **Flights**, **Tours**, **Cars**, **Visa**, **Offers**, **Blog**, and **Account / Login**. The home page displays a prominent search widget with tabs for Hotels, Flights, Tours, and Cars. The right side of the navigation bar shows a **currency selector**, a **language selector**, and a **Login / Signup** option. After successful authentication, the Login/Signup option is replaced by the user's name with a dropdown menu providing access to the dashboard and account management. The main navigation bar remains consistent across all pages, with additional contextual menus appearing based on the current section.
 
 ---
 
 ## 1. Home Page & Search
-![Home Page](images/1_homepage_search.png)
 
-The home page features a section with a prominent search widget that allows users to search for different travel services via tabs (Hotels, Flights, Tours, Cars). Each tab presents relevant search fields - for Hotels: destination/hotel name, check-in/check-out dates, number of guests and rooms; for Flights: departure/arrival cities, travel dates, number of travelers, and class type (Economy, Business, First); for Tours: destination and travel dates; for Cars: pick-up location, dates, and times. The search form validates required fields before allowing submission. When users enter search criteria and click Search, the system queries available options and redirects to results pages showing matching listings with filters and sorting options.
+The home page features a prominent search widget with four tabs: **Hotels**, **Flights**, **Tours**, and **Cars**. Clicking a tab switches the visible search fields to those relevant for that service type.
+
+**Hotels tab** fields: Destination or hotel name (text input with autocomplete), Check-in date (calendar picker), Check-out date (calendar picker), Number of rooms (numeric selector), and Guests per room (adults and children with age specification).
+
+**Flights tab** fields: Trip type (radio buttons: One-way, Round-trip, Multi-city), Departure city (autocomplete), Arrival city (autocomplete), Departure date (calendar picker), Return date (calendar picker, enabled for round-trip only), Number of passengers (adults, children, infants), and Cabin class (dropdown: Economy, Premium Economy, Business, First).
+
+**Tours tab** fields: Destination (autocomplete) and Travel dates (date range picker).
+
+**Cars tab** fields: Pick-up location (autocomplete), Drop-off location (autocomplete, defaults to same as pick-up), Pick-up date and time (date/time picker), and Drop-off date and time (date/time picker).
+
+The **Search** button validates that all required fields for the active tab are filled before submission. If required fields are empty, inline validation errors appear on the relevant fields and block the search. When all fields are valid and the user clicks Search, the system queries available options and redirects to the corresponding results listing page.
 
 ---
 
 ## 2. User Registration
-![User Registration](images/2_registration.png)
 
-The registration page is accessible via the Signup link in the navigation or login page. The registration form includes required fields: First Name, Last Name, Email, Password, Confirm Password, Mobile Number (with country code selector), and optional fields like Address and Country selection. All password fields must match, and email must be in valid format. The mobile number field includes a country code dropdown with flags. A checkbox for accepting terms and conditions is required. Upon clicking the Sign Up button, the system validates all inputs - checking for required fields, password match, email format, and unique email address. If validation passes, an account is created, and depending on configuration, the user may need to verify their email address or be automatically logged in and redirected to their dashboard.
+The registration page is accessible via the **Signup** link in the top navigation bar or via the link on the login page. The registration form contains the following fields:
+
+- **First Name** (required, text)
+- **Last Name** (required, text)
+- **Email** (required, must be valid email format and not already registered)
+- **Password** (required)
+- **Confirm Password** (required, must match Password)
+- **Mobile Number** (required, includes a country code dropdown with flags)
+- **Address** (optional, text)
+- **Country** (optional, dropdown)
+- **Terms and Conditions** checkbox (required)
+
+On clicking the **"Sign Up"** button, the system validates all inputs: required field completeness, password match, valid email format, and uniqueness of the email address. If any validation fails, field-level error messages appear inline and the form remains editable. If validation passes, an account is created and the user is either automatically logged in and redirected to their dashboard, or prompted to verify their email address before gaining access.
 
 ---
 
 ## 3. User Login
-![User Login](images/3_login.png)
 
-The login page displays a form with Email and Password fields, a Remember Me checkbox, and a Forgot Password link. Users can also see options to login via social media accounts (Google, Facebook) if enabled. The Login button submits credentials to the authentication server. On successful authentication, users are redirected to their account dashboard or the page they were trying to access before login. If credentials are invalid, an error message appears below the form fields explaining the issue. The page also includes a link to the registration page for new users. Security features include password masking and optional CAPTCHA verification after multiple failed attempts.
+The login page displays a form with the following elements: **Email** field, **Password** field, a **"Remember Me"** checkbox, a **"Forgot Password?"** link, a **"Login"** button, and a link to the registration page for new users. Social media login options (Google, Facebook) are displayed if enabled on the platform.
+
+On clicking **"Login"**, the system submits credentials to the authentication server. If authentication succeeds, the user is redirected to their account dashboard, or to the page they were attempting to access before being prompted to log in. If credentials are invalid, an error message appears below the form fields; the password field is cleared and the email field retains its value for correction. The password field masks all input. After multiple consecutive failed attempts, CAPTCHA verification may be required before further login attempts are accepted.
 
 ---
 
 ## 4. Forgot Password
-![Forgot Password](images/4_forgot_password.png)
 
-Accessed via the login page, the Forgot Password page presents a simple form with a single Email field. Users enter their registered email address and click Submit or Reset Password button. The system checks if the email exists in the database. If found, a password reset link is sent to the provided email address with instructions and an expiration time (typically 24 hours). The user receives confirmation that the email has been sent. When users click the reset link in their email, they are taken to a password reset page where they enter and confirm their new password. After successful password change, users are redirected to the login page with a success message.
+The Forgot Password page is accessed via the **"Forgot Password?"** link on the login page. The page presents a single **Email** field and a **"Reset Password"** button.
+
+The user enters their registered email address and clicks **"Reset Password."** The system checks whether the email exists in the user database. If found, a password reset link is sent to that address and the page displays a confirmation message. The reset link expires after 24 hours. When the user clicks the reset link in their email, they are taken to a password reset page where they enter and confirm a new password. After a successful password change, the user is redirected to the login page with a success message. If the submitted email is not found, an error message is shown and the form remains editable.
 
 ---
 
 ## 5. Hotels Search & Listing
-![Hotels Search](images/5_hotels_search.png)
-![Hotels Listing](images/5_hotels_listing.png)
 
-The hotels search functionality allows users to enter destination (city or hotel name), check-in and check-out dates via a calendar picker, number of rooms, and guests per room (adults and children with age specification). Advanced search may include filters for star rating, price range, and amenities. After clicking Search, users are taken to the hotels listing page showing available properties matching their criteria. Each hotel card displays the hotel name, location, star rating, thumbnail image, starting price per night, facilities/amenities icons, and a View Details or Book Now button. The listing page includes filter options on the left sidebar (price range, star rating, facilities, hotel type, board basis) and sorting options (price low to high, price high to low, star rating, guest rating). Users can adjust filters dynamically to refine results, and pagination allows browsing multiple pages of results.
+The hotels search form (accessible from the Hotels tab on the home page or via the **Hotels** link in the top navigation) contains: Destination or hotel name (autocomplete), Check-in date (calendar picker), Check-out date (calendar picker), Number of rooms (numeric selector), and Guests per room broken down into Adults and Children (with age specification for each child).
+
+After clicking **Search**, required fields are validated. On success, the user is redirected to the hotels listing page.
+
+Each hotel card on the listing page displays: hotel name, location, star rating, thumbnail image, starting price per night, amenity/facility icons, and a **"View Details"** or **"Book Now"** button.
+
+The listing page includes a **left sidebar** with collapsible filter sections: Price range (slider), Star rating (checkboxes), Facilities/amenities (checkboxes), Hotel type (checkboxes), and Board basis (checkboxes). Filters update results dynamically as they are applied. A summary of active filters appears at the top of results with individual remove buttons and a **"Reset all"** control. Sorting options above the results grid allow ordering by: Price low to high, Price high to low, Star rating, and Guest rating. Pagination controls allow browsing additional result pages.
 
 ---
 
 ## 6. Hotel Details & Booking
-![Hotel Details](images/6_hotel_details.png)
-![Hotel Booking](images/6_hotel_booking.png)
 
-When a user clicks on a hotel from the listing, they are taken to the hotel details page. This page displays comprehensive information including a photo gallery with multiple images, detailed description, location map (Google Maps integration), list of facilities and amenities, room types and availability, pricing for selected dates, guest reviews and ratings, and hotel policies (cancellation, check-in/check-out times). The room selection section shows different room types (Standard, Deluxe, Suite) with individual prices, max occupancy, amenities, and availability. Each room has a Select or Book Now button. After selecting a room, users proceed to the booking form where they confirm dates, number of guests, enter guest information (first name, last name, email, phone), special requests, and review the price breakdown (room rate, taxes, fees, total). Clicking Confirm or Book Now may require login and proceeds to payment.
+Clicking a hotel card from the listing page opens the hotel details page, which displays:
+
+- A **photo gallery** with multiple images
+- Full written **description** of the property
+- **Location map** (Google Maps integration)
+- **Facilities and amenities** list
+- **Room types and availability** section showing each room type (e.g., Standard, Deluxe, Suite) with price per night, maximum occupancy, included amenities, and a **"Select"** or **"Book Now"** button
+- **Guest reviews and ratings** (aggregate score and individual reviews)
+- **Hotel policies** including cancellation policy, check-in time, and check-out time
+
+After selecting a room, the booking form displays: selected hotel and room type, check-in and check-out dates, number of guests, and a price breakdown (room rate, taxes, fees, total). The user fills in: **First Name**, **Last Name**, **Email**, **Phone Number**, and optional **Special Requests**. Clicking **"Confirm"** or **"Book Now"** requires the user to be logged in (unauthenticated users are redirected to the login page) and proceeds to the payment page.
 
 ---
 
 ## 7. Flights Search & Listing
-![Flights Search](images/7_flights_search.png)
-![Flights Listing](images/7_flights_listing.png)
 
-The flights search form includes fields for trip type selection (one-way, round-trip, multi-city), departure and arrival cities (with autocomplete), departure date and return date (for round-trip), number of passengers (adults, children, infants), and cabin class (Economy, Premium Economy, Business, First). After submitting the search, users see a flights listing page with available options. Each flight result shows the airline logo and name, departure and arrival times, flight duration, number of stops (non-stop, 1 stop, 2+ stops), price per passenger, and a Select or View Details button. The listing includes filters for airlines, stops, departure/arrival times, and price range. Users can sort results by price, duration, departure time, or arrival time. Clicking on a flight shows additional details like baggage allowance, fare rules, and seat availability.
+The flights search form (accessible from the Flights tab on the home page or via the **Flights** link in the top navigation) contains: Trip type selector (One-way, Round-trip, Multi-city), Departure city (autocomplete), Arrival city (autocomplete), Departure date (calendar picker), Return date (calendar picker, active for round-trip only), Number of passengers — Adults, Children, Infants (numeric selectors), and Cabin class (dropdown: Economy, Premium Economy, Business, First).
+
+After clicking **Search**, required fields are validated and the user is redirected to the flights listing page.
+
+Each flight result displays: airline logo and name, departure and arrival times and airports, flight duration, number of stops (Non-stop, 1 stop, 2+ stops), price per passenger, and a **"Select"** or **"View Details"** button. Clicking **"View Details"** expands additional information including baggage allowance, fare rules, and seat availability.
+
+The listing page left sidebar includes collapsible filters: Airlines (checkboxes), Number of stops (checkboxes), Departure time range (slider), Arrival time range (slider), and Price range (slider). Results update dynamically as filters are applied. Sorting options allow ordering by: Price, Duration, Departure time, and Arrival time.
 
 ---
 
 ## 8. Flight Booking
-![Flight Booking](images/8_flight_booking.png)
 
-After selecting a flight from the listing page, users proceed to the flight booking page which displays a summary of selected flight details including itinerary, departure/arrival information, passenger count, and fare breakdown. The booking form collects passenger information for each traveler (title, first name, last name, date of birth, passport number if international, contact information for lead passenger). Users can add special requests, meal preferences, and seat selection if available. The form validates all required fields including proper date formats and passport information. After filling in details and reviewing terms and conditions, users proceed to payment by clicking Continue or Proceed to Payment.
+After selecting a flight from the listing page, the user is taken to the flight booking page, which displays a summary of the selected flight: itinerary, departure and arrival information, passenger count, cabin class, and a full fare breakdown (base fare, taxes, fees, and total per passenger and overall).
+
+The booking form collects passenger information for each traveler: **Title** (dropdown: Mr, Mrs, Ms, Dr), **First Name**, **Last Name**, **Date of Birth**, **Passport Number** (required for international flights), and **Passport Expiry Date**. Contact information is collected for the lead passenger: **Email** and **Phone Number**. Optional fields include meal preferences and seat selection where available.
+
+All required fields are validated including proper date formats and passport details. Users review the terms and conditions and click **"Continue"** or **"Proceed to Payment"** to advance to the payment page. Incomplete or invalid fields display inline errors and block progression.
 
 ---
 
 ## 9. Tours Search & Listing
-![Tours Search](images/9_tours_search.png)
-![Tours Listing](images/9_tours_listing.png)
 
-The tours search section allows users to browse by destination, travel dates, tour type (adventure, cultural, cruise, wildlife, etc.), duration, and budget range. The tours listing page displays available tour packages with an attractive image, tour name, destination, duration (e.g., 5 Days / 4 Nights), starting price per person, brief description, highlights, and a View Details button. Sidebar filters enable users to narrow results by destination, tour type, price range, duration, and departure dates. Each tour card may also show availability status and ratings from previous travelers. Users can sort tours by popularity, price, duration, or rating.
+The tours search form (accessible from the Tours tab on the home page or via the **Tours** link in the top navigation) contains: Destination (autocomplete), Travel dates (date range picker), Tour type (dropdown: Adventure, Cultural, Cruise, Wildlife, etc.), Duration (dropdown), and Budget range (price slider).
+
+After clicking **Search**, required fields are validated and the user is redirected to the tours listing page.
+
+Each tour card displays: tour image, tour name, destination, duration (e.g., 5 Days / 4 Nights), starting price per person, brief description, highlights, availability status, traveler rating, and a **"View Details"** button.
+
+The listing page left sidebar includes collapsible filters: Destination, Tour type, Price range (slider), Duration, and Departure dates. Results update dynamically. Sorting options allow ordering by: Popularity, Price, Duration, and Rating.
 
 ---
 
 ## 10. Tour Details & Booking
-![Tour Details](images/10_tour_details.png)
-![Tour Booking](images/10_tour_booking.png)
 
-The tour details page provides comprehensive information including a slideshow of tour images, detailed itinerary (day-by-day breakdown), inclusion and exclusions (meals, accommodation, activities, transportation), departure dates and availability, pricing per person (with group size considerations), location map, guest reviews, and terms and conditions. Users select a departure date from available options, specify number of travelers (adults and children with age), and click Book Now to proceed to the booking form. The booking form collects traveler information, contact details, special requirements, and displays the total cost breakdown. After completing the form and agreeing to terms, users proceed to payment.
+Clicking a tour card opens the tour details page, which displays:
+
+- A **slideshow** of tour images
+- Full **day-by-day itinerary**
+- **Inclusions and exclusions** (meals, accommodation, activities, transportation)
+- **Departure dates and availability** calendar
+- **Pricing per person** broken down by adult and child rates, with group-size considerations
+- **Location map**
+- **Guest reviews and ratings**
+- **Terms and conditions**
+
+The user selects a departure date from available options, specifies the number of travelers (Adults and Children with age), and clicks **"Book Now"** to proceed to the booking form. The booking form collects traveler names, contact details, special requirements, and displays the total cost breakdown (per-person rate multiplied by number of travelers, plus taxes and fees). After completing the form and agreeing to terms, the user proceeds to payment. Unauthenticated users are redirected to the login page before proceeding.
 
 ---
 
 ## 11. Cars Search & Listing
-![Cars Search](images/11_cars_search.png)
-![Cars Listing](images/11_cars_listing.png)
 
-The car rental search form includes fields for pick-up location (city or specific address), drop-off location (same or different), pick-up date and time, drop-off date and time, and driver age. After searching, users see available vehicles grouped by category (economy, compact, SUV, luxury, van). Each car listing shows the vehicle image, make and model, transmission type (automatic/manual), fuel policy, seating capacity, luggage capacity, features (AC, GPS, etc.), price per day and total rental cost, and a Book Now or View Details button. Filters on the sidebar allow narrowing by car type, transmission, fuel policy, rental company, and price. Users can compare multiple vehicles and view detailed specifications before booking.
+The car rental search form (accessible from the Cars tab on the home page or via the **Cars** link in the top navigation) contains: Pick-up location (autocomplete), Drop-off location (autocomplete, defaults to same as pick-up), Pick-up date and time (date/time picker), Drop-off date and time (date/time picker), and Driver age (numeric input).
+
+After clicking **Search**, required fields are validated and the user is redirected to the cars listing page. Available vehicles are grouped by category (Economy, Compact, SUV, Luxury, Van).
+
+Each car listing displays: vehicle image, make and model, transmission type (Automatic / Manual), fuel policy, seating capacity, luggage capacity, feature icons (AC, GPS, etc.), price per day, total rental cost for the selected period, and a **"Book Now"** or **"View Details"** button.
+
+The listing page left sidebar includes collapsible filters: Car type (checkboxes), Transmission (checkboxes), Fuel policy (checkboxes), Rental company (checkboxes), and Price range (slider). Results update dynamically as filters are applied.
 
 ---
 
 ## 12. Car Booking
-![Car Booking](images/12_car_booking.png)
 
-The car booking page displays the selected vehicle details, rental period summary, pick-up and drop-off locations and times, and pricing breakdown (daily rate, taxes, insurance options, additional fees). Users fill in driver information (name, age, license number, license issue country, contact details), select insurance and add-ons (GPS, child seat, additional driver), and provide payment information. The form includes terms and conditions regarding fuel policy, mileage limits, damage liability, and cancellation policy. After reviewing all details and accepting terms, users confirm the booking and proceed to payment.
+After selecting a vehicle from the listing page, the user is taken to the car booking page, which displays: selected vehicle details (make, model, category, features), rental period summary, pick-up and drop-off locations and times, and a full pricing breakdown (daily rate, number of rental days, taxes, insurance options, and additional fees).
+
+The booking form collects driver information: **Full Name**, **Age**, **Driver's License Number**, **License Issue Country**, **Email**, and **Phone Number**. Optional add-ons include GPS, child seat, and additional driver. Users select an insurance option from the available plans. The page displays terms and conditions covering fuel policy, mileage limits, damage liability, and cancellation policy.
+
+After reviewing all details and accepting the terms, the user clicks **"Confirm Booking"** and proceeds to payment. Incomplete or invalid fields display inline errors and block progression.
 
 ---
 
 ## 13. Visa Services
-![Visa Services](images/13_visa_services.png)
 
-The Visa section allows users to check visa requirements and apply for visa services. Users select their nationality and destination country to see visa requirements, processing time, required documents, and visa fees. The visa application page includes a form for personal information (full name, passport details, date of birth, nationality, contact information), travel details (purpose of visit, intended travel dates, duration of stay), and document upload functionality for required paperwork (passport copy, photos, invitation letter, etc.). Users can track their visa application status through their account dashboard. This section may be informational or fully functional depending on the demo configuration.
+The Visa section is accessible via the **Visa** link in the top navigation. Users begin by selecting their **Nationality** (dropdown) and **Destination Country** (dropdown) to view visa requirements for that combination. The results display: visa type, processing time, required documents, and visa fees.
+
+The visa application form collects personal information: **Full Name**, **Passport Number**, **Passport Expiry Date**, **Date of Birth**, **Nationality**, **Email**, and **Phone Number**. Travel details include: **Purpose of Visit** (dropdown), **Intended Travel Dates**, and **Duration of Stay**. A document upload section allows attaching required files such as passport copy, photographs, invitation letter, and supporting documents. After submission, users can track their visa application status through the bookings section of their account dashboard.
 
 ---
 
 ## 14. User Dashboard
-![User Dashboard](images/14_dashboard.png)
 
-After login, users access their account dashboard which serves as the control center for managing all travel-related activities. The dashboard includes sections for: My Bookings (displaying all past and upcoming bookings for hotels, flights, tours, and cars with booking reference numbers, dates, status, and action buttons like View Details, Cancel, or Modify), My Profile (personal information, contact details, passport information, with Edit functionality), Wallet or Credits (available credits, transaction history), Wishlist (saved hotels, tours, or flights), Reviews (ability to rate and review completed bookings), Settings (password change, notification preferences, currency and language selection), and Logout option. Each booking card shows essential information and allows users to download booking confirmations, invoices, or vouchers.
+After login, users are redirected to their account dashboard, which serves as the central control area for all account and booking activities. The dashboard is organized into the following sections:
+
+- **My Bookings** — displays all past and upcoming bookings across Hotels, Flights, Tours, and Cars. Each booking card shows the booking reference number, service type, travel dates, booking status (Pending, Confirmed, Cancelled), and action buttons including **"View Details"**, **"Cancel"**, and **"Modify"** where the booking type and cancellation policy permit. Users can download booking confirmations, invoices, or vouchers from each booking record.
+- **My Profile** — shows the user's personal information (name, email, phone, address, passport details) with an **"Edit"** button to update details.
+- **Wallet / Credits** — displays available credit balance and a full transaction history of credits earned and used.
+- **Wishlist** — shows hotels, tours, or flights the user has saved for later.
+- **Reviews** — allows users to rate and review completed bookings by submitting star ratings and written feedback.
+- **Settings** — provides controls for changing password, managing notification preferences, and selecting default currency and language.
+- **Logout** — ends the session and redirects to the home page.
 
 ---
 
 ## 15. Booking Management
-![Booking Management](images/15_booking_management.png)
 
-Within the dashboard or via email confirmation links, users can manage their bookings. For each booking, users can view complete details including confirmation numbers, property/flight/tour information, traveler details, payment information, and booking status (pending, confirmed, cancelled). Depending on the cancellation policy and booking type, users may see options to Modify or Cancel bookings. The modification process allows changing dates (subject to availability and fees), adding special requests, or updating traveler information. The cancellation flow shows applicable refund amounts based on cancellation policy, requires confirmation, and processes refunds according to payment method. Users receive email notifications for all booking activities.
+From the **My Bookings** section of the dashboard, or via confirmation links in booking emails, users can manage existing bookings. Each booking's detail view displays: confirmation number, full property or flight or tour information, traveler details, payment information, and current booking status.
+
+**Modification:** Where the booking type and cancellation policy permit, a **"Modify"** button is available. The modification flow allows changing travel dates (subject to availability and applicable fees), adding special requests, or updating traveler information. Changes are validated against current availability before being confirmed.
+
+**Cancellation:** Clicking **"Cancel"** opens a cancellation confirmation flow. The system displays the applicable refund amount based on the booking's cancellation policy and requires explicit user confirmation before processing. Once confirmed, the cancellation is processed and a refund is initiated to the original payment method. Users receive email notifications for all booking status changes including confirmation, modification, and cancellation.
 
 ---
 
 ## 16. Payment Processing
-![Payment Processing](images/16_payment.png)
 
-After completing booking details, users proceed to the payment page which displays a comprehensive booking summary including all selected services, price breakdown (base price, taxes, service fees, discounts), and total amount. The payment section offers multiple payment methods including credit/debit cards (Visa, MasterCard, American Express), PayPal, bank transfer, or wallet/credits if available. The credit card form includes fields for cardholder name, card number, expiration date, and CVV, all validated in real-time. Users may see options to save payment methods for future use. The page displays security badges and SSL encryption information. After successful payment processing, users receive a booking confirmation page with booking reference number, email confirmation, and options to download invoice or voucher. Failed payments show appropriate error messages and allow users to retry with different payment methods.
+After completing booking details for any service type, the user is taken to the payment page, which displays a full booking summary: all selected services, price breakdown (base price, taxes, service fees, applicable discounts), and the total amount due.
+
+The payment section offers the following methods: **Credit/Debit Card** (Visa, MasterCard, American Express), **PayPal**, **Bank Transfer**, and **Wallet / Credits** (if the user has an available balance). The credit/debit card form contains: **Cardholder Name**, **Card Number** (validated in real-time for format and card type), **Expiration Date**, and **CVV**. A checkbox allows users to save their payment method for future use.
+
+The page displays security badges and SSL encryption indicators. After clicking **"Pay Now"** or **"Confirm Payment"**, the system processes the transaction. On success, the user is taken to a booking confirmation page showing the booking reference number, a booking summary, and options to download the invoice or voucher. An email confirmation is sent to the registered email address.
+
+If payment fails, an error message appears describing the issue (e.g., "Card declined," "Insufficient funds"), and the user is offered the option to retry with the same or a different payment method without losing their booking details.
 
 ---
 
 ## 17. Currency & Language Selection
-![Currency Language Selection](images/17_currency_language.png)
 
-The top navigation includes dropdowns for currency and language selection. The currency selector shows common currencies (USD, EUR, GBP, etc.) with flags and codes. Selecting a currency updates all prices throughout the site in real-time without losing search context or cart items. Similarly, the language selector offers multiple languages (English, Arabic, Spanish, French, etc.) and switches the entire interface to the selected language. These preferences are saved in session/cookies and persist across pages. For authenticated users, these preferences may be saved to their profile.
+The top navigation bar includes two selector dropdowns on the right side: **Currency** and **Language**.
+
+The **currency selector** displays a list of supported currencies with flag icons and currency codes (e.g., USD, EUR, GBP). Selecting a currency immediately updates all prices displayed across the entire site in real-time without losing the user's current search context. For authenticated users, the selected currency is saved to their profile. For unauthenticated users, the preference is stored in session/cookies and persists across pages.
+
+The **language selector** displays supported languages (e.g., English, Arabic, Spanish, French). Selecting a language switches the entire site interface — including navigation labels, form labels, and content — to the chosen language. For authenticated users, the language preference is saved to their profile. For unauthenticated users, the preference is stored in session/cookies for the current browsing session.
 
 ---
 
 ## 18. Search & Filters
-![Search Filters](images/18_filters.png)
 
-All listing pages (hotels, flights, tours, cars) include robust filtering and sorting capabilities. The left sidebar contains collapsible filter sections for price range (with slider), ratings (star ratings for hotels, review scores), amenities/features (checkboxes for facilities), location/area (for hotels), departure times (for flights), duration (for tours), vehicle type (for cars), and more specific filters relevant to each category. As users select filters, results update dynamically without page refresh, showing the number of matching results. Users can clear individual filters or reset all filters at once. A summary of active filters appears at the top of results with quick remove options.
+All listing pages (Hotels, Flights, Tours, Cars) include a **left sidebar** with collapsible filter sections and sorting controls above the results grid.
+
+**Common filters across all listing types:** Price range (slider with minimum and maximum values) and Star or review ratings (checkboxes).
+
+**Listing-specific filters:**
+- **Hotels:** Facilities/amenities (checkboxes), Hotel type (checkboxes), Board basis (checkboxes), Location/area (checkboxes)
+- **Flights:** Airlines (checkboxes), Number of stops (checkboxes), Departure time range (time slider), Arrival time range (time slider)
+- **Tours:** Tour type (checkboxes), Duration (checkboxes), Departure dates
+- **Cars:** Car type (checkboxes), Transmission (checkboxes), Fuel policy (checkboxes), Rental company (checkboxes)
+
+As users select or adjust filters, results update dynamically without a full page refresh and the result count updates accordingly. Active filters are summarized at the top of the results area with individual **"×"** remove buttons and a **"Reset all filters"** control to clear all selections at once.
 
 ---
 
 ## 19. Reviews & Ratings
-![Reviews Ratings](images/19_reviews_ratings.png)
 
-Throughout the site, users can see reviews and ratings for hotels, tours, and cars. On listing pages, each item shows an aggregate rating (e.g., 4.5/5 stars) and number of reviews. On detail pages, a dedicated reviews section displays individual guest reviews with ratings (overall, and category-specific like cleanliness, service, location), reviewer name and country, review date, stay date, and detailed comments. Reviews may include photos uploaded by guests. Users can filter reviews by rating, date, or traveler type. Authenticated users who have completed bookings can submit their own reviews through their dashboard or via email prompts after their stay/trip. The review form includes rating sliders/stars for different aspects and a text area for detailed feedback.
+Reviews and ratings are displayed on hotel, tour, and car listing and detail pages. On listing pages, each item shows an aggregate rating score (e.g., 4.5 / 5) and total review count. On detail pages, a dedicated **Reviews** section displays individual guest reviews containing: overall rating, category-specific ratings (e.g., Cleanliness, Service, Location for hotels), reviewer name and country, review submission date, travel/stay date, written comments, and any guest-uploaded photos. Users can filter displayed reviews by rating, date, or traveler type.
+
+Authenticated users who have completed a booking can submit their own review through the **Reviews** section of their dashboard or via a post-stay email prompt. The review submission form includes star rating selectors for overall experience and individual categories, and a text area for detailed written feedback.
 
 ---
 
 ## 20. Offers & Deals
-![Offers Deals](images/20_offers_deals.png)
 
-The Offers page showcases special deals, promotions, and packages. It displays promotional banners, featured deals with discount percentages or special rates, last-minute offers, and seasonal packages. Each offer card shows the deal title, attractive image, discount information, validity period, terms and conditions link, and a Book Now button. Users can filter offers by type (hotels, flights, packages), destination, or travel dates. Clicking on an offer applies the promotional code automatically or takes users to pre-filled search with discounted rates. Newsletter subscription options may be available to receive exclusive deals via email.
+The Offers page is accessible via the **Offers** link in the top navigation. The page displays promotional banners and featured deal cards, each showing: deal title, image, discount percentage or special rate, validity period, a **"Terms and Conditions"** link, and a **"Book Now"** button. Last-minute offers and seasonal packages are listed alongside standard promotions.
+
+Users can filter displayed offers by: service type (Hotels, Flights, Packages), destination, and travel dates. Clicking **"Book Now"** on an offer either applies the promotional code automatically to the booking flow or redirects to a pre-filled search page with the discounted rates applied. A newsletter subscription field on the page allows users to submit their email address to receive future exclusive deals.
 
 ---
 
 ## Logout
-The logout function is accessible from the user dropdown menu in the top navigation or from the dashboard. When clicked, the system terminates the user session, clears sensitive session data, and redirects the user to the home page or login page. A confirmation message may appear confirming successful logout. After logout, any attempt to access protected pages (like dashboard or bookings) redirects to the login page. The shopping cart or search criteria may be cleared depending on session configuration.
+
+The logout option is accessible from the user dropdown menu in the top navigation bar and from the account dashboard. Clicking **"Logout"** terminates the current user session, clears sensitive session data, and redirects the user to the home page. After logout, any attempt to access a protected page (such as the dashboard or booking management) redirects the user to the login page.
