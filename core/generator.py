@@ -30,12 +30,14 @@ class TestCaseGenerator:
         provider: str = "openai",
         debug: bool = False,
         debug_file: str = "debug_log.txt",
+        mode: str = "full",
     ):
         self.api_key = api_key
         self.model = model
         self.provider = provider
         self.debug = debug
         self.debug_file = debug_file
+        self.mode = mode
 
         # Initialize debug session once
         if debug:
@@ -43,7 +45,7 @@ class TestCaseGenerator:
             BaseAgent.init_debug_session(debug_file, model)
 
         # Compile the LangGraph pipeline once
-        self.graph = build_graph()
+        self.graph = build_graph(mode=mode)
 
     # ------------------------------------------------------------------
     # Public API
@@ -67,7 +69,8 @@ class TestCaseGenerator:
         """
 
         print("=" * 60)
-        print("TESTWRIGHT  (LangGraph Pipeline)")
+        mode_label = "basic (no post-verification)" if self.mode == "basic" else "full"
+        print(f"TESTWRIGHT  (LangGraph Pipeline — {mode_label} mode)")
         print("=" * 60)
         if self.debug:
             print(f"Debug mode: ON (logging to {self.debug_file})")

@@ -35,6 +35,16 @@ def main():
     parser.add_argument("--output", "-o", default="output", help="Output directory (default: output)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
+    parser.add_argument(
+        "--mode",
+        default="full",
+        choices=["full", "basic"],
+        help=(
+            "Pipeline mode: 'full' (default) runs all nodes including post-verification "
+            "and execution planning; 'basic' stops after assembler — no verification "
+            "flagging, RAG matching, or execution plans are generated."
+        ),
+    )
 
     # Export markdown subcommand
     export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
@@ -69,6 +79,8 @@ def _generate(args):
     # Build functional description from input
     if input_path.is_dir():
         functional_desc = _load_from_directory(input_path)
+    elif input_path.suffix.lower() == ".md":
+        functional_desc = _load_from_markdown_file(input_path)
     else:
         with open(input_path, 'r') as f:
             functional_desc = json.load(f)
@@ -79,6 +91,7 @@ def _generate(args):
         provider=args.provider,
         debug=args.debug,
         debug_file=args.debug_file,
+        mode=args.mode,
     )
 
     output = generator.generate(functional_desc, output_dir=args.output)
@@ -96,8 +109,14 @@ def _load_from_directory(dir_path: Path) -> dict:
     mock_file = dir_path / "mock_data.md"
 
     if not spec_file.exists():
-        print(f"Error: functional_specification.md not found in {dir_path}")
-        sys.exit(1)
+        # Fall back to any single .md file in the directory
+        md_files = list(dir_path.glob("*.md"))
+        if len(md_files) == 1:
+            spec_file = md_files[0]
+            print(f"  Using {spec_file.name} as functional specification")
+        else:
+            print(f"Error: functional_specification.md not found in {dir_path}")
+            sys.exit(1)
 
     # Read the specification
     spec_text = spec_file.read_text(encoding='utf-8')
@@ -143,6 +162,38 @@ def _load_from_directory(dir_path: Path) -> dict:
         "navigation_overview": navigation_overview,
         "mock_data": mock_data,
         "modules": modules
+    }
+
+
+def _load_from_markdown_file(md_path: Path) -> dict:
+    """Load functional description from a single markdown file passed directly."""
+    spec_text = md_path.read_text(encoding='utf-8')
+
+    modules = []
+    current_module = None
+    module_id = 0
+
+    for line in spec_text.split('\n'):
+        if line.startswith('## '):
+            if current_module:
+                modules.append(current_module)
+            module_id += 1
+            title = line[3:].strip()
+            current_module = {"id": module_id, "title": title, "description": ""}
+        elif current_module:
+            current_module["description"] += line + "\n"
+
+    if current_module:
+        modules.append(current_module)
+
+    project_name = md_path.stem.replace('-', ' ').replace('_', ' ').title()
+
+    return {
+        "project_name": project_name,
+        "website_url": "",
+        "navigation_overview": "",
+        "mock_data": "",
+        "modules": modules,
     }
 
 

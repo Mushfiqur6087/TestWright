@@ -262,7 +262,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
 
     output = state["output"]
     module_summaries = state["module_summaries"]
-    plan_summary = state["plan_summary"]
+    plan_summary = state.get("plan_summary") or {}
     output_dir = state["output_dir"]
 
     # -- Enhanced summary -----------------------------------------------------
