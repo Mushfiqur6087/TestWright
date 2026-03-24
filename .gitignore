@@ -8,3 +8,4 @@ __pycache__/
 # Claude instruction files
 claude.md
 CLAUDE.md
+.venv/

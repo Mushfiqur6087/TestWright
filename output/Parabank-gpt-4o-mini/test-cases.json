@@ -1,0 +1,3411 @@
+{
+  "project_name": "Parabank",
+  "base_url": "",
+  "generated_at": "2026-03-23T21:41:44.163365",
+  "navigation_graph": {
+    "login_module_id": 1,
+    "graph_image_path": null,
+    "nodes": [
+      {
+        "module_id": 1,
+        "title": "login",
+        "requires_auth": false,
+        "url_path": "/login",
+        "connected_to": [
+          2,
+          3,
+          4
+        ],
+        "test_case_ids": [
+          "1.LOGIN-001",
+          "1.LOGIN-002",
+          "1.LOGIN-003",
+          "1.LOGIN-004",
+          "1.LOGIN-005",
+          "1.LOGIN-006",
+          "1.LOGIN-007",
+          "1.LOGIN-008",
+          "1.LOGIN-009",
+          "1.LOGIN-010"
+        ]
+      },
+      {
+        "module_id": 2,
+        "title": "register",
+        "requires_auth": false,
+        "url_path": "/register",
+        "connected_to": [
+          1
+        ],
+        "test_case_ids": [
+          "2.REGIST-001",
+          "2.REGIST-002",
+          "2.REGIST-003",
+          "2.REGIST-004",
+          "2.REGIST-005",
+          "2.REGIST-006",
+          "2.REGIST-007",
+          "2.REGIST-008",
+          "2.REGIST-009",
+          "2.REGIST-010",
+          "2.REGIST-011",
+          "2.REGIST-012",
+          "2.REGIST-013",
+          "2.REGIST-014",
+          "2.REGIST-015",
+          "2.REGIST-016",
+          "2.REGIST-017",
+          "2.REGIST-018",
+          "2.REGIST-019",
+          "2.REGIST-020"
+        ]
+      },
+      {
+        "module_id": 3,
+        "title": "accounts_overview",
+        "requires_auth": true,
+        "url_path": "/accounts-overview",
+        "connected_to": [
+          5,
+          6,
+          4,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          1
+        ],
+        "test_case_ids": [
+          "3.ACCOUN-001",
+          "3.ACCOUN-002",
+          "3.ACCOUN-003",
+          "3.ACCOUN-004",
+          "3.ACCOUN-005"
+        ]
+      },
+      {
+        "module_id": 4,
+        "title": "open_new_account",
+        "requires_auth": true,
+        "url_path": "/open-new-account",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "4.OPEN_N-001",
+          "4.OPEN_N-002",
+          "4.OPEN_N-003",
+          "4.OPEN_N-004",
+          "4.OPEN_N-005",
+          "4.OPEN_N-006",
+          "4.OPEN_N-007",
+          "4.OPEN_N-008",
+          "4.OPEN_N-009",
+          "4.OPEN_N-010",
+          "4.OPEN_N-011"
+        ]
+      },
+      {
+        "module_id": 5,
+        "title": "transfer_funds",
+        "requires_auth": true,
+        "url_path": "/transfer-funds",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "5.TRANSF-001",
+          "5.TRANSF-002",
+          "5.TRANSF-003",
+          "5.TRANSF-004",
+          "5.TRANSF-005",
+          "5.TRANSF-006",
+          "5.TRANSF-007",
+          "5.TRANSF-008",
+          "5.TRANSF-009"
+        ]
+      },
+      {
+        "module_id": 6,
+        "title": "payments",
+        "requires_auth": true,
+        "url_path": "/bill-pay",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "6.PAYMEN-001",
+          "6.PAYMEN-002",
+          "6.PAYMEN-003",
+          "6.PAYMEN-004",
+          "6.PAYMEN-005",
+          "6.PAYMEN-006",
+          "6.PAYMEN-007",
+          "6.PAYMEN-008",
+          "6.PAYMEN-009",
+          "6.PAYMEN-010",
+          "6.PAYMEN-011",
+          "6.PAYMEN-012",
+          "6.PAYMEN-013",
+          "6.PAYMEN-014"
+        ]
+      },
+      {
+        "module_id": 7,
+        "title": "request_loan",
+        "requires_auth": false,
+        "url_path": "/request-loan",
+        "connected_to": [
+          1
+        ],
+        "test_case_ids": [
+          "7.REQUES-001",
+          "7.REQUES-002",
+          "7.REQUES-003",
+          "7.REQUES-004",
+          "7.REQUES-005",
+          "7.REQUES-006",
+          "7.REQUES-007",
+          "7.REQUES-008",
+          "7.REQUES-009"
+        ]
+      },
+      {
+        "module_id": 8,
+        "title": "update_contact_info",
+        "requires_auth": true,
+        "url_path": "/update-contact-info",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "8.UPDATE-001",
+          "8.UPDATE-002",
+          "8.UPDATE-003",
+          "8.UPDATE-004",
+          "8.UPDATE-005",
+          "8.UPDATE-006",
+          "8.UPDATE-007",
+          "8.UPDATE-008",
+          "8.UPDATE-009",
+          "8.UPDATE-010",
+          "8.UPDATE-011"
+        ]
+      },
+      {
+        "module_id": 9,
+        "title": "manage_cards",
+        "requires_auth": true,
+        "url_path": "/manage-cards",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "9.MANAGE-001",
+          "9.MANAGE-002",
+          "9.MANAGE-003",
+          "9.MANAGE-004",
+          "9.MANAGE-005",
+          "9.MANAGE-006",
+          "9.MANAGE-007",
+          "9.MANAGE-008",
+          "9.MANAGE-009",
+          "9.MANAGE-010",
+          "9.MANAGE-011",
+          "9.MANAGE-012"
+        ]
+      },
+      {
+        "module_id": 10,
+        "title": "investments",
+        "requires_auth": true,
+        "url_path": "/investments",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "10.INVEST-001",
+          "10.INVEST-002",
+          "10.INVEST-003",
+          "10.INVEST-004",
+          "10.INVEST-005",
+          "10.INVEST-006",
+          "10.INVEST-007",
+          "10.INVEST-008",
+          "10.INVEST-009",
+          "10.INVEST-010",
+          "10.INVEST-011",
+          "10.INVEST-012",
+          "10.INVEST-013",
+          "10.INVEST-014",
+          "10.INVEST-015",
+          "10.INVEST-016",
+          "10.INVEST-017",
+          "10.INVEST-018"
+        ]
+      },
+      {
+        "module_id": 11,
+        "title": "account_statements",
+        "requires_auth": false,
+        "url_path": "/account-statements",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "11.ACCOUN-001",
+          "11.ACCOUN-002",
+          "11.ACCOUN-003",
+          "11.ACCOUN-004",
+          "11.ACCOUN-005",
+          "11.ACCOUN-006",
+          "11.ACCOUN-007",
+          "11.ACCOUN-008",
+          "11.ACCOUN-009",
+          "11.ACCOUN-010",
+          "11.ACCOUN-011"
+        ]
+      },
+      {
+        "module_id": 12,
+        "title": "security_settings",
+        "requires_auth": true,
+        "url_path": "/security-settings",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "12.SECURI-001",
+          "12.SECURI-002",
+          "12.SECURI-003",
+          "12.SECURI-004",
+          "12.SECURI-005",
+          "12.SECURI-006",
+          "12.SECURI-007"
+        ]
+      },
+      {
+        "module_id": 13,
+        "title": "support_center",
+        "requires_auth": false,
+        "url_path": "/support-center",
+        "connected_to": [
+          3
+        ],
+        "test_case_ids": [
+          "13.SUPPOR-001",
+          "13.SUPPOR-002",
+          "13.SUPPOR-003",
+          "13.SUPPOR-004",
+          "13.SUPPOR-005",
+          "13.SUPPOR-006",
+          "13.SUPPOR-007",
+          "13.SUPPOR-008",
+          "13.SUPPOR-009",
+          "13.SUPPOR-010",
+          "13.SUPPOR-011",
+          "13.SUPPOR-012",
+          "13.SUPPOR-013",
+          "13.SUPPOR-014"
+        ]
+      }
+    ]
+  },
+  "module_summaries": [
+    {
+      "module_id": 1,
+      "module_title": "login",
+      "summary": "Users can log in using their credentials. Displays validation messages and redirects upon successful authentication.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "redirect"
+      ],
+      "can_verify_states": [
+        "login_status"
+      ],
+      "action_states": []
+    },
+    {
+      "module_id": 2,
+      "module_title": "register",
+      "summary": "Users can register for a new account by filling out a form. Displays validation messages and success confirmation upon registration.",
+      "verification_keywords": [
+        "display",
+        "confirmation",
+        "validation"
+      ],
+      "can_verify_states": [
+        "registration_status"
+      ],
+      "action_states": [
+        "account_created"
+      ]
+    },
+    {
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "summary": "Users can view an overview of their accounts. Displays account details including balance and status.",
+      "verification_keywords": [
+        "view",
+        "display",
+        "status"
+      ],
+      "can_verify_states": [
+        "account_overview"
+      ],
+      "action_states": []
+    },
+    {
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "summary": "Users can open a new account by selecting account type and entering deposit details. Displays validation messages and success confirmation upon account opening.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "account_opening_status"
+      ],
+      "action_states": [
+        "account_created"
+      ]
+    },
+    {
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "summary": "Users can transfer funds between accounts or to external accounts. Displays validation messages and success confirmation upon transfer completion.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "transfer_status"
+      ],
+      "action_states": [
+        "funds_transferred"
+      ]
+    },
+    {
+      "module_id": 6,
+      "module_title": "payments",
+      "summary": "Users can pay bills by entering payee and payment details. Displays validation messages and success confirmation upon payment submission.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "payment_status"
+      ],
+      "action_states": [
+        "payment_processed"
+      ]
+    },
+    {
+      "module_id": 7,
+      "module_title": "request_loan",
+      "summary": "Users can request a loan by selecting type and entering loan details. Displays validation messages and success confirmation upon loan approval.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "loan_request_status"
+      ],
+      "action_states": [
+        "loan_requested"
+      ]
+    },
+    {
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "summary": "Users can update their contact information through an editable form. Displays validation messages and success confirmation upon profile update.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "profile_update_status"
+      ],
+      "action_states": [
+        "profile_updated"
+      ]
+    },
+    {
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "summary": "Users can manage their cards by requesting new cards or updating existing ones. Displays validation messages and success confirmation upon card request.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "card_management_status"
+      ],
+      "action_states": [
+        "card_requested"
+      ]
+    },
+    {
+      "module_id": 10,
+      "module_title": "investments",
+      "summary": "Users can manage investments by buying or selling funds. Displays portfolio snapshot and validation messages upon trade execution.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "snapshot"
+      ],
+      "can_verify_states": [
+        "investment_status"
+      ],
+      "action_states": [
+        "trade_executed"
+      ]
+    },
+    {
+      "module_id": 11,
+      "module_title": "account_statements",
+      "summary": "Users can generate account statements for specific periods. Displays statement generation status and relevant transactions.",
+      "verification_keywords": [
+        "display",
+        "status",
+        "transactions"
+      ],
+      "can_verify_states": [
+        "statement_generation_status"
+      ],
+      "action_states": []
+    },
+    {
+      "module_id": 12,
+      "module_title": "security_settings",
+      "summary": "Users can change their password through a secure form. Displays validation messages and success confirmation upon password change.",
+      "verification_keywords": [
+        "display",
+        "validation",
+        "confirmation"
+      ],
+      "can_verify_states": [
+        "password_change_status"
+      ],
+      "action_states": [
+        "password_updated"
+      ]
+    },
+    {
+      "module_id": 13,
+      "module_title": "support_center",
+      "summary": "Users can send messages or schedule callbacks for support. Displays confirmation messages and ticket IDs upon successful submission.",
+      "verification_keywords": [
+        "display",
+        "confirmation",
+        "ticket"
+      ],
+      "can_verify_states": [
+        "support_request_status"
+      ],
+      "action_states": [
+        "support_message_sent"
+      ]
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "1.LOGIN-001",
+      "title": "Login with valid email and password",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a valid password in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Signed in successfully.' and redirect to the Accounts Overview page"
+    },
+    {
+      "id": "1.LOGIN-002",
+      "title": "Login with valid username and password",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid username in the Email/Username field",
+        "Enter a valid password in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Signed in successfully.' and redirect to the Accounts Overview page"
+    },
+    {
+      "id": "1.LOGIN-003",
+      "title": "Email/Username field empty",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave the Email/Username field empty",
+        "Enter a valid password in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-004",
+      "title": "Password field empty",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Leave the Password field empty",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-005",
+      "title": "Invalid email format",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter an invalid email format in the Email/Username field",
+        "Enter a valid password in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-006",
+      "title": "Password too short",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a password shorter than 8 characters in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-007",
+      "title": "Password missing uppercase letter",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a password without an uppercase letter in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-008",
+      "title": "Password missing lowercase letter",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a password without a lowercase letter in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-009",
+      "title": "Password missing number",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a password without a number in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "1.LOGIN-010",
+      "title": "Password missing special character",
+      "module_id": 1,
+      "module_title": "login",
+      "workflow": "Login with credentials",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid email address in the Email/Username field",
+        "Enter a password without a special character in the Password field",
+        "Click on the Sign In button"
+      ],
+      "expected_result": "Show 'Incorrect email or password. Please try again,' and clear the password field"
+    },
+    {
+      "id": "2.REGIST-001",
+      "title": "Successful account registration with valid inputs",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Account created successfully — please sign in"
+    },
+    {
+      "id": "2.REGIST-002",
+      "title": "First Name field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave first name field empty",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for first name field"
+    },
+    {
+      "id": "2.REGIST-003",
+      "title": "Last Name field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Leave last name field empty",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for last name field"
+    },
+    {
+      "id": "2.REGIST-004",
+      "title": "Street Address field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Leave street address field empty",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for street address field"
+    },
+    {
+      "id": "2.REGIST-005",
+      "title": "City field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Leave city field empty",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for city field"
+    },
+    {
+      "id": "2.REGIST-006",
+      "title": "State field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Leave state field empty",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for state field"
+    },
+    {
+      "id": "2.REGIST-007",
+      "title": "ZIP Code field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Leave ZIP code field empty",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for ZIP code field"
+    },
+    {
+      "id": "2.REGIST-008",
+      "title": "Phone Number field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Leave phone number field empty",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for phone number field"
+    },
+    {
+      "id": "2.REGIST-009",
+      "title": "Social Security Number field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Leave social security number field empty",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for social security number field"
+    },
+    {
+      "id": "2.REGIST-010",
+      "title": "Username field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Leave username field empty",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for username field"
+    },
+    {
+      "id": "2.REGIST-011",
+      "title": "Password field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Leave password field empty",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for password field"
+    },
+    {
+      "id": "2.REGIST-012",
+      "title": "Confirm Password field empty",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Leave confirm password field empty",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for confirm password field"
+    },
+    {
+      "id": "2.REGIST-013",
+      "title": "Password and Confirm Password mismatch",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter different password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for password mismatch"
+    },
+    {
+      "id": "2.REGIST-014",
+      "title": "Username not in valid email format",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter invalid username format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for invalid username format"
+    },
+    {
+      "id": "2.REGIST-015",
+      "title": "Phone Number not in valid format",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter invalid phone number format",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for invalid phone number format"
+    },
+    {
+      "id": "2.REGIST-016",
+      "title": "ZIP Code not in valid format",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter invalid ZIP code format",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for invalid ZIP code format"
+    },
+    {
+      "id": "2.REGIST-017",
+      "title": "Social Security Number not in valid format",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter invalid social security number format",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for invalid social security number format"
+    },
+    {
+      "id": "2.REGIST-018",
+      "title": "Password shorter than 8 characters",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter short password",
+        "Enter same short password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Error message displayed for password length requirement"
+    },
+    {
+      "id": "2.REGIST-019",
+      "title": "Maximum length for first name",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter maximum length first name",
+        "Enter valid last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Account created successfully — please sign in"
+    },
+    {
+      "id": "2.REGIST-020",
+      "title": "Maximum length for last name",
+      "module_id": 2,
+      "module_title": "register",
+      "workflow": "Register new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid first name",
+        "Enter maximum length last name",
+        "Enter valid street address",
+        "Enter valid city",
+        "Select valid state",
+        "Enter valid ZIP code",
+        "Enter valid phone number",
+        "Enter valid social security number",
+        "Enter valid username in email format",
+        "Enter valid password",
+        "Enter same password in confirm password field",
+        "Click on register button"
+      ],
+      "expected_result": "Account created successfully — please sign in"
+    },
+    {
+      "id": "3.ACCOUN-001",
+      "title": "Welcome message displays user's name",
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "workflow": "Main workflow",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in",
+      "steps": [
+        "Locate the welcome message element",
+        "Verify the welcome message contains the user's name"
+      ],
+      "expected_result": "Welcome message displays the user's name correctly"
+    },
+    {
+      "id": "3.ACCOUN-002",
+      "title": "Customer accounts table displays correctly",
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "workflow": "Main workflow",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in",
+      "steps": [
+        "Locate the customer accounts table",
+        "Verify the table is displayed",
+        "Verify the table contains rows for each account"
+      ],
+      "expected_result": "Customer accounts table is displayed with all account rows"
+    },
+    {
+      "id": "3.ACCOUN-003",
+      "title": "Account numbers are masked for security",
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "workflow": "Main workflow",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in and has accounts",
+      "steps": [
+        "Locate the account number elements in the table",
+        "Verify each account number displays as **** followed by the last 4 digits"
+      ],
+      "expected_result": "Account numbers are masked correctly"
+    },
+    {
+      "id": "3.ACCOUN-004",
+      "title": "Accounts are ordered by creation date (earliest first)",
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "workflow": "Main workflow",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in and has multiple accounts",
+      "steps": [
+        "Locate the account creation date elements",
+        "Verify the accounts are ordered from earliest to latest"
+      ],
+      "expected_result": "Accounts are displayed in the correct order by creation date"
+    },
+    {
+      "id": "3.ACCOUN-005",
+      "title": "Total balance footer displays correctly",
+      "module_id": 3,
+      "module_title": "accounts_overview",
+      "workflow": "Main workflow",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in and has accounts",
+      "steps": [
+        "Locate the total balance footer",
+        "Verify the total balance matches the sum of current balances of all accounts"
+      ],
+      "expected_result": "Total balance footer displays the correct total balance"
+    },
+    {
+      "id": "4.OPEN_N-001",
+      "title": "Open Checking Account with Valid Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a valid numeric initial deposit amount above $25",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Account opened successfully!"
+    },
+    {
+      "id": "4.OPEN_N-002",
+      "title": "Open Savings Account with Valid Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Savings' as account type",
+        "Enter a valid numeric initial deposit amount above $100",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Account opened successfully!"
+    },
+    {
+      "id": "4.OPEN_N-003",
+      "title": "Initial Deposit Amount Field Empty",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Leave initial deposit amount field empty",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for initial deposit amount"
+    },
+    {
+      "id": "4.OPEN_N-004",
+      "title": "Funding Source Account Field Empty",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a valid numeric initial deposit amount above $25",
+        "Leave funding source account field empty",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for funding source account"
+    },
+    {
+      "id": "4.OPEN_N-005",
+      "title": "Initial Deposit Amount Below Minimum for Checking",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a numeric initial deposit amount of $20",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for initial deposit amount"
+    },
+    {
+      "id": "4.OPEN_N-006",
+      "title": "Initial Deposit Amount Below Minimum for Savings",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Savings' as account type",
+        "Enter a numeric initial deposit amount of $50",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for initial deposit amount"
+    },
+    {
+      "id": "4.OPEN_N-007",
+      "title": "Insufficient Balance in Funding Source Account",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a valid numeric initial deposit amount above $25",
+        "Select a funding source account with insufficient balance",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for insufficient balance"
+    },
+    {
+      "id": "4.OPEN_N-008",
+      "title": "Open Checking Account with Exact Minimum Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a numeric initial deposit amount of $25",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Account opened successfully!"
+    },
+    {
+      "id": "4.OPEN_N-009",
+      "title": "Open Savings Account with Exact Minimum Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Savings' as account type",
+        "Enter a numeric initial deposit amount of $100",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Account opened successfully!"
+    },
+    {
+      "id": "4.OPEN_N-010",
+      "title": "Open Checking Account with Just Below Minimum Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Checking' as account type",
+        "Enter a numeric initial deposit amount of $24.99",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for initial deposit amount"
+    },
+    {
+      "id": "4.OPEN_N-011",
+      "title": "Open Savings Account with Just Below Minimum Initial Deposit",
+      "module_id": 4,
+      "module_title": "open_new_account",
+      "workflow": "Open new account",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Select 'Savings' as account type",
+        "Enter a numeric initial deposit amount of $99.99",
+        "Select a valid funding source account",
+        "Click on 'Open Account' button"
+      ],
+      "expected_result": "Real-time validation error displayed for initial deposit amount"
+    },
+    {
+      "id": "5.TRANSF-001",
+      "title": "Transfer funds successfully from My ParaBank Account",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User has sufficient funds in their Checking account",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter a valid transfer amount",
+        "Select a Checking account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Transfer completed successfully with a transaction ID"
+    },
+    {
+      "id": "5.TRANSF-002",
+      "title": "Transfer funds successfully from Savings Account",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User has sufficient funds in their Savings account",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter a valid transfer amount",
+        "Select a Savings account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Transfer completed successfully with a transaction ID"
+    },
+    {
+      "id": "5.TRANSF-003",
+      "title": "Transfer funds successfully to an External Account",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User has sufficient funds in their Checking account",
+      "steps": [
+        "Select 'External Account' as the transfer type",
+        "Enter a valid transfer amount",
+        "Select a Checking account as the source account",
+        "Enter a valid account number for external transfer",
+        "Confirm the account number matches",
+        "Click the Submit button"
+      ],
+      "expected_result": "Transfer completed successfully with a transaction ID"
+    },
+    {
+      "id": "5.TRANSF-004",
+      "title": "Transfer Amount field empty",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Leave the transfer amount field empty",
+        "Select a Checking account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Error shown indicating Transfer Amount is required"
+    },
+    {
+      "id": "5.TRANSF-005",
+      "title": "Source Account field empty",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter a valid transfer amount",
+        "Leave the source account field empty",
+        "Click the Submit button"
+      ],
+      "expected_result": "Error shown indicating Source Account is required"
+    },
+    {
+      "id": "5.TRANSF-006",
+      "title": "Insufficient funds for transfer",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User has insufficient funds in their Checking account",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter a valid transfer amount greater than available balance",
+        "Select a Checking account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Error shown indicating insufficient funds"
+    },
+    {
+      "id": "5.TRANSF-007",
+      "title": "Account number mismatch for external transfer",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User has sufficient funds in their Checking account",
+      "steps": [
+        "Select 'External Account' as the transfer type",
+        "Enter a valid transfer amount",
+        "Select a Checking account as the source account",
+        "Enter a valid account number for external transfer",
+        "Enter a different account number in the confirm field",
+        "Click the Submit button"
+      ],
+      "expected_result": "Error shown indicating account numbers do not match"
+    },
+    {
+      "id": "5.TRANSF-008",
+      "title": "Transfer Amount at exact boundary value",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "User has sufficient funds in their Checking account",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter an exact boundary transfer amount",
+        "Select a Checking account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Transfer completed successfully with a transaction ID"
+    },
+    {
+      "id": "5.TRANSF-009",
+      "title": "Transfer Amount just below boundary value",
+      "module_id": 5,
+      "module_title": "transfer_funds",
+      "workflow": "Transfer funds",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "User has sufficient funds in their Checking account",
+      "steps": [
+        "Select 'My ParaBank Account' as the transfer type",
+        "Enter a transfer amount just below the boundary",
+        "Select a Checking account as the source account",
+        "Click the Submit button"
+      ],
+      "expected_result": "Transfer completed successfully with a transaction ID"
+    },
+    {
+      "id": "6.PAYMEN-001",
+      "title": "Submit payment with valid inputs",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Payment submitted successfully with a reference code and balances updated"
+    },
+    {
+      "id": "6.PAYMEN-002",
+      "title": "Payee Name field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave Payee Name field empty",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Payee Name field"
+    },
+    {
+      "id": "6.PAYMEN-003",
+      "title": "Street Address field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Leave Street Address field empty",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Street Address field"
+    },
+    {
+      "id": "6.PAYMEN-004",
+      "title": "City field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Leave City field empty",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for City field"
+    },
+    {
+      "id": "6.PAYMEN-005",
+      "title": "State field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Leave State field empty",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for State field"
+    },
+    {
+      "id": "6.PAYMEN-006",
+      "title": "ZIP Code field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Leave ZIP Code field empty",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for ZIP Code field"
+    },
+    {
+      "id": "6.PAYMEN-007",
+      "title": "Phone Number field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Leave Phone Number field empty",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Phone Number field"
+    },
+    {
+      "id": "6.PAYMEN-008",
+      "title": "Payee Account Number field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Leave Payee Account Number field empty",
+        "Enter matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Payee Account Number field"
+    },
+    {
+      "id": "6.PAYMEN-009",
+      "title": "Confirm Account Number field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Leave Confirm Account Number field empty",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Confirm Account Number field"
+    },
+    {
+      "id": "6.PAYMEN-010",
+      "title": "Payment Amount field empty",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Leave Payment Amount field empty",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for Payment Amount field"
+    },
+    {
+      "id": "6.PAYMEN-011",
+      "title": "Account number mismatch",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter non-matching Confirm Account Number",
+        "Enter valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for account number mismatch"
+    },
+    {
+      "id": "6.PAYMEN-012",
+      "title": "Insufficient funds for payment",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter Payment Amount exceeding available funds",
+        "Click Pay button"
+      ],
+      "expected_result": "Error displayed inline for insufficient funds"
+    },
+    {
+      "id": "6.PAYMEN-013",
+      "title": "Submit payment with maximum Payment Amount",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter maximum valid Payment Amount",
+        "Click Pay button"
+      ],
+      "expected_result": "Payment submitted successfully with a reference code and balances updated"
+    },
+    {
+      "id": "6.PAYMEN-014",
+      "title": "Submit payment with Payment Amount just below maximum",
+      "module_id": 6,
+      "module_title": "payments",
+      "workflow": "Submit payment",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter valid Payee Name",
+        "Enter valid Street Address",
+        "Enter valid City",
+        "Select valid State",
+        "Enter valid ZIP Code",
+        "Enter valid Phone Number",
+        "Enter valid Payee Account Number",
+        "Enter matching Confirm Account Number",
+        "Enter Payment Amount just below maximum",
+        "Click Pay button"
+      ],
+      "expected_result": "Payment submitted successfully with a reference code and balances updated"
+    },
+    {
+      "id": "7.REQUES-001",
+      "title": "Successful loan request with valid inputs",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount within the type-specific range",
+        "Enter a valid Down Payment Amount less than the Loan Amount",
+        "Select a valid Collateral Account with sufficient funds",
+        "Select a loan type card"
+      ],
+      "expected_result": "Loan approved and created successfully!"
+    },
+    {
+      "id": "7.REQUES-002",
+      "title": "Loan Amount field empty",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave the Loan Amount field empty",
+        "Enter a valid Down Payment Amount",
+        "Select a valid Collateral Account",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating Loan Amount is required"
+    },
+    {
+      "id": "7.REQUES-003",
+      "title": "Down Payment Amount field empty",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount",
+        "Leave the Down Payment Amount field empty",
+        "Select a valid Collateral Account",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating Down Payment Amount is required"
+    },
+    {
+      "id": "7.REQUES-004",
+      "title": "Collateral Account not selected",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount",
+        "Enter a valid Down Payment Amount",
+        "Leave the Collateral Account unselected",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating Collateral Account must be selected"
+    },
+    {
+      "id": "7.REQUES-005",
+      "title": "Loan Amount exceeds type-specific range",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter an invalid Loan Amount exceeding the maximum limit",
+        "Enter a valid Down Payment Amount",
+        "Select a valid Collateral Account",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating Loan Amount exceeds the allowed range"
+    },
+    {
+      "id": "7.REQUES-006",
+      "title": "Down Payment Amount greater than Loan Amount",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount",
+        "Enter a Down Payment Amount greater than the Loan Amount",
+        "Select a valid Collateral Account",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating Down Payment Amount must be less than Loan Amount"
+    },
+    {
+      "id": "7.REQUES-007",
+      "title": "Insufficient collateral funds",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount",
+        "Enter a valid Down Payment Amount",
+        "Select a valid Collateral Account with insufficient funds",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating insufficient collateral funds"
+    },
+    {
+      "id": "7.REQUES-008",
+      "title": "Collateral value less than 20%",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid Loan Amount",
+        "Enter a valid Down Payment Amount",
+        "Select a valid Collateral Account with less than 20% value",
+        "Select a loan type card"
+      ],
+      "expected_result": "Error message indicating collateral value must be at least 20%"
+    },
+    {
+      "id": "7.REQUES-009",
+      "title": "Display of loan type cards",
+      "module_id": 7,
+      "module_title": "request_loan",
+      "workflow": "Request loan",
+      "test_type": "positive",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Verify that Personal loan type card is displayed",
+        "Verify that Auto loan type card is displayed",
+        "Verify that Home loan type card is displayed"
+      ],
+      "expected_result": "All loan type cards are displayed correctly"
+    },
+    {
+      "id": "8.UPDATE-001",
+      "title": "Update profile with valid contact information",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Profile updated successfully"
+    },
+    {
+      "id": "8.UPDATE-002",
+      "title": "First Name field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave the first name field empty",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "First Name field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-003",
+      "title": "Last Name field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Leave the last name field empty",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Last Name field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-004",
+      "title": "Street Address field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Leave the street address field empty",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Street Address field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-005",
+      "title": "City field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Leave the city field empty",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "City field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-006",
+      "title": "State field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Leave the state field empty",
+        "Enter a valid ZIP code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "State field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-007",
+      "title": "ZIP Code field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Leave the ZIP Code field empty",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "ZIP Code field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-008",
+      "title": "Phone Number field empty",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP code",
+        "Leave the phone number field empty",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Phone Number field is highlighted as required"
+    },
+    {
+      "id": "8.UPDATE-009",
+      "title": "Invalid format for ZIP Code",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter an invalid ZIP Code format",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "ZIP Code field is highlighted for invalid format"
+    },
+    {
+      "id": "8.UPDATE-010",
+      "title": "Invalid format for Phone Number",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name",
+        "Enter a valid last name",
+        "Enter a valid street address",
+        "Enter a valid city",
+        "Select a valid state",
+        "Enter a valid ZIP Code",
+        "Enter an invalid Phone Number format",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Phone Number field is highlighted for invalid format"
+    },
+    {
+      "id": "8.UPDATE-011",
+      "title": "Update profile with maximum length values",
+      "module_id": 8,
+      "module_title": "update_contact_info",
+      "workflow": "Update profile with contact information",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid first name with maximum length",
+        "Enter a valid last name with maximum length",
+        "Enter a valid street address with maximum length",
+        "Enter a valid city with maximum length",
+        "Select a valid state",
+        "Enter a valid ZIP Code",
+        "Enter a valid phone number",
+        "Click on the Update Profile button"
+      ],
+      "expected_result": "Profile updated successfully"
+    },
+    {
+      "id": "9.MANAGE-001",
+      "title": "Request card with valid shipping address",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Request a card",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select a card type from the available options",
+        "Select an account to link from the available accounts",
+        "Enter a valid shipping address",
+        "Click on the Request Card button"
+      ],
+      "expected_result": "Card request submitted successfully with a tracking ID"
+    },
+    {
+      "id": "9.MANAGE-002",
+      "title": "Update card controls with valid spending limit",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a valid new spending limit",
+        "Select a valid travel notice",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Card controls updated successfully"
+    },
+    {
+      "id": "9.MANAGE-003",
+      "title": "Verify card controls updated state after successful update",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "Card controls updated successfully",
+      "steps": [
+        "Check the displayed new spending limit",
+        "Check the displayed travel notice",
+        "Check the displayed card status"
+      ],
+      "expected_result": "Displayed values match the updated card controls"
+    },
+    {
+      "id": "9.MANAGE-004",
+      "title": "Shipping address field empty",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Request a card",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select a card type from the available options",
+        "Select an account to link from the available accounts",
+        "Leave the shipping address field empty",
+        "Click on the Request Card button"
+      ],
+      "expected_result": "Error message displayed indicating that shipping address is required"
+    },
+    {
+      "id": "9.MANAGE-005",
+      "title": "Update card controls with empty spending limit",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Leave the new spending limit field empty",
+        "Select a valid travel notice",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for spending limit field"
+    },
+    {
+      "id": "9.MANAGE-006",
+      "title": "Update card controls with empty travel notice",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a valid new spending limit",
+        "Leave the travel notice field empty",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for travel notice field"
+    },
+    {
+      "id": "9.MANAGE-007",
+      "title": "Update card controls with empty card status",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a valid new spending limit",
+        "Select a valid travel notice",
+        "Leave the card status field empty",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for card status field"
+    },
+    {
+      "id": "9.MANAGE-008",
+      "title": "Update card controls with invalid spending limit",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter an invalid new spending limit",
+        "Select a valid travel notice",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for spending limit field"
+    },
+    {
+      "id": "9.MANAGE-009",
+      "title": "Update card controls with invalid date range for travel notice",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a valid new spending limit",
+        "Enter an invalid travel notice date range",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for travel notice date range"
+    },
+    {
+      "id": "9.MANAGE-010",
+      "title": "Update card controls with invalid card status transition",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a valid new spending limit",
+        "Select a valid travel notice",
+        "Select an invalid card status transition",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Validation error displayed for card status transition"
+    },
+    {
+      "id": "9.MANAGE-011",
+      "title": "Update card controls with maximum spending limit",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter the maximum valid spending limit",
+        "Select a valid travel notice",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Card controls updated successfully"
+    },
+    {
+      "id": "9.MANAGE-012",
+      "title": "Update card controls with spending limit just below maximum",
+      "module_id": 9,
+      "module_title": "manage_cards",
+      "workflow": "Update card controls",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "Card is selected",
+      "steps": [
+        "Enter a spending limit just below the maximum valid limit",
+        "Select a valid travel notice",
+        "Select a valid card status",
+        "Click on Update Controls button"
+      ],
+      "expected_result": "Card controls updated successfully"
+    },
+    {
+      "id": "10.INVEST-001",
+      "title": "Execute trade with valid parameters",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User has sufficient buying power",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Enter a valid Quantity greater than zero in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Trade executed successfully with an order ID displayed"
+    },
+    {
+      "id": "10.INVEST-002",
+      "title": "Create recurring investment plan with valid inputs",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a future date in the start date field",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Recurring investment plan is created successfully"
+    },
+    {
+      "id": "10.INVEST-003",
+      "title": "Fund Symbol field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the Execute Trade page",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Leave the Fund Symbol field empty",
+        "Enter a valid Quantity greater than zero in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Validation error appears indicating the Fund Symbol is required"
+    },
+    {
+      "id": "10.INVEST-004",
+      "title": "Quantity field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the Execute Trade page",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Leave the Quantity field empty",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Validation error appears indicating the Quantity is required"
+    },
+    {
+      "id": "10.INVEST-005",
+      "title": "Quantity less than or equal to zero",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the Execute Trade page",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Enter a Quantity of zero in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Validation error appears indicating Quantity must be greater than zero"
+    },
+    {
+      "id": "10.INVEST-006",
+      "title": "Insufficient buying power",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User has insufficient buying power",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Enter a valid Quantity greater than zero in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Validation error appears indicating insufficient buying power"
+    },
+    {
+      "id": "10.INVEST-007",
+      "title": "Contribution amount field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Leave the contribution amount field empty",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a future date in the start date field",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for contribution amount field"
+    },
+    {
+      "id": "10.INVEST-008",
+      "title": "Frequency field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Leave the frequency field empty",
+        "Select a future date in the start date field",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for frequency field"
+    },
+    {
+      "id": "10.INVEST-009",
+      "title": "Start date field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Leave the start date field empty",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for start date field"
+    },
+    {
+      "id": "10.INVEST-010",
+      "title": "Funding account field empty",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a future date in the start date field",
+        "Leave the funding account field empty",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for funding account field"
+    },
+    {
+      "id": "10.INVEST-011",
+      "title": "Start date is not in the future",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a date in the start date field that is today or in the past",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for start date field"
+    },
+    {
+      "id": "10.INVEST-012",
+      "title": "Contribution amount below minimum requirement",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a contribution amount that is below the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a future date in the start date field",
+        "Select a funding account with adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for contribution amount field"
+    },
+    {
+      "id": "10.INVEST-013",
+      "title": "Funding account does not have adequate balance",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid fund symbol in the fund symbol field",
+        "Enter a valid contribution amount that meets the minimum requirement",
+        "Select a valid frequency from the frequency dropdown",
+        "Select a future date in the start date field",
+        "Select a funding account that does not have adequate balance",
+        "Click the Create Plan button"
+      ],
+      "expected_result": "Inline validation message appears for funding account balance"
+    },
+    {
+      "id": "10.INVEST-014",
+      "title": "Verify Fund Symbol autocomplete functionality",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "positive",
+      "priority": "Medium",
+      "preconditions": "User is on the Execute Trade page",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Start typing a valid Fund Symbol in the Fund Symbol field",
+        "Observe the autocomplete suggestions"
+      ],
+      "expected_result": "Autocomplete suggestions for valid Fund Symbols are displayed"
+    },
+    {
+      "id": "10.INVEST-015",
+      "title": "Verify dropdown options for Funding or Destination Account",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "positive",
+      "priority": "Medium",
+      "preconditions": "User is on the Execute Trade page",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Click on the Funding or Destination Account dropdown",
+        "Observe the available account options"
+      ],
+      "expected_result": "Dropdown displays a list of valid Funding or Destination Accounts"
+    },
+    {
+      "id": "10.INVEST-016",
+      "title": "Verify fields are displayed correctly",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Create recurring investment plan",
+      "test_type": "positive",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Check that the fund symbol field is present",
+        "Check that the contribution amount field is present",
+        "Check that the frequency dropdown is present",
+        "Check that the start date field is present",
+        "Check that the funding account field is present",
+        "Check that the Create Plan button is present"
+      ],
+      "expected_result": "All fields and button are displayed correctly on the page"
+    },
+    {
+      "id": "10.INVEST-017",
+      "title": "Execute trade with maximum Quantity",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "User has sufficient buying power",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Enter the maximum valid Quantity in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Trade executed successfully with an order ID displayed"
+    },
+    {
+      "id": "10.INVEST-018",
+      "title": "Execute trade with Quantity just below minimum",
+      "module_id": 10,
+      "module_title": "investments",
+      "workflow": "Execute trade",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "User has sufficient buying power",
+      "steps": [
+        "Select 'Buy' from the Action dropdown",
+        "Enter a valid Fund Symbol in the Fund Symbol field",
+        "Enter a Quantity of just below the minimum valid amount in the Quantity field",
+        "Select a valid Funding or Destination Account from the dropdown",
+        "Click the Execute Trade button"
+      ],
+      "expected_result": "Validation error appears indicating Quantity must be greater than zero"
+    },
+    {
+      "id": "11.ACCOUN-001",
+      "title": "Generate statement with valid period and account",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select a valid statement period from the dropdown",
+        "Select a valid account from the account list",
+        "Click on the Generate Statement button"
+      ],
+      "expected_result": "Statement generated successfully"
+    },
+    {
+      "id": "11.ACCOUN-002",
+      "title": "Verify statement generation button is displayed",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Check if the Generate Statement button is visible on the page"
+      ],
+      "expected_result": "Generate Statement button is displayed"
+    },
+    {
+      "id": "11.ACCOUN-003",
+      "title": "Verify statement period dropdown is displayed",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Check if the statement period dropdown is visible on the page"
+      ],
+      "expected_result": "Statement period dropdown is displayed"
+    },
+    {
+      "id": "11.ACCOUN-004",
+      "title": "Verify account selection dropdown is displayed",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Check if the account selection dropdown is visible on the page"
+      ],
+      "expected_result": "Account selection dropdown is displayed"
+    },
+    {
+      "id": "11.ACCOUN-005",
+      "title": "Opt into paperless statements and save valid email preference",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Save e-statement preference",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Check the checkbox to opt into paperless statements",
+        "Enter a valid email address",
+        "Click the Save Preference button"
+      ],
+      "expected_result": "e-Statement preference updated successfully"
+    },
+    {
+      "id": "11.ACCOUN-006",
+      "title": "Generate statement with empty statement period",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave the statement period field empty",
+        "Select a valid account from the account list",
+        "Click on the Generate Statement button"
+      ],
+      "expected_result": "Unable to generate statement — please try again later"
+    },
+    {
+      "id": "11.ACCOUN-007",
+      "title": "Generate statement with empty account selection",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Select a valid statement period from the dropdown",
+        "Leave the account selection empty",
+        "Click on the Generate Statement button"
+      ],
+      "expected_result": "Unable to generate statement — please try again later"
+    },
+    {
+      "id": "11.ACCOUN-008",
+      "title": "Email field empty",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Save e-statement preference",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Check the checkbox to opt into paperless statements",
+        "Leave the email address field empty",
+        "Click the Save Preference button"
+      ],
+      "expected_result": "Email field highlighted with guidance on failure"
+    },
+    {
+      "id": "11.ACCOUN-009",
+      "title": "Opt into paperless statements without checking the checkbox",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Save e-statement preference",
+      "test_type": "positive",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Leave the checkbox for paperless statements unchecked",
+        "Enter a valid email address",
+        "Click the Save Preference button"
+      ],
+      "expected_result": "e-Statement preference updated successfully without opting into paperless statements"
+    },
+    {
+      "id": "11.ACCOUN-010",
+      "title": "Generate statement with invalid statement period",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter an invalid statement period",
+        "Select a valid account from the account list",
+        "Click on the Generate Statement button"
+      ],
+      "expected_result": "Unable to generate statement — please try again later"
+    },
+    {
+      "id": "11.ACCOUN-011",
+      "title": "Generate statement with future statement period",
+      "module_id": 11,
+      "module_title": "account_statements",
+      "workflow": "Generate statement",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Select a future date as the statement period",
+        "Select a valid account from the account list",
+        "Click on the Generate Statement button"
+      ],
+      "expected_result": "Unable to generate statement — please try again later"
+    },
+    {
+      "id": "12.SECURI-001",
+      "title": "Change password successfully with valid inputs",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "User is logged in and on the security settings page",
+      "steps": [
+        "Enter a valid current password",
+        "Enter a valid new password that meets strong-password policy",
+        "Confirm the new password by entering it again",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Password changed successfully message is displayed"
+    },
+    {
+      "id": "12.SECURI-002",
+      "title": "Current Password field empty",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Leave the Current Password field empty",
+        "Enter a valid new password that meets strong-password policy",
+        "Confirm the new password by entering it again",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Validation error highlights the Current Password field"
+    },
+    {
+      "id": "12.SECURI-003",
+      "title": "New Password field empty",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Enter a valid current password",
+        "Leave the New Password field empty",
+        "Confirm the new password by entering it again",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Validation error highlights the New Password field"
+    },
+    {
+      "id": "12.SECURI-004",
+      "title": "Confirm New Password field empty",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Enter a valid current password",
+        "Enter a valid new password that meets strong-password policy",
+        "Leave the Confirm New Password field empty",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Validation error highlights the Confirm New Password field"
+    },
+    {
+      "id": "12.SECURI-005",
+      "title": "New Password and Confirm New Password do not match",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Enter a valid current password",
+        "Enter a valid new password that meets strong-password policy",
+        "Enter a different password in the Confirm New Password field",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Validation error indicates that New Password and Confirm New Password do not match"
+    },
+    {
+      "id": "12.SECURI-006",
+      "title": "New Password does not meet strong-password policy",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Enter a valid current password",
+        "Enter a new password that does not meet strong-password policy",
+        "Confirm the new password by entering it again",
+        "Click on the Change Password button"
+      ],
+      "expected_result": "Validation error indicates the New Password does not meet strong-password policy"
+    },
+    {
+      "id": "12.SECURI-007",
+      "title": "Verify fields are displayed correctly on the page",
+      "module_id": 12,
+      "module_title": "security_settings",
+      "workflow": "Change password",
+      "test_type": "positive",
+      "priority": "Low",
+      "preconditions": "User is on the security settings page",
+      "steps": [
+        "Check if Current Password field is displayed",
+        "Check if New Password field is displayed",
+        "Check if Confirm New Password field is displayed",
+        "Check if Change Password button is displayed"
+      ],
+      "expected_result": "All fields and the Change Password button are displayed correctly"
+    },
+    {
+      "id": "13.SUPPOR-001",
+      "title": "Send secure message with valid subject and message body",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid subject",
+        "Select a category",
+        "Enter a valid message body",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Shows 'Message sent successfully.' with a ticket ID"
+    },
+    {
+      "id": "13.SUPPOR-002",
+      "title": "Send secure message with valid subject, category, and message body but no attachment",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid subject",
+        "Select a category",
+        "Enter a valid message body",
+        "Leave the attachment field empty",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Shows 'Message sent successfully.' with a ticket ID"
+    },
+    {
+      "id": "13.SUPPOR-003",
+      "title": "Request callback with valid inputs",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "positive",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid reason for the call",
+        "Select a preferred date that is at least the next business day",
+        "Select a preferred time window",
+        "Enter a valid phone number",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Callback request submitted."
+    },
+    {
+      "id": "13.SUPPOR-004",
+      "title": "Subject field empty",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Leave the subject field empty",
+        "Select a category",
+        "Enter a valid message body",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Displays inline guidance indicating the subject is required"
+    },
+    {
+      "id": "13.SUPPOR-005",
+      "title": "Message body field empty",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid subject",
+        "Select a category",
+        "Leave the message body field empty",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Displays inline guidance indicating the message body is required"
+    },
+    {
+      "id": "13.SUPPOR-006",
+      "title": "Preferred Date field empty",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid reason for the call",
+        "Leave the preferred date field empty",
+        "Select a preferred time window",
+        "Enter a valid phone number",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Shows validation error for Preferred Date field."
+    },
+    {
+      "id": "13.SUPPOR-007",
+      "title": "Phone Number field empty",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "negative",
+      "priority": "High",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid reason for the call",
+        "Select a preferred date that is at least the next business day",
+        "Select a preferred time window",
+        "Leave the phone number field empty",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Shows validation error for Phone Number field."
+    },
+    {
+      "id": "13.SUPPOR-008",
+      "title": "Attachment type invalid",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid subject",
+        "Select a category",
+        "Enter a valid message body",
+        "Attach an invalid file type",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Displays inline guidance indicating the attachment type is invalid"
+    },
+    {
+      "id": "13.SUPPOR-009",
+      "title": "Subject exceeds maximum length",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a subject that exceeds the maximum length",
+        "Select a category",
+        "Enter a valid message body",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Displays inline guidance indicating the subject length must be checked"
+    },
+    {
+      "id": "13.SUPPOR-010",
+      "title": "Message body exceeds maximum length",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Send secure message",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid subject",
+        "Select a category",
+        "Enter a message body that exceeds the maximum length",
+        "Click the Send Message button"
+      ],
+      "expected_result": "Displays inline guidance indicating the message body length must be checked"
+    },
+    {
+      "id": "13.SUPPOR-011",
+      "title": "Invalid Phone Number format",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid reason for the call",
+        "Select a preferred date that is at least the next business day",
+        "Select a preferred time window",
+        "Enter an invalid phone number format",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Shows validation error for Phone Number format."
+    },
+    {
+      "id": "13.SUPPOR-012",
+      "title": "Preferred Date set to today",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "negative",
+      "priority": "Medium",
+      "preconditions": "None",
+      "steps": [
+        "Enter a valid reason for the call",
+        "Select today's date as preferred date",
+        "Select a preferred time window",
+        "Enter a valid phone number",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Shows validation error for Preferred Date must be at least the next business day."
+    },
+    {
+      "id": "13.SUPPOR-013",
+      "title": "Request callback with maximum length reason for call",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter a reason for the call that is at maximum allowed length",
+        "Select a preferred date that is at least the next business day",
+        "Select a preferred time window",
+        "Enter a valid phone number",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Callback request submitted."
+    },
+    {
+      "id": "13.SUPPOR-014",
+      "title": "Request callback with just below maximum length reason for call",
+      "module_id": 13,
+      "module_title": "support_center",
+      "workflow": "Request callback",
+      "test_type": "edge_case",
+      "priority": "Low",
+      "preconditions": "None",
+      "steps": [
+        "Enter a reason for the call that is just below maximum allowed length",
+        "Select a preferred date that is at least the next business day",
+        "Select a preferred time window",
+        "Enter a valid phone number",
+        "Click the Request Callback button"
+      ],
+      "expected_result": "Callback request submitted."
+    }
+  ],
+  "summary": {
+    "total_tests": 151,
+    "by_type": {
+      "positive": 36,
+      "negative": 98,
+      "edge_case": 17
+    },
+    "by_priority": {
+      "High": 112,
+      "Medium": 21,
+      "Low": 18
+    },
+    "by_module": {
+      "login": 10,
+      "register": 20,
+      "accounts_overview": 5,
+      "open_new_account": 11,
+      "transfer_funds": 9,
+      "payments": 14,
+      "request_loan": 9,
+      "update_contact_info": 11,
+      "manage_cards": 12,
+      "investments": 18,
+      "account_statements": 11,
+      "security_settings": 7,
+      "support_center": 14
+    },
+    "post_verification": {
+      "tests_needing_verification": 0,
+      "full_coverage": 0,
+      "partial_coverage": 0,
+      "no_coverage": 0,
+      "coverage_gaps": []
+    },
+    "execution_plans": {}
+  }
+}

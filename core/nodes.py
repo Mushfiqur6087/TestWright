@@ -8,6 +8,8 @@ Each function is a LangGraph node that:
   4. Returns a partial state dict with the fields it produced
 """
 
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 from testwright.agents import (
@@ -47,6 +49,7 @@ def _agent_kwargs(state: PipelineState) -> dict:
 
 def parse_node(state: PipelineState) -> Dict[str, Any]:
     """Parse the raw functional description JSON into structured data."""
+    t0 = time.time()
     print("\n[1/11] Parsing functional description...")
 
     agent = ParserAgent(**_agent_kwargs(state))
@@ -56,6 +59,7 @@ def parse_node(state: PipelineState) -> Dict[str, Any]:
     print(f"  - Modules found: {len(parsed_desc.modules)}")
     for m in parsed_desc.modules:
         print(f"    * {m.title}: {len(m.workflows)} workflows, {len(m.mentioned_items)} items")
+    print(f"  Done in {time.time()-t0:.1f}s")
 
     return {"parsed_desc": parsed_desc}
 
@@ -66,6 +70,7 @@ def parse_node(state: PipelineState) -> Dict[str, Any]:
 
 def navigation_node(state: PipelineState) -> Dict[str, Any]:
     """Build the navigation graph from the parsed description."""
+    t0 = time.time()
     print("\n[2/11] Building navigation graph...")
 
     agent = NavigationAgent(**_agent_kwargs(state))
@@ -73,6 +78,7 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
 
     print(f"  - Login module ID: {nav_graph.login_module_id}")
     print(f"  - Page nodes: {len(nav_graph.nodes)}")
+    print(f"  Done in {time.time()-t0:.1f}s")
 
     return {"nav_graph": nav_graph}
 
@@ -83,6 +89,7 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
 
 def chunker_node(state: PipelineState) -> Dict[str, Any]:
     """Split each module into workflow-based chunks."""
+    t0 = time.time()
     print("\n[3/11] Splitting modules into workflow chunks...")
 
     agent = ChunkerAgent(**_agent_kwargs(state))
@@ -95,6 +102,7 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
         for chunk in chunks:
             print(f"    * {chunk.workflow_name}")
 
+    print(f"  Total: {len(all_chunks)} chunks | Done in {time.time()-t0:.1f}s")
     return {"all_chunks": all_chunks}
 
 
@@ -104,6 +112,7 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
 
 def summary_node(state: PipelineState) -> Dict[str, Any]:
     """Generate concise module summaries for verification matching."""
+    t0 = time.time()
     print("\n[4/11] Generating module summaries...")
 
     agent = SummaryAgent(**_agent_kwargs(state))
@@ -114,6 +123,7 @@ def summary_node(state: PipelineState) -> Dict[str, Any]:
         verify_str = f", can verify: {', '.join(ms.can_verify_states)}" if ms.can_verify_states else ""
         action_str = f", modifies: {', '.join(ms.action_states)}" if ms.action_states else ""
         print(f"    * {ms.module_title}{verify_str}{action_str}")
+    print(f"  Done in {time.time()-t0:.1f}s")
 
     return {"module_summaries": module_summaries}
 
@@ -123,18 +133,41 @@ def summary_node(state: PipelineState) -> Dict[str, Any]:
 # ===========================================================================
 
 def test_generation_node(state: PipelineState) -> Dict[str, Any]:
-    """Generate test cases for every workflow chunk."""
-    print("\n[5/11] Generating test cases...")
+    """Generate test cases for every workflow chunk in parallel."""
+    t0 = time.time()
+    chunks = state["all_chunks"]
+    max_workers = min(5, len(chunks))
+    print(f"\n[5/11] Generating test cases ({len(chunks)} chunks, {max_workers} parallel workers)...")
 
-    agent = TestGenerationAgent(**_agent_kwargs(state))
-    all_tests = []
+    kwargs = _agent_kwargs(state)
 
-    for chunk in state["all_chunks"]:
-        print(f"  - Generating tests for: {chunk.module_title} / {chunk.workflow_name}")
+    def _generate(chunk, idx):
+        ct0 = time.time()
+        print(f"  - [{idx+1}/{len(chunks)}] Starting: {chunk.module_title} / {chunk.workflow_name}")
+        agent = TestGenerationAgent(**kwargs)
         tests = agent.run(chunk)
-        print(f"    * Generated {len(tests)} test cases")
-        all_tests.extend(tests)
+        print(f"  - [{idx+1}/{len(chunks)}] Done: {chunk.module_title} / {chunk.workflow_name} -> {len(tests)} tests in {time.time()-ct0:.1f}s")
+        return tests
 
+    results: Dict[int, List] = {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_index = {
+            executor.submit(_generate, chunk, i): i
+            for i, chunk in enumerate(chunks)
+        }
+        for future in as_completed(future_to_index):
+            idx = future_to_index[future]
+            try:
+                results[idx] = future.result()
+            except Exception as e:
+                print(f"  !! Chunk [{idx+1}/{len(chunks)}] failed: {e}")
+                results[idx] = []
+
+    all_tests = []
+    for i in range(len(chunks)):
+        all_tests.extend(results.get(i, []))
+
+    print(f"  Total: {len(all_tests)} test cases | Done in {time.time()-t0:.1f}s")
     return {"all_tests": all_tests}
 
 
@@ -144,7 +177,9 @@ def test_generation_node(state: PipelineState) -> Dict[str, Any]:
 
 def assembler_node(state: PipelineState) -> Dict[str, Any]:
     """Assemble test cases -- deduplicate, sort, assign IDs, link to nav graph."""
-    print("\n[6/11] Assembling test cases...")
+    t0 = time.time()
+    before = len(state["all_tests"])
+    print(f"\n[6/11] Assembling test cases (deduplicating {before} raw tests)...")
 
     agent = AssemblerAgent(**_agent_kwargs(state))
     output = agent.run(
@@ -153,11 +188,12 @@ def assembler_node(state: PipelineState) -> Dict[str, Any]:
         project_name=state["parsed_desc"].project_name,
         base_url=state["parsed_desc"].base_url,
     )
-    print(f"  - Assembled {len(output.test_cases)} unique test cases")
+    after = len(output.test_cases)
+    removed = before - after
+    print(f"  - {after} unique test cases ({removed} duplicates removed)")
+    print(f"  Done in {time.time()-t0:.1f}s")
 
-    # Attach module summaries that were computed in parallel
     output.module_summaries = state["module_summaries"]
-
     return {"output": output}
 
 
@@ -258,6 +294,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
 
     from testwright.exporters.json_exporter import export_json
 
+    t0 = time.time()
     print("\n[11/11] Finalizing output...")
 
     output = state["output"]
@@ -296,7 +333,8 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
     # -- Export JSON -----------------------------------------------------------
     json_path = os.path.join(output_dir, "test-cases.json")
     export_json(output, json_path)
-    print(f"\n  Output saved to: {json_path}")
+    print(f"  Output saved to: {json_path}")
+    print(f"  Done in {time.time()-t0:.1f}s")
 
     return {"output": output}
 

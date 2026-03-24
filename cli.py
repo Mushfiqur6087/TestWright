@@ -28,6 +28,8 @@ def main():
     # Generate command (also accessible via --generate flag for backward compat)
     parser.add_argument("--generate", action="store_true", help="Generate test cases")
     parser.add_argument("--input", "-i", help="Path to functional description directory or JSON file")
+    parser.add_argument("--spec", help="Path to functional specification markdown file (manual override)")
+    parser.add_argument("--nav", help="Path to navigation markdown file (manual override)")
     parser.add_argument("--api-key", help="API key for LLM provider")
     parser.add_argument("--model", default="gpt-4o", help="Model to use (default: gpt-4o)")
     parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"],
@@ -64,26 +66,31 @@ def main():
 
 def _generate(args):
     """Run the test case generation pipeline."""
-    if not args.input:
-        print("Error: --input is required for generation")
-        return 1
     if not args.api_key:
         print("Error: --api-key is required for generation")
         return 1
 
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input path not found: {input_path}")
-        return 1
-
-    # Build functional description from input
-    if input_path.is_dir():
-        functional_desc = _load_from_directory(input_path)
-    elif input_path.suffix.lower() == ".md":
-        functional_desc = _load_from_markdown_file(input_path)
+    # Manual --spec / --nav takes priority over --input
+    if hasattr(args, 'spec') and args.spec:
+        functional_desc = _load_from_files(
+            spec_path=Path(args.spec),
+            nav_path=Path(args.nav) if args.nav else None,
+        )
+    elif args.input:
+        input_path = Path(args.input)
+        if not input_path.exists():
+            print(f"Error: Input path not found: {input_path}")
+            return 1
+        if input_path.is_dir():
+            functional_desc = _load_from_directory(input_path)
+        elif input_path.suffix.lower() == ".md":
+            functional_desc = _load_from_markdown_file(input_path)
+        else:
+            with open(input_path, 'r') as f:
+                functional_desc = json.load(f)
     else:
-        with open(input_path, 'r') as f:
-            functional_desc = json.load(f)
+        print("Error: --input or --spec is required for generation")
+        return 1
 
     generator = TestCaseGenerator(
         api_key=args.api_key,
@@ -100,6 +107,46 @@ def _generate(args):
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
     print(f"  Output: {args.output}/")
     return 0
+
+
+def _load_from_files(spec_path: Path, nav_path=None) -> dict:
+    """Load functional description from explicitly provided file paths."""
+    if not spec_path.exists():
+        print(f"Error: Spec file not found: {spec_path}")
+        sys.exit(1)
+
+    spec_text = spec_path.read_text(encoding='utf-8')
+    modules = []
+    current_module = None
+    module_id = 0
+
+    for line in spec_text.split('\n'):
+        if line.startswith('## '):
+            if current_module:
+                modules.append(current_module)
+            module_id += 1
+            current_module = {"id": module_id, "title": line[3:].strip(), "description": ""}
+        elif current_module:
+            current_module["description"] += line + "\n"
+
+    if current_module:
+        modules.append(current_module)
+
+    navigation_overview = ""
+    if nav_path and nav_path.exists():
+        navigation_overview = nav_path.read_text(encoding='utf-8')
+        print(f"  Using navigation file: {nav_path.name}")
+
+    project_name = spec_path.stem.replace('-', ' ').replace('_', ' ').title()
+    print(f"  Spec: {spec_path.name}  ({len(modules)} modules)")
+
+    return {
+        "project_name": project_name,
+        "website_url": "",
+        "navigation_overview": navigation_overview,
+        "mock_data": "",
+        "modules": modules,
+    }
 
 
 def _load_from_directory(dir_path: Path) -> dict:

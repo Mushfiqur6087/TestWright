@@ -1,4 +1,5 @@
 import json
+import time
 import httpx # type: ignore
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
@@ -79,6 +80,10 @@ class BaseAgent(ABC):
         """Return the system prompt for this agent"""
         pass
 
+    @staticmethod
+    def _ts() -> str:
+        return datetime.now().strftime("%H:%M:%S")
+
     def call_llm(
         self,
         user_prompt: str,
@@ -107,18 +112,33 @@ class BaseAgent(ABC):
             headers["HTTP-Referer"] = "https://testwright.dev"
             headers["X-Title"] = "TestWright"
 
+        # o-series and gpt-5 models use max_completion_tokens instead of max_tokens
+        _uses_completion_tokens = (
+            self.model.startswith("o1") or
+            self.model.startswith("o3") or
+            self.model.startswith("o4") or
+            self.model.startswith("gpt-5")
+        )
+        _tokens_key = "max_completion_tokens" if _uses_completion_tokens else "max_tokens"
+
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": self.system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            "temperature": temperature,
-            "max_tokens": max_tokens
+            _tokens_key: max_tokens
         }
+
+        # o-series and gpt-5 models only support default temperature (1)
+        if not _uses_completion_tokens:
+            payload["temperature"] = temperature
 
         if response_format:
             payload["response_format"] = response_format
+
+        print(f"    [{self._ts()}] >> {self.name} | sending request (~{len(user_prompt)} chars)")
+        t0 = time.time()
 
         response = self.client.post(
             f"{self.base_url}/chat/completions",
@@ -126,15 +146,28 @@ class BaseAgent(ABC):
             json=payload
         )
 
+        elapsed = time.time() - t0
+
         if response.status_code != 200:
             provider_name = self.provider.upper()
             error_msg = f"{provider_name} API error: {response.status_code} - {response.text}"
+            print(f"    [{self._ts()}] !! {self.name} | HTTP {response.status_code} error after {elapsed:.1f}s")
             if self.debug:
                 self._log_debug("ERROR", error_msg)
             raise Exception(error_msg)
 
         result = response.json()
         response_content = result["choices"][0]["message"]["content"]
+
+        usage = result.get("usage", {})
+        prompt_tokens = usage.get("prompt_tokens", "?")
+        completion_tokens = usage.get("completion_tokens", "?")
+        total_tokens = usage.get("total_tokens", "?")
+        print(
+            f"    [{self._ts()}] << {self.name} | "
+            f"response in {elapsed:.1f}s | "
+            f"tokens: {prompt_tokens}+{completion_tokens}={total_tokens}"
+        )
 
         # Log output if debug enabled
         if self.debug:
@@ -184,7 +217,7 @@ class BaseAgent(ABC):
                     self._log_debug("JSON PARSE ERROR", f"{error_msg}\nResponse: {response[:500]}...")
 
                 if attempt < max_retries:
-                    print(f"  Warning: {error_msg}. Retrying...")
+                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}), retrying...")
                     json_prompt = f"{user_prompt}\n\nIMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting."
                 else:
                     # Last attempt failed

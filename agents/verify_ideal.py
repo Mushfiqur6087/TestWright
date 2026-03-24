@@ -321,7 +321,7 @@ IMPORTANT:
 - For after_action: describe exactly what COMPARISON or CHECK to perform after"""
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
 
             verifications = {}
             for item in result.get("test_verifications", []):

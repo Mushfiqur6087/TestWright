@@ -146,7 +146,7 @@ State change verification (if action modifies data)
 """
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
             return self._parse_test_results(result, chunk)
         except Exception as e:
             print(f"Warning: Test generation failed for {chunk.workflow_name}: {e}")
@@ -228,7 +228,7 @@ Tests must be executable by browser automation (no touch gestures, right-click m
 """
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
             tests = self._parse_test_results(result, chunk)
             # Ensure all tests have correct type
             for test in tests:

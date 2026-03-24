@@ -158,7 +158,7 @@ RULES:
 6. Use state names that match those defined in the module summaries"""
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
 
             # Create lookup for flagged tests
             flags = {item["test_id"]: item for item in result.get("flagged_tests", [])}

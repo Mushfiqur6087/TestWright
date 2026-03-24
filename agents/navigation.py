@@ -126,7 +126,7 @@ Navigation Rules:
 """
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
             # Convert string keys to int and validate connected_to
             parsed = {}
             for k, v in result.items():

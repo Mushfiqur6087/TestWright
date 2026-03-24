@@ -121,7 +121,7 @@ FIELD-LEVEL GRANULARITY:
 """
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=4000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
             chunks = []
 
             for i, chunk_data in enumerate(result.get("workflow_chunks", [])):
