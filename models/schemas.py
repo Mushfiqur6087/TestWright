@@ -45,6 +45,7 @@ class WorkflowChunk:
     related_items: List[str] = field(default_factory=list)
     related_rules: List[str] = field(default_factory=list)
     related_behaviors: List[str] = field(default_factory=list)
+    sibling_workflows: List[str] = field(default_factory=list)
 
 
 # ============================================================================

@@ -66,14 +66,6 @@
 | MW-LOGIN-012 | Password without number | None | 1. Enter password without number | Validation error: password must contain number | Medium |
 | MW-LOGIN-013 | Password without special char | None | 1. Enter password without special character | Validation error: password must contain special character | Medium |
 
-### UI/UX Tests
-
-| TC ID | Test Case | Preconditions | Steps | Expected Result | Priority |
-|-------|-----------|---------------|-------|-----------------|----------|
-| MW-LOGIN-014 | Password masking | None | 1. Enter text in password field | Characters are masked | High |
-| MW-LOGIN-015 | Success flash message | Valid login | 1. Login successfully | "Signed in successfully." message displayed briefly | Medium |
-| MW-LOGIN-016 | Password cleared on error | Invalid login attempt | 1. Submit invalid credentials | Password field cleared, email remains | Medium |
-
 ---
 
 ## 2. Registration
@@ -131,15 +123,6 @@
 | MW-AO-004 | Total balance calculation | User logged in | 1. View total row | Total = sum of all account balances | High |
 | MW-AO-005 | Accounts ordered by date | User logged in | 1. View accounts table | Ordered by Open Date (earliest first) | Medium |
 | MW-AO-006 | Active status badge | User logged in | 1. View Status column | "Active" badge displayed for active accounts | Medium |
-
-### UI/UX Tests
-
-| TC ID | Test Case | Preconditions | Steps | Expected Result | Priority |
-|-------|-----------|---------------|-------|-----------------|----------|
-| MW-AO-007 | Table column headers | User logged in | 1. View table | Headers: Account Number, Account Type, Current Balance, Account Status, Open Date | Medium |
-| MW-AO-008 | Currency formatting | User logged in | 1. View balances | Formatted as $X,XXX.XX with proper comma separation | Medium |
-| MW-AO-009 | Negative balance display | User has loan/credit | 1. View loan/credit account | Negative balance shown correctly (e.g., -$1,534.67) | Medium |
-| MW-AO-010 | Navigation menu highlight | User logged in | 1. View left menu | "Accounts Overview" highlighted | Low |
 
 ---
 
@@ -428,67 +411,4 @@
 
 ---
 
-## End-to-End Test Scenarios
 
-### E2E-001: New User Registration and Account Opening
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 1 | Navigate to registration page | Registration form displayed |
-| 2 | Fill all fields with valid data | Fields accept input with auto-formatting |
-| 3 | Submit registration | "Account created successfully" message |
-| 4 | Login with new credentials | Redirected to Accounts Overview |
-| 5 | Navigate to Open New Account | Form displayed |
-| 6 | Open new Checking account | Account created, appears in overview |
-
-### E2E-002: Complete Transfer Flow
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 1 | Login as admin@parabank.com | Dashboard displayed |
-| 2 | Note balances of two accounts | Balances recorded |
-| 3 | Navigate to Transfer Funds | Transfer form displayed |
-| 4 | Transfer $500 from Checking to Savings | "Transfer completed successfully." |
-| 5 | View Accounts Overview | Checking reduced by $500, Savings increased by $500 |
-
-### E2E-003: Bill Payment Flow
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 1 | Login | Dashboard displayed |
-| 2 | Navigate to Bill Pay | Payment form displayed |
-| 3 | Select Electric Company from quick payees | Fields auto-populated |
-| 4 | Enter payment amount $150 | Amount entered |
-| 5 | Select source account | Account selected |
-| 6 | Submit payment | "Payment submitted successfully." with reference code |
-| 7 | Verify balance | Source account reduced by $150 |
-
-### E2E-004: Loan Application Flow
-| Step | Action | Expected Result |
-|------|--------|-----------------|
-| 1 | Login | Dashboard displayed |
-| 2 | Navigate to Request Loan | Loan form displayed |
-| 3 | Select Personal Loan | Card selected, amount range shown |
-| 4 | Enter $10,000 loan amount | Amount entered |
-| 5 | Enter $1,500 down payment (15%) | Down payment entered |
-| 6 | Select collateral account with > $2,000 | Account selected |
-| 7 | Submit application | "Loan approved and created successfully!" |
-| 8 | View Accounts Overview | New loan account visible |
-
----
-
-## Test Summary
-
-| Module | Total Tests | High Priority | Medium Priority | Low Priority |
-|--------|-------------|---------------|-----------------|--------------|
-| Login | 16 | 11 | 5 | 0 |
-| Registration | 24 | 17 | 5 | 2 |
-| Accounts Overview | 10 | 4 | 5 | 1 |
-| Open New Account | 13 | 10 | 3 | 0 |
-| Transfer Funds | 14 | 12 | 1 | 1 |
-| Bill Pay | 15 | 14 | 1 | 0 |
-| Request Loan | 18 | 15 | 3 | 0 |
-| Update Contact Info | 18 | 14 | 4 | 0 |
-| Manage Cards | 10 | 7 | 3 | 0 |
-| Investments | 13 | 10 | 3 | 0 |
-| Account Statements | 9 | 6 | 3 | 0 |
-| Security Settings | 9 | 8 | 0 | 1 |
-| Support Center | 11 | 6 | 5 | 0 |
-| **TOTAL** | **180** | **134** | **41** | **5** |

@@ -29,22 +29,23 @@ TEST TYPES:
 3. EDGE CASE TESTS: Boundary values, special characters, format variations if relevant
 
 CRITICAL - NEGATIVE TEST GENERATION RULES:
-1. For forms with multiple required fields, generate SEPARATE test cases for EACH field being empty/invalid
+1. For forms with multiple required fields, generate SEPARATE test cases for EACH field being empty
    - Example: If form has 5 required fields, generate 5 separate "X field empty" test cases
    - Do NOT combine into single "all fields empty" or "some fields empty" tests
-2. For each validation rule mentioned, create a dedicated test case
-3. Test each mismatch scenario separately (e.g., password mismatch, account number mismatch)
-4. Test insufficient funds/resources scenarios if applicable
+2. For invalid format, generate ONE test per field (e.g., one "Invalid email format" test) — do NOT split into sub-variants like missing @, missing domain, multiple @ signs, etc.
+3. For each validation rule mentioned in the spec, create a dedicated test case
+4. Test each mismatch scenario separately (e.g., password mismatch, account number mismatch)
+5. Test insufficient funds/resources scenarios if applicable
 
 CRITICAL - POSITIVE TEST GENERATION RULES:
 1. If multiple valid input types are mentioned (e.g., "username OR email"), create separate tests for EACH
-2. If multiple account types exist (e.g., Checking, Savings), test EACH type separately
+2. If multiple account types or categories exist, create ONE positive test using any valid type, PLUS one test for a different type ONLY if the spec describes different behavior for it
 3. Include state verification tests - verify changes are reflected after actions
 4. Test pre-populated/display scenarios (e.g., "fields pre-filled with user data")
 
 CRITICAL - BOUNDARY TEST RULES:
 1. For monetary values: test exact boundary (e.g., exactly $100), just below boundary ($99.99)
-2. For text fields: test maximum length handling
+2. For text fields: test maximum length ONLY if the spec explicitly states a character limit — do NOT invent length constraints
 3. For date fields: test same start/end date, future dates if applicable
 
 DO NOT generate tests for:
@@ -52,6 +53,7 @@ DO NOT generate tests for:
 - Browser-specific features (right-click context menus, opening in new tabs)
 - Network conditions (offline, slow connection, server errors)
 - Stress scenarios (rapid clicking, load testing)
+- Invented negative display tests (e.g., "table not displayed", "logo missing") — only test error conditions explicitly described in the spec
 
 For each test case, provide:
 - Clear, concise title
@@ -68,6 +70,16 @@ For each test case, provide:
         rules_str = "\n".join([f"  - {r}" for r in chunk.related_rules]) if chunk.related_rules else "None"
         behaviors_str = "\n".join([f"  - {b}" for b in chunk.related_behaviors]) if chunk.related_behaviors else "None"
 
+        # Build cross-workflow dedup context if sibling workflows exist
+        sibling_str = ""
+        if chunk.sibling_workflows:
+            sibling_str = f"""
+CROSS-WORKFLOW DEDUP RULE:
+This module has sibling workflows: {', '.join(chunk.sibling_workflows)}.
+For fields shared across workflows, generate field-empty and field-invalid tests ONLY ONCE — do not repeat them for each workflow.
+Only generate validation tests for fields UNIQUE to this workflow: '{chunk.workflow_name}'.
+"""
+
         prompt = f"""Generate test cases for this workflow.
 
 Module: {chunk.module_title}
@@ -81,7 +93,7 @@ Business Rules:
 
 Expected Behaviors:
 {behaviors_str}
-
+{sibling_str}
 Generate test cases in this JSON format:
 {{
     "test_cases": [
@@ -105,7 +117,7 @@ CRITICAL - GRANULARITY RULES:
 
 1. POSITIVE TESTS - Cover all input variations:
    - If description mentions "username OR email", generate SEPARATE tests for each
-   - If multiple valid paths exist (e.g., Checking vs Savings account), test EACH separately
+   - If multiple valid paths exist (e.g., Checking vs Savings account), test the PRIMARY path. Add a separate test for an alternative ONLY if the spec describes different behavior or different fields for that path
    - Include a test for form/page elements displayed correctly (if form fields are mentioned)
    - Include state verification tests (e.g., "Balance updated after transfer", "New account visible in overview")
 
@@ -117,6 +129,7 @@ CRITICAL - GRANULARITY RULES:
      * Test 3: "Email field empty"
      * Test 4: "Password field empty"
    - Do NOT generate combined tests like: "Some fields empty" or "Required fields validation"
+   - For invalid format, generate ONE test per field type (e.g., one "Invalid email format") — NOT multiple sub-variants
    - Test mismatch scenarios separately (password mismatch, account number mismatch)
    - Test insufficient funds/invalid credentials as separate cases
    - Test duplicate/existing data scenarios (e.g., "duplicate username")
@@ -124,7 +137,7 @@ CRITICAL - GRANULARITY RULES:
 3. EDGE CASE/BOUNDARY TESTS (generate when applicable):
    - Exact boundary values (e.g., exactly $100 minimum balance)
    - Just below boundary (e.g., $99.99)
-   - Maximum/minimum field lengths
+   - Maximum/minimum field lengths ONLY if a specific limit is stated in the spec
    - Same start and end date for date ranges
    - Future dates if date input exists
 
@@ -141,7 +154,7 @@ All valid input variations (separate tests)
 Each required field empty (separate tests)
 Each validation rule violation
 Mismatch scenarios (password, account numbers)
-Boundary values (exact, below, above)
+Boundary values ONLY for explicitly specified limits
 State change verification (if action modifies data)
 """
 

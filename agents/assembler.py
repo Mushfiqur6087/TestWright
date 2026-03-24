@@ -1,4 +1,5 @@
 import json
+import re
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -63,11 +64,11 @@ Your task is to:
     def _remove_duplicates(self, test_cases: List[TestCase]) -> List[TestCase]:
         """Remove duplicate test cases based on title and steps"""
 
-        seen = set()
-        unique = []
+        # Pass 1: Exact dedup (title + first 3 steps)
+        seen_exact = set()
+        after_exact = []
 
         for tc in test_cases:
-            # Create a signature for the test
             steps_sig = tuple(s.lower().strip() for s in tc.steps[:3]) if tc.steps else ()
             signature = (
                 tc.module_id,
@@ -75,11 +76,40 @@ Your task is to:
                 steps_sig
             )
 
-            if signature not in seen:
-                seen.add(signature)
-                unique.append(tc)
+            if signature not in seen_exact:
+                seen_exact.add(signature)
+                after_exact.append(tc)
+
+        # Pass 2: Semantic dedup for negative/edge_case tests within same module.
+        # Catches cross-workflow duplicates like "Amount empty (internal)" vs "Amount empty (external)".
+        seen_normalized = set()
+        unique = []
+
+        for tc in after_exact:
+            if tc.test_type in ("negative", "edge_case"):
+                norm_title = self._normalize_title(tc.title)
+                norm_sig = (tc.module_id, tc.test_type, norm_title)
+                if norm_sig in seen_normalized:
+                    continue
+                seen_normalized.add(norm_sig)
+            unique.append(tc)
 
         return unique
+
+    def _normalize_title(self, title: str) -> str:
+        """Normalize a test title for semantic dedup by stripping workflow qualifiers."""
+        t = title.lower().strip()
+        # Remove parenthetical suffixes: "(Internal Transfer)"
+        t = re.sub(r'\s*\(.*?\)\s*', ' ', t)
+        # Remove "- Workflow Name" suffixes
+        t = re.sub(r'\s*-\s*\w[\w\s]*$', '', t)
+        # Remove "for <workflow>" suffixes
+        t = re.sub(r'\s+for\s+\w[\w\s]*$', '', t)
+        # Remove "via <workflow>" suffixes
+        t = re.sub(r'\s+via\s+\w[\w\s]*$', '', t)
+        # Collapse whitespace
+        t = re.sub(r'\s+', ' ', t).strip()
+        return t
 
     def _sort_tests(self, test_cases: List[TestCase]) -> List[TestCase]:
         """Sort tests by module ID, priority, and test type"""

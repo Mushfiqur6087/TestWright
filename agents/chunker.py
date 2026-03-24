@@ -151,6 +151,12 @@ FIELD-LEVEL GRANULARITY:
                         related_behaviors=[]
                     ))
 
+            # Annotate each chunk with sibling workflow names for cross-chunk dedup
+            if len(chunks) > 1:
+                all_names = [c.workflow_name for c in chunks]
+                for chunk in chunks:
+                    chunk.sibling_workflows = [w for w in all_names if w != chunk.workflow_name]
+
             return chunks if chunks else self._fallback_chunks(module)
 
         except Exception as e:
@@ -172,5 +178,11 @@ FIELD-LEVEL GRANULARITY:
                 related_rules=module.business_rules,
                 related_behaviors=module.expected_behaviors
             ))
+
+        # Annotate each chunk with sibling workflow names for cross-chunk dedup
+        if len(chunks) > 1:
+            all_names = [c.workflow_name for c in chunks]
+            for chunk in chunks:
+                chunk.sibling_workflows = [w for w in all_names if w != chunk.workflow_name]
 
         return chunks
