@@ -92,6 +92,23 @@ def _generate(args):
         print("Error: --input or --spec is required for generation")
         return 1
 
+    # Build output path: dataset/<website>/<website>-<model>
+    # unless the user explicitly passed --output
+    if args.output != "output":
+        output_dir = args.output
+    else:
+        website_name = functional_desc.get("project_name", "output").replace(" ", "_")
+        model_slug = args.model.replace("/", "-")
+        if hasattr(args, 'spec') and args.spec:
+            base_dir = str(Path(args.spec).parent)
+        elif args.input:
+            base_dir = str(Path(args.input) if Path(args.input).is_dir() else Path(args.input).parent)
+        else:
+            base_dir = "dataset"
+        output_dir = str(Path(base_dir) / f"{website_name}-{model_slug}")
+
+    print(f"  Output directory: {output_dir}")
+
     generator = TestCaseGenerator(
         api_key=args.api_key,
         model=args.model,
@@ -101,11 +118,11 @@ def _generate(args):
         mode=args.mode,
     )
 
-    output = generator.generate(functional_desc, output_dir=args.output)
+    output = generator.generate(functional_desc, output_dir=output_dir)
 
     print(f"\nGeneration complete!")
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
-    print(f"  Output: {args.output}/")
+    print(f"  Output: {output_dir}/")
     return 0
 
 
