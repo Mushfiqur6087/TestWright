@@ -17,6 +17,12 @@ Graph topology - basic mode (no post-verification)
   parse -> navigation -> chunker -> summary -> test_generation
     -> standard_patterns -> assembler -> finalize -> END
 
+Graph topology - post_verify mode (load saved + verify only)
+=============================================================
+
+  load_assembled -> verification_flag -> ideal_verification
+    -> verification_matcher -> execution_plan -> finalize -> END
+
 All steps run sequentially to avoid LangGraph fan-in state-merge
 issues that cause duplicate node executions in parallel branches.
 ``standard_patterns`` emits session/RBAC tests that are merged into
@@ -31,6 +37,7 @@ from testwright.core.nodes import (
     execution_plan_node,
     finalize_node,
     ideal_verification_node,
+    load_assembled_node,
     navigation_node,
     parse_node,
     standard_patterns_node,
@@ -50,13 +57,33 @@ def build_graph(mode: str = "full") -> StateGraph:
         mode: ``"full"`` (default) runs all 11 nodes including post-verification
               and execution planning. ``"basic"`` stops after the assembler —
               no verification flagging, ideal verification, RAG matching, or
-              execution plan nodes are run.
+              execution plan nodes are run. ``"post_verify"`` skips generation
+              entirely — loads a saved test-cases.json and runs only the
+              verification sub-pipeline (6 nodes).
 
     Returns a compiled graph that can be invoked with
     ``graph.invoke(initial_state)``.
     """
 
     graph = StateGraph(PipelineState)
+
+    if mode == "post_verify":
+        graph.add_node("load_assembled", load_assembled_node)
+        graph.add_node("verification_flag", verification_flag_node)
+        graph.add_node("ideal_verification", ideal_verification_node)
+        graph.add_node("verification_matcher", verification_matcher_node)
+        graph.add_node("execution_plan", execution_plan_node)
+        graph.add_node("finalize", finalize_node)
+
+        graph.set_entry_point("load_assembled")
+        graph.add_edge("load_assembled", "verification_flag")
+        graph.add_edge("verification_flag", "ideal_verification")
+        graph.add_edge("ideal_verification", "verification_matcher")
+        graph.add_edge("verification_matcher", "execution_plan")
+        graph.add_edge("execution_plan", "finalize")
+        graph.add_edge("finalize", END)
+
+        return graph.compile()
 
     # -- Register core nodes (shared by both modes) ---------------------------
     graph.add_node("parse", parse_node)

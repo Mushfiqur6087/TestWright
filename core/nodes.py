@@ -46,6 +46,43 @@ def _agent_kwargs(state: PipelineState) -> dict:
 
 
 # ===========================================================================
+# Node 0 -- Load assembled output (post-verify mode only)
+# ===========================================================================
+
+def load_assembled_node(state: PipelineState) -> Dict[str, Any]:
+    """Load a previously saved test-cases.json and reconstruct pipeline state."""
+    import json as _json
+    from testwright.models.schemas import TestSuiteOutput, ParsedFunctionalDescription
+
+    json_path = state["input_json_path"]
+    print(f"\n[1/6] Loading assembled test cases from: {json_path}")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = _json.load(f)
+
+    output = TestSuiteOutput.from_dict(data)
+    module_summaries = output.module_summaries
+
+    parsed_desc = ParsedFunctionalDescription(
+        project_name=output.project_name,
+        base_url=output.base_url,
+        navigation_overview=output.navigation_overview,
+        modules=[],
+    )
+
+    print(f"  - {len(output.test_cases)} test cases loaded")
+    print(f"  - {len(module_summaries)} module summaries loaded")
+    print(f"  - {len(output.navigation_graph.nodes)} nav nodes loaded")
+
+    return {
+        "output": output,
+        "module_summaries": module_summaries,
+        "nav_graph": output.navigation_graph,
+        "parsed_desc": parsed_desc,
+    }
+
+
+# ===========================================================================
 # Node 1 -- Parse functional description
 # ===========================================================================
 
@@ -234,6 +271,7 @@ def assembler_node(state: PipelineState) -> Dict[str, Any]:
     print(f"  Done in {time.time()-t0:.1f}s")
 
     output.module_summaries = state["module_summaries"]
+    output.navigation_overview = state["parsed_desc"].navigation_overview or ""
     return {"output": output}
 
 

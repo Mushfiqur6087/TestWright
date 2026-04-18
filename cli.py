@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 import testwright
-from testwright.core.generator import TestCaseGenerator
+from testwright.core.generator import PostVerifyRunner, TestCaseGenerator
 from testwright.exporters.markdown_exporter import load_test_cases, generate_markdown
 
 
@@ -47,6 +47,15 @@ def main():
             "flagging, RAG matching, or execution plans are generated."
         ),
     )
+    parser.add_argument(
+        "--post-verify",
+        action="store_true",
+        help=(
+            "Run the post-verification pipeline on a previously saved test-cases.json. "
+            "Use --input to point at the output directory (or JSON file) from a prior "
+            "--mode basic run. Requires --api-key."
+        ),
+    )
 
     # Export markdown subcommand
     export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
@@ -57,6 +66,8 @@ def main():
 
     if args.command == "export-md":
         return _export_markdown(args)
+    elif getattr(args, "post_verify", False):
+        return _post_verify(args)
     elif args.generate:
         return _generate(args)
     else:
@@ -121,6 +132,49 @@ def _generate(args):
     output = generator.generate(functional_desc, output_dir=output_dir)
 
     print(f"\nGeneration complete!")
+    print(f"  Total tests: {output.summary.get('total_tests', 0)}")
+    print(f"  Output: {output_dir}/")
+    return 0
+
+
+def _post_verify(args):
+    """Run the post-verification pipeline on a previously saved test-cases.json."""
+    if not args.api_key:
+        print("Error: --api-key is required for --post-verify")
+        return 1
+
+    if not args.input:
+        print("Error: --input is required for --post-verify")
+        return 1
+
+    input_path = Path(args.input)
+    if input_path.is_dir():
+        json_path = input_path / "test-cases.json"
+    elif input_path.suffix.lower() == ".json":
+        json_path = input_path
+    else:
+        json_path = input_path / "test-cases.json"
+
+    if not json_path.exists():
+        print(
+            f"Error: No test-cases.json found at {json_path}. "
+            "Run --generate --mode basic first to produce the input file."
+        )
+        return 1
+
+    output_dir = args.output if args.output != "output" else str(json_path.parent)
+
+    runner = PostVerifyRunner(
+        api_key=args.api_key,
+        model=args.model,
+        provider=args.provider,
+        debug=args.debug,
+        debug_file=args.debug_file,
+    )
+
+    output = runner.run(str(json_path), output_dir=output_dir)
+
+    print(f"\nPost-verification complete!")
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
     print(f"  Output: {output_dir}/")
     return 0

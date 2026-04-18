@@ -81,6 +81,17 @@ class ModuleSummary:
             "action_states": self.action_states
         }
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "ModuleSummary":
+        return cls(
+            module_id=d["module_id"],
+            module_title=d["module_title"],
+            summary=d.get("summary", ""),
+            verification_keywords=d.get("verification_keywords", []),
+            can_verify_states=d.get("can_verify_states", []),
+            action_states=d.get("action_states", []),
+        )
+
 
 # ============================================================================
 # Navigation Agent Output
@@ -121,6 +132,25 @@ class NavigationGraph:
                 for node in self.nodes.values()
             ]
         }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "NavigationGraph":
+        nodes = {}
+        for n in d.get("nodes", []):
+            node = NavigationNode(
+                module_id=n["module_id"],
+                title=n["title"],
+                requires_auth=n.get("requires_auth", True),
+                url_path=n.get("url_path"),
+                connected_to=n.get("connected_to", []),
+                test_case_ids=n.get("test_case_ids", []),
+            )
+            nodes[node.module_id] = node
+        return cls(
+            nodes=nodes,
+            login_module_id=d.get("login_module_id"),
+            graph_image_path=d.get("graph_image_path"),
+        )
 
 
 # ============================================================================
@@ -176,6 +206,27 @@ class TestCase:
                 result["coverage_gaps"] = self.coverage_gaps
 
         return result
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "TestCase":
+        return cls(
+            id=d.get("id", ""),
+            title=d.get("title", ""),
+            module_id=d.get("module_id", 0),
+            module_title=d.get("module_title", ""),
+            workflow=d.get("workflow", ""),
+            test_type=d.get("test_type", "positive"),
+            priority=d.get("priority", "Medium"),
+            preconditions=d.get("preconditions", ""),
+            steps=d.get("steps", []),
+            expected_result=d.get("expected_result", ""),
+            spec_evidence=d.get("spec_evidence", ""),
+            needs_post_verification=d.get("needs_post_verification", False),
+            modifies_state=d.get("modifies_state", []),
+            post_verifications=d.get("post_verifications", []),
+            verification_coverage=d.get("verification_coverage", ""),
+            coverage_gaps=d.get("coverage_gaps", []),
+        )
 
 
 # ============================================================================
@@ -274,6 +325,7 @@ class TestSuiteOutput:
     module_summaries: Dict[int, ModuleSummary] = field(default_factory=dict)
     execution_plans: Dict = field(default_factory=dict)
     summary: Dict = field(default_factory=dict)
+    navigation_overview: str = ""
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dictionary"""
@@ -281,6 +333,7 @@ class TestSuiteOutput:
             "project_name": self.project_name,
             "base_url": self.base_url,
             "generated_at": self.generated_at,
+            "navigation_overview": self.navigation_overview,
             "navigation_graph": self.navigation_graph.to_dict(),
             "module_summaries": [s.to_dict() for s in self.module_summaries.values()],
             "test_cases": [tc.to_dict() for tc in self.test_cases],
@@ -294,3 +347,22 @@ class TestSuiteOutput:
             }
 
         return result
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "TestSuiteOutput":
+        nav_graph = NavigationGraph.from_dict(d.get("navigation_graph", {}))
+        test_cases = [TestCase.from_dict(tc) for tc in d.get("test_cases", [])]
+        module_summaries = {
+            s["module_id"]: ModuleSummary.from_dict(s)
+            for s in d.get("module_summaries", [])
+        }
+        return cls(
+            project_name=d.get("project_name", ""),
+            base_url=d.get("base_url", ""),
+            generated_at=d.get("generated_at", ""),
+            navigation_graph=nav_graph,
+            test_cases=test_cases,
+            module_summaries=module_summaries,
+            summary=d.get("summary", {}),
+            navigation_overview=d.get("navigation_overview", ""),
+        )

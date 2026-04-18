@@ -46,6 +46,7 @@ class PipelineState(TypedDict, total=False):
 
     # -- Inputs ---------------------------------------------------------------
     functional_desc: Annotated[Dict[str, Any], _last_value]
+    input_json_path: Annotated[str, _last_value]
 
     # -- Config ---------------------------------------------------------------
     api_key: Annotated[str, _last_value]

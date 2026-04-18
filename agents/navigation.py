@@ -235,7 +235,19 @@ Navigation Rules:
         elif num_nodes <= 10:
             pos = nx.spring_layout(G, k=2.5, iterations=50, seed=42)
         else:
-            pos = nx.kamada_kawai_layout(G)
+            # NetworkX's kamada_kawai_layout imports scipy internally.
+            # Fall back to spring_layout when scipy isn't available.
+            try:
+                pos = nx.kamada_kawai_layout(G)
+            except ModuleNotFoundError as e:
+                if getattr(e, "name", "") == "scipy":
+                    print("Warning: scipy not installed. Falling back to spring layout.")
+                    pos = nx.spring_layout(G, k=2.5, iterations=100, seed=42)
+                else:
+                    raise
+            except Exception as e:
+                print(f"Warning: kamada_kawai_layout failed ({e}). Falling back to spring layout.")
+                pos = nx.spring_layout(G, k=2.5, iterations=100, seed=42)
 
         # Define colors based on node attributes
         node_colors = []
