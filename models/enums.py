@@ -8,6 +8,7 @@ class TestType(str, Enum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
     EDGE_CASE = "edge_case"
+    STANDARD = "standard"
 
 
 class Priority(str, Enum):

@@ -62,9 +62,25 @@ Your task is to:
         )
 
     def _remove_duplicates(self, test_cases: List[TestCase]) -> List[TestCase]:
-        """Remove duplicate test cases based on title and steps"""
+        """Remove duplicate test cases in three passes:
 
-        # Pass 1: Exact dedup (title + first 3 steps)
+        Pass 1 — Exact dedup on (module_id, title, first-3-steps).
+        Pass 2 — Regex-normalized dedup across ALL test_types, keyed on
+                 (module_id, normalized_title, first-2-steps). Catches
+                 cross-workflow duplicates like "Amount empty (internal)" vs
+                 "Amount empty (external)" AND cross-test_type duplicates like
+                 a "Redirect to login" functional test that also appears as a
+                 negative test with identical opening steps.
+        Pass 3 — Embedding-based semantic dedup (see ``_semantic_dedup``)
+                 bucketed by (module_id, test_type) with a cosine >= 0.85
+                 threshold. Catches near-duplicate titles the regex pass misses
+                 (e.g. "Apply promo via Book Now featured card" vs
+                 "Book Now applies promotional code").
+        """
+
+        start = len(test_cases)
+
+        # --- Pass 1: Exact dedup (title + first 3 steps) --------------------
         seen_exact = set()
         after_exact = []
 
@@ -80,21 +96,104 @@ Your task is to:
                 seen_exact.add(signature)
                 after_exact.append(tc)
 
-        # Pass 2: Semantic dedup for negative/edge_case tests within same module.
-        # Catches cross-workflow duplicates like "Amount empty (internal)" vs "Amount empty (external)".
+        after_pass1 = len(after_exact)
+
+        # --- Pass 2: Normalized-title + first-2-steps dedup -----------------
+        # Runs across ALL test_types so functional-vs-negative duplicates
+        # (same title, same opening steps) collapse into one. Positive and
+        # negative tests with the same normalized title but different opening
+        # steps survive because the first-2-steps signature differs.
         seen_normalized = set()
-        unique = []
+        after_normalized = []
 
         for tc in after_exact:
-            if tc.test_type in ("negative", "edge_case"):
-                norm_title = self._normalize_title(tc.title)
-                norm_sig = (tc.module_id, tc.test_type, norm_title)
-                if norm_sig in seen_normalized:
-                    continue
-                seen_normalized.add(norm_sig)
-            unique.append(tc)
+            norm_title = self._normalize_title(tc.title)
+            steps_sig = tuple(s.lower().strip() for s in tc.steps[:2]) if tc.steps else ()
+            norm_sig = (tc.module_id, norm_title, steps_sig)
+            if norm_sig in seen_normalized:
+                continue
+            seen_normalized.add(norm_sig)
+            after_normalized.append(tc)
+
+        after_pass2 = len(after_normalized)
+
+        # --- Pass 3: Embedding-based fuzzy dedup ----------------------------
+        unique = self._semantic_dedup(after_normalized)
+        after_pass3 = len(unique)
+
+        if start != after_pass3:
+            print(
+                f"  - Dedup: {start} → {after_pass1} (exact) "
+                f"→ {after_pass2} (normalized) "
+                f"→ {after_pass3} (semantic)"
+            )
 
         return unique
+
+    def _semantic_dedup(self, tests: List[TestCase]) -> List[TestCase]:
+        """Pass 3 dedup: embedding-based fuzzy match within (module_id, test_type) buckets.
+
+        Reuses the RAGIndexer's sentence-transformer model. Falls back silently
+        to the input list when embeddings are unavailable (e.g., optional
+        dependency not installed).
+        """
+        try:
+            from testwright.agents.rag_indexer import RAGIndexer
+            import numpy as np
+        except ImportError:
+            return tests
+
+        indexer = RAGIndexer(use_embeddings=True)
+        if not indexer.use_embeddings:
+            return tests
+
+        from collections import defaultdict
+        buckets: Dict[tuple, List[TestCase]] = defaultdict(list)
+        for tc in tests:
+            buckets[(tc.module_id, tc.test_type)].append(tc)
+
+        survivors: List[TestCase] = []
+        threshold = 0.85
+
+        for bucket in buckets.values():
+            if len(bucket) <= 1:
+                survivors.extend(bucket)
+                continue
+
+            try:
+                indexer.build_index(bucket)
+                emb = indexer.embeddings
+                if emb is None:
+                    survivors.extend(bucket)
+                    continue
+                # Force L2 normalization (robust to both FAISS and numpy paths)
+                norms = np.linalg.norm(emb, axis=1, keepdims=True)
+                norms[norms == 0] = 1.0
+                emb = emb / norms
+                sim = emb @ emb.T
+                np.fill_diagonal(sim, 0.0)
+            except Exception as e:
+                print(f"  - Semantic dedup: embedding failed for bucket, keeping all: {e}")
+                survivors.extend(bucket)
+                continue
+
+            keep = [True] * len(bucket)
+            for i in range(len(bucket)):
+                if not keep[i]:
+                    continue
+                for j in range(i + 1, len(bucket)):
+                    if not keep[j]:
+                        continue
+                    if float(sim[i, j]) >= threshold:
+                        # Keep the test with the longer expected_result (more specific)
+                        if len(bucket[i].expected_result) >= len(bucket[j].expected_result):
+                            keep[j] = False
+                        else:
+                            keep[i] = False
+                            break
+            survivors.extend([bucket[k] for k in range(len(bucket)) if keep[k]])
+
+        return survivors
 
     def _normalize_title(self, title: str) -> str:
         """Normalize a test title for semantic dedup by stripping workflow qualifiers."""
@@ -115,7 +214,7 @@ Your task is to:
         """Sort tests by module ID, priority, and test type"""
 
         priority_order = {"High": 0, "Medium": 1, "Low": 2}
-        type_order = {"positive": 0, "negative": 1, "edge_case": 2}
+        type_order = {"positive": 0, "negative": 1, "edge_case": 2, "standard": 3}
 
         return sorted(
             test_cases,
@@ -223,7 +322,8 @@ Your task is to:
             "by_type": {
                 "positive": 0,
                 "negative": 0,
-                "edge_case": 0
+                "edge_case": 0,
+                "standard": 0
             },
             "by_priority": {
                 "High": 0,

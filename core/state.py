@@ -70,6 +70,9 @@ class PipelineState(TypedDict, total=False):
     # -- Step 5: Test Generation ----------------------------------------------
     all_tests: Annotated[List[TestCase], _last_value]
 
+    # -- Step 5b: Standard Patterns (session + RBAC) --------------------------
+    standard_pattern_tests: Annotated[List[TestCase], _last_value]
+
     # -- Step 6: Assembler ----------------------------------------------------
     output: Annotated[TestSuiteOutput, _last_value]
 

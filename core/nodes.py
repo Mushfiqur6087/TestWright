@@ -19,6 +19,7 @@ from testwright.agents import (
     IdealVerificationAgent,
     NavigationAgent,
     ParserAgent,
+    StandardPatternsAgent,
     SummaryAgent,
     TestGenerationAgent,
     VerificationFlagAgent,
@@ -26,6 +27,7 @@ from testwright.agents import (
 )
 from testwright.agents.base import BaseAgent
 from testwright.core.state import PipelineState
+from testwright.models.schemas import ProjectContext
 
 
 # ---------------------------------------------------------------------------
@@ -95,8 +97,14 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
     agent = ChunkerAgent(**_agent_kwargs(state))
     all_chunks = []
 
-    for module in state["parsed_desc"].modules:
-        chunks = agent.run(module)
+    parsed_desc = state["parsed_desc"]
+    project_context = ProjectContext(
+        project_name=parsed_desc.project_name or "",
+        navigation_overview=parsed_desc.navigation_overview or "",
+    )
+
+    for module in parsed_desc.modules:
+        chunks = agent.run(module, project_context=project_context)
         all_chunks.extend(chunks)
         print(f"  - {module.title}: {len(chunks)} chunk(s)")
         for chunk in chunks:
@@ -172,18 +180,50 @@ def test_generation_node(state: PipelineState) -> Dict[str, Any]:
 
 
 # ===========================================================================
+# Node 5b -- Standard quality patterns (session + RBAC)
+# ===========================================================================
+
+def standard_patterns_node(state: PipelineState) -> Dict[str, Any]:
+    """Emit generic session/RBAC quality tests conditional on spec signals."""
+    t0 = time.time()
+    print("\n[5b] Generating standard quality patterns (session + RBAC)...")
+
+    agent = StandardPatternsAgent(**_agent_kwargs(state))
+    parsed_desc = state["parsed_desc"]
+    project_context = ProjectContext(
+        project_name=parsed_desc.project_name or "",
+        navigation_overview=parsed_desc.navigation_overview or "",
+    )
+
+    tests = agent.run(
+        parsed_desc=parsed_desc,
+        nav_graph=state["nav_graph"],
+        project_context=project_context,
+    )
+
+    print(f"  - {len(tests)} standard pattern tests | Done in {time.time()-t0:.1f}s")
+    return {"standard_pattern_tests": tests}
+
+
+# ===========================================================================
 # Node 6 -- Assemble, deduplicate, assign IDs
 # ===========================================================================
 
 def assembler_node(state: PipelineState) -> Dict[str, Any]:
     """Assemble test cases -- deduplicate, sort, assign IDs, link to nav graph."""
     t0 = time.time()
-    before = len(state["all_tests"])
-    print(f"\n[6/11] Assembling test cases (deduplicating {before} raw tests)...")
+    spec_tests = state.get("all_tests") or []
+    std_tests = state.get("standard_pattern_tests") or []
+    combined = list(spec_tests) + list(std_tests)
+    before = len(combined)
+    print(
+        f"\n[6/11] Assembling test cases "
+        f"({len(spec_tests)} spec + {len(std_tests)} standard = {before} raw)..."
+    )
 
     agent = AssemblerAgent(**_agent_kwargs(state))
     output = agent.run(
-        test_cases=state["all_tests"],
+        test_cases=combined,
         nav_graph=state["nav_graph"],
         project_name=state["parsed_desc"].project_name,
         base_url=state["parsed_desc"].base_url,
@@ -224,10 +264,17 @@ def ideal_verification_node(state: PipelineState) -> Dict[str, Any]:
     """Generate ideal verification scenarios for flagged tests."""
     print("\n[8/11] Generating ideal verification scenarios...")
 
+    parsed_desc = state["parsed_desc"]
+    project_context = ProjectContext(
+        project_name=parsed_desc.project_name or "",
+        navigation_overview=parsed_desc.navigation_overview or "",
+    )
+
     agent = IdealVerificationAgent(**_agent_kwargs(state))
     ideal_verifications = agent.run(
         state["flagged_tests"],
         state["module_summaries"],
+        project_context=project_context,
     )
     total_ideals = sum(len(v) for v in ideal_verifications.values())
     print(f"  - Generated {total_ideals} ideal verification scenarios for {len(ideal_verifications)} tests")
@@ -347,7 +394,7 @@ def _generate_enhanced_summary(test_cases, module_summaries) -> dict:
     """Generate enhanced summary with verification coverage."""
     summary: Dict[str, Any] = {
         "total_tests": len(test_cases),
-        "by_type": {"positive": 0, "negative": 0, "edge_case": 0},
+        "by_type": {"positive": 0, "negative": 0, "edge_case": 0, "standard": 0},
         "by_priority": {"High": 0, "Medium": 0, "Low": 0},
         "by_module": {},
         "post_verification": {

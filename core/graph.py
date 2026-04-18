@@ -7,17 +7,20 @@ Graph topology - full mode (sequential)
 ========================================
 
   parse -> navigation -> chunker -> summary -> test_generation
-    -> assembler -> verification_flag -> ideal_verification
-    -> verification_matcher -> execution_plan -> finalize -> END
+    -> standard_patterns -> assembler -> verification_flag
+    -> ideal_verification -> verification_matcher -> execution_plan
+    -> finalize -> END
 
 Graph topology - basic mode (no post-verification)
 ===================================================
 
   parse -> navigation -> chunker -> summary -> test_generation
-    -> assembler -> finalize -> END
+    -> standard_patterns -> assembler -> finalize -> END
 
 All steps run sequentially to avoid LangGraph fan-in state-merge
 issues that cause duplicate node executions in parallel branches.
+``standard_patterns`` emits session/RBAC tests that are merged into
+the spec-derived list by ``assembler_node`` before dedup.
 """
 
 from langgraph.graph import END, StateGraph
@@ -30,6 +33,7 @@ from testwright.core.nodes import (
     ideal_verification_node,
     navigation_node,
     parse_node,
+    standard_patterns_node,
     summary_node,
     test_generation_node,
     verification_flag_node,
@@ -60,6 +64,7 @@ def build_graph(mode: str = "full") -> StateGraph:
     graph.add_node("chunker", chunker_node)
     graph.add_node("summary", summary_node)
     graph.add_node("test_generation", test_generation_node)
+    graph.add_node("standard_patterns", standard_patterns_node)
     graph.add_node("assembler", assembler_node)
     graph.add_node("finalize", finalize_node)
 
@@ -71,7 +76,8 @@ def build_graph(mode: str = "full") -> StateGraph:
     graph.add_edge("navigation", "chunker")
     graph.add_edge("chunker", "summary")
     graph.add_edge("summary", "test_generation")
-    graph.add_edge("test_generation", "assembler")
+    graph.add_edge("test_generation", "standard_patterns")
+    graph.add_edge("standard_patterns", "assembler")
 
     if mode == "basic":
         # Skip verification nodes -- go straight to finalize

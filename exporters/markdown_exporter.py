@@ -121,11 +121,12 @@ def generate_markdown(data: dict) -> str:
         for tc in cases:
             by_type[tc.get('test_type', 'other')].append(tc)
 
-        type_order = ['positive', 'negative', 'edge_case']
+        type_order = ['positive', 'negative', 'edge_case', 'standard']
         type_labels = {
             'positive': 'Functional Tests',
             'negative': 'Negative Tests',
-            'edge_case': 'Edge Case Tests'
+            'edge_case': 'Edge Case Tests',
+            'standard': 'Standard Quality Patterns'
         }
 
         for test_type in type_order:

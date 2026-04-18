@@ -35,6 +35,14 @@ class ParsedFunctionalDescription:
 # ============================================================================
 
 @dataclass
+class ProjectContext:
+    """Lightweight domain/context info passed to downstream agents so they
+    can produce domain-appropriate tests and verifications."""
+    project_name: str = ""
+    navigation_overview: str = ""
+
+
+@dataclass
 class WorkflowChunk:
     """A chunk representing a single workflow within a module"""
     chunk_id: str
@@ -46,6 +54,7 @@ class WorkflowChunk:
     related_rules: List[str] = field(default_factory=list)
     related_behaviors: List[str] = field(default_factory=list)
     sibling_workflows: List[str] = field(default_factory=list)
+    project_context: Optional["ProjectContext"] = None
 
 
 # ============================================================================
@@ -131,6 +140,7 @@ class TestCase:
     preconditions: str
     steps: List[str] = field(default_factory=list)
     expected_result: str = ""
+    spec_evidence: str = ""
 
     # Post-verification fields (populated by verification pipeline)
     needs_post_verification: bool = False
@@ -153,6 +163,9 @@ class TestCase:
             "steps": self.steps,
             "expected_result": self.expected_result
         }
+
+        if self.spec_evidence:
+            result["spec_evidence"] = self.spec_evidence
 
         if self.needs_post_verification:
             result["needs_post_verification"] = self.needs_post_verification
