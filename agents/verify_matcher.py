@@ -34,11 +34,18 @@ When execution_strategy is "after_only":
   by itself (e.g., a new record exists, a status changed to a specific value).
   → Ask: "Can this test confirm the expected result exists?"
 
+When execution_strategy is "cross_user":
+  The action is performed by one user; verification must be observed while logged in
+  as a DIFFERENT role. The candidate qualifies if it operates on a module/view that
+  the observer role can access AND it displays the relevant data.
+  → Ask: "Can this test be run as the observer and reveal the change?"
+
 Consider:
 1. Does the test case operate on the right module/page?
 2. Does it access/display the relevant data?
 3. For before_after: can it observe the data? (sufficient for full match)
-4. For after_only: can it confirm the expected outcome?"""
+4. For after_only: can it confirm the expected outcome?
+5. For cross_user: can it be run while logged in as the observer role?"""
 
     def run(
         self,
@@ -90,14 +97,31 @@ Consider:
 
             # Match each ideal verification
             matches = []
+            gap_records: List[Dict] = []
             for ideal in ideals:
                 match = self._match_verification(
                     ideal, rag, all_test_cases, tc.id, verifier_module_names,
                 )
                 matches.append(match.to_dict())
 
-            # Store matches in test case
+                # Record structured gap when no match was found
+                if match.status == "not_found":
+                    gap_records.append({
+                        "verification_type": ideal.verification_type,
+                        "execution_strategy": ideal.execution_strategy,
+                        "target_module": ideal.target_module,
+                        "description": ideal.description,
+                        "expected_change": ideal.expected_change,
+                        "observer_role": ideal.observer_role,
+                        "suggested_test_title": (
+                            match.suggested_manual_step
+                            or f"Verify {ideal.expected_change}"
+                        ),
+                    })
+
+            # Store matches and structured gaps in test case
             tc.post_verifications = matches
+            tc.needs_new_verification_test = gap_records
 
             # Calculate coverage
             found_count = sum(1 for m in matches if m["status"] == "found")
@@ -189,8 +213,10 @@ Consider:
                 reason=f"No test cases found for module '{ideal.target_module}'",
                 suggested_manual_step=f"Manual verification: {ideal.verification_action}. Expected: {ideal.expected_change}",
                 execution_strategy=ideal.execution_strategy,
+                verification_type=ideal.verification_type,
                 before_action=ideal.before_action,
                 after_action=ideal.after_action,
+                observer_role=ideal.observer_role,
                 requires_different_session=ideal.requires_different_session,
                 session_note=ideal.session_note,
             )
@@ -230,6 +256,17 @@ and compare it after. A test that shows the relevant value is a FULL MATCH ("fou
 
 Do NOT mark a test as "partial" just because it "shows data but doesn't verify the change."
 The before/after execution handles the change detection — the test just needs to observe the data."""
+        elif ideal.execution_strategy == "cross_user":
+            observer = ideal.observer_role or "a different user role"
+            strategy_instruction = f"""EXECUTION STRATEGY: cross_user
+The action is performed by one user; verification must be observed while logged
+in as a DIFFERENT role: {observer}.
+
+The candidate qualifies as a FULL match ("found") if it can plausibly be run
+while logged in as {observer} AND it displays the relevant data. Prefer tests
+in modules accessible to {observer}. Do NOT mark "partial" just because the
+candidate doesn't itself perform a session switch — the execution plan handles
+the logout/login as {observer}."""
         else:
             strategy_instruction = """EXECUTION STRATEGY: after_only
 This verification test runs only AFTER the action. It must confirm the expected
@@ -310,8 +347,10 @@ STATUS DEFINITIONS:
                 reason=match_data.get("reason", ""),
                 suggested_manual_step=match_data.get("suggested_manual_step", ""),
                 execution_strategy=ideal.execution_strategy,
+                verification_type=ideal.verification_type,
                 before_action=ideal.before_action,
                 after_action=ideal.after_action,
+                observer_role=ideal.observer_role,
                 requires_different_session=ideal.requires_different_session,
                 session_note=ideal.session_note,
             )
@@ -330,8 +369,10 @@ STATUS DEFINITIONS:
                     execution_note=f"Execute {best_tc.id} to verify",
                     reason="LLM validation failed, using similarity score",
                     execution_strategy=ideal.execution_strategy,
+                    verification_type=ideal.verification_type,
                     before_action=ideal.before_action,
                     after_action=ideal.after_action,
+                    observer_role=ideal.observer_role,
                     requires_different_session=ideal.requires_different_session,
                     session_note=ideal.session_note,
                 )
@@ -341,8 +382,10 @@ STATUS DEFINITIONS:
                 status="not_found",
                 reason="No matching test cases found",
                 execution_strategy=ideal.execution_strategy,
+                verification_type=ideal.verification_type,
                 before_action=ideal.before_action,
                 after_action=ideal.after_action,
+                observer_role=ideal.observer_role,
                 requires_different_session=ideal.requires_different_session,
                 session_note=ideal.session_note,
             )

@@ -430,6 +430,13 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
 
 def _generate_enhanced_summary(test_cases, module_summaries) -> dict:
     """Generate enhanced summary with verification coverage."""
+    by_verification_type = {
+        "existence": 0, "absence": 0, "field_persistence": 0,
+        "status_transition": 0, "cascading_update": 0, "credential_change": 0,
+        "session_persistence": 0, "financial_delta": 0,
+    }
+    by_strategy = {"after_only": 0, "before_after": 0, "cross_user": 0}
+
     summary: Dict[str, Any] = {
         "total_tests": len(test_cases),
         "by_type": {"positive": 0, "negative": 0, "edge_case": 0, "standard": 0},
@@ -440,6 +447,10 @@ def _generate_enhanced_summary(test_cases, module_summaries) -> dict:
             "full_coverage": 0,
             "partial_coverage": 0,
             "no_coverage": 0,
+            "tests_with_verification_gaps": 0,
+            "total_missing_verifications": 0,
+            "by_verification_type": by_verification_type,
+            "by_strategy": by_strategy,
             "coverage_gaps": [],
         },
     }
@@ -465,6 +476,21 @@ def _generate_enhanced_summary(test_cases, module_summaries) -> dict:
                 summary["post_verification"]["no_coverage"] += 1
             for gap in tc.coverage_gaps:
                 all_gaps.add(gap)
+
+            # Bucket emitted verifications by type and strategy
+            for pv in (tc.post_verifications or []):
+                vtype = pv.get("verification_type", "")
+                if vtype in by_verification_type:
+                    by_verification_type[vtype] += 1
+                strat = pv.get("execution_strategy", "after_only")
+                if strat in by_strategy:
+                    by_strategy[strat] += 1
+
+            # Count structured verification-test gaps
+            gaps = tc.needs_new_verification_test or []
+            if gaps:
+                summary["post_verification"]["tests_with_verification_gaps"] += 1
+                summary["post_verification"]["total_missing_verifications"] += len(gaps)
 
     summary["post_verification"]["coverage_gaps"] = list(all_gaps)[:10]
     return summary

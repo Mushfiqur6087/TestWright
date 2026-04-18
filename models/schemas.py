@@ -175,9 +175,14 @@ class TestCase:
     # Post-verification fields (populated by verification pipeline)
     needs_post_verification: bool = False
     modifies_state: List[str] = field(default_factory=list)
+    modification_kind: str = ""  # create | update | delete | status_transition | credential_change | none
     post_verifications: List[Dict] = field(default_factory=list)
     verification_coverage: str = ""
     coverage_gaps: List[str] = field(default_factory=list)
+    # Structured records for ideal verifications with no found/partial match.
+    # Each entry: {verification_type, execution_strategy, target_module,
+    # description, expected_change, observer_role, suggested_test_title}
+    needs_new_verification_test: List[Dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Convert to JSON-serializable dictionary"""
@@ -200,10 +205,14 @@ class TestCase:
         if self.needs_post_verification:
             result["needs_post_verification"] = self.needs_post_verification
             result["modifies_state"] = self.modifies_state
+            if self.modification_kind:
+                result["modification_kind"] = self.modification_kind
             result["post_verifications"] = self.post_verifications
             result["verification_coverage"] = self.verification_coverage
             if self.coverage_gaps:
                 result["coverage_gaps"] = self.coverage_gaps
+            if self.needs_new_verification_test:
+                result["needs_new_verification_test"] = self.needs_new_verification_test
 
         return result
 
@@ -223,9 +232,11 @@ class TestCase:
             spec_evidence=d.get("spec_evidence", ""),
             needs_post_verification=d.get("needs_post_verification", False),
             modifies_state=d.get("modifies_state", []),
+            modification_kind=d.get("modification_kind", ""),
             post_verifications=d.get("post_verifications", []),
             verification_coverage=d.get("verification_coverage", ""),
             coverage_gaps=d.get("coverage_gaps", []),
+            needs_new_verification_test=d.get("needs_new_verification_test", []),
         )
 
 
@@ -235,15 +246,23 @@ class TestCase:
 
 @dataclass
 class IdealVerification:
-    """An ideal verification scenario - what SHOULD be verified"""
+    """An ideal verification scenario - what SHOULD be verified.
+
+    execution_strategy is one of: "after_only" | "before_after" | "cross_user".
+    verification_type is one of: "existence" | "absence" | "field_persistence"
+        | "status_transition" | "cascading_update" | "credential_change"
+        | "session_persistence" | "financial_delta" (or "" if unclassified).
+    """
     description: str
     target_module: str
     verification_action: str
     expected_change: str
     state_to_verify: str = ""
     execution_strategy: str = "after_only"
+    verification_type: str = ""
     before_action: str = ""
     after_action: str = ""
+    observer_role: str = ""
     requires_different_session: bool = False
     session_note: str = ""
 
@@ -256,9 +275,13 @@ class IdealVerification:
             "state_to_verify": self.state_to_verify,
             "execution_strategy": self.execution_strategy,
         }
+        if self.verification_type:
+            result["verification_type"] = self.verification_type
         if self.execution_strategy == "before_after":
             result["before_action"] = self.before_action
             result["after_action"] = self.after_action
+        if self.execution_strategy == "cross_user" or self.observer_role:
+            result["observer_role"] = self.observer_role
         if self.requires_different_session:
             result["requires_different_session"] = True
             result["session_note"] = self.session_note
@@ -281,8 +304,10 @@ class VerificationMatch:
     reason: str = ""
     suggested_manual_step: str = ""
     execution_strategy: str = "after_only"
+    verification_type: str = ""
     before_action: str = ""
     after_action: str = ""
+    observer_role: str = ""
     requires_different_session: bool = False
     session_note: str = ""
 
@@ -292,6 +317,8 @@ class VerificationMatch:
             "status": self.status,
             "execution_strategy": self.execution_strategy
         }
+        if self.verification_type:
+            result["verification_type"] = self.verification_type
         if self.status == "found" or self.status == "partial":
             result["matched_test_id"] = self.matched_test_id
             result["matched_test_title"] = self.matched_test_title
@@ -300,6 +327,8 @@ class VerificationMatch:
         if self.execution_strategy == "before_after":
             result["before_action"] = self.before_action
             result["after_action"] = self.after_action
+        if self.execution_strategy == "cross_user" or self.observer_role:
+            result["observer_role"] = self.observer_role
         if self.requires_different_session:
             result["requires_different_session"] = True
             result["session_note"] = self.session_note

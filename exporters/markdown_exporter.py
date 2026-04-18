@@ -83,7 +83,32 @@ def generate_markdown(data: dict) -> str:
             lines.append(f"| Full Coverage | {post_verif.get('full_coverage', 0)} |")
             lines.append(f"| Partial Coverage | {post_verif.get('partial_coverage', 0)} |")
             lines.append(f"| No Coverage | {post_verif.get('no_coverage', 0)} |")
+            lines.append(f"| Tests With Verification Gaps | {post_verif.get('tests_with_verification_gaps', 0)} |")
+            lines.append(f"| Total Missing Verifications | {post_verif.get('total_missing_verifications', 0)} |")
             lines.append("")
+
+            by_strategy = post_verif.get('by_strategy') or {}
+            nz_strats = [(k, v) for k, v in by_strategy.items() if v]
+            if nz_strats:
+                lines.append("**By Strategy:**")
+                lines.append("")
+                lines.append("| Strategy | Count |")
+                lines.append("|----------|-------|")
+                for k, v in nz_strats:
+                    label = 'Before/After' if k == 'before_after' else ('Cross-User' if k == 'cross_user' else 'After Only')
+                    lines.append(f"| {label} | {v} |")
+                lines.append("")
+
+            by_vtype = post_verif.get('by_verification_type') or {}
+            nz_types = [(k, v) for k, v in by_vtype.items() if v]
+            if nz_types:
+                lines.append("**By Verification Type:**")
+                lines.append("")
+                lines.append("| Type | Count |")
+                lines.append("|------|-------|")
+                for k, v in nz_types:
+                    lines.append(f"| {k.replace('_', ' ').title()} | {v} |")
+                lines.append("")
 
         # Execution plans summary
         exec_plans = summary.get('execution_plans', {})
@@ -96,6 +121,9 @@ def generate_markdown(data: dict) -> str:
             lines.append(f"| Automated Steps | {exec_plans.get('total_automated_steps', 0)} |")
             lines.append(f"| Manual Steps | {exec_plans.get('total_manual_steps', 0)} |")
             lines.append(f"| Automation Rate | {exec_plans.get('automation_rate', 0)}% |")
+            lines.append(f"| Before/After Plans | {exec_plans.get('before_after_plans', 0)} |")
+            lines.append(f"| After-Only Plans | {exec_plans.get('after_only_plans', 0)} |")
+            lines.append(f"| Cross-User Plans | {exec_plans.get('cross_user_plans', 0)} |")
             lines.append("")
 
     lines.append("---")
@@ -203,7 +231,15 @@ def generate_markdown(data: dict) -> str:
                     confidence = pv.get('confidence', 0)
                     conf_str = f"{confidence:.0%}" if confidence else "-"
                     strategy = pv.get('execution_strategy', 'after_only')
-                    strategy_label = 'Before/After' if strategy == 'before_after' else 'After Only'
+                    if strategy == 'before_after':
+                        strategy_label = 'Before/After'
+                    elif strategy == 'cross_user':
+                        strategy_label = 'Cross-User'
+                    else:
+                        strategy_label = 'After Only'
+
+                    vtype = pv.get('verification_type', '')
+                    type_label = vtype.replace('_', ' ').title() if vtype else '-'
 
                     if matched_id and matched_id != '-':
                         matched_test_ids.add(matched_id)
@@ -213,6 +249,7 @@ def generate_markdown(data: dict) -> str:
 
                     matched_str = f"{matched_id} ({matched_title})" if matched_id != '-' and matched_title else matched_id
                     lines.append(f"- **Status:** {status_icon} {status}")
+                    lines.append(f"- **Type:** {type_label}")
                     lines.append(f"- **Strategy:** {strategy_label}")
                     lines.append(f"- **Matched Test:** {matched_str}")
                     lines.append(f"- **Confidence:** {conf_str}")
@@ -225,6 +262,11 @@ def generate_markdown(data: dict) -> str:
                         if after_action:
                             lines.append(f"- **After Action:** {after_action}")
 
+                    if strategy == 'cross_user' or pv.get('observer_role'):
+                        observer = pv.get('observer_role', '')
+                        if observer:
+                            lines.append(f"- **Observer Role:** {observer}")
+
                     if pv.get('requires_different_session'):
                         lines.append(f"- **Session Switch Required:** {pv.get('session_note', 'Different user login needed')}")
 
@@ -236,6 +278,23 @@ def generate_markdown(data: dict) -> str:
                         lines.append(f"- **Manual Step:** {pv.get('suggested_manual_step')}")
 
                     lines.append("")
+
+            # Verification tests needed (structured gaps from matcher)
+            needed = tc.get('needs_new_verification_test', [])
+            if needed:
+                lines.append("**Verification Tests Needed:**")
+                lines.append("")
+                for n in needed:
+                    n_type = n.get('verification_type', '') or '-'
+                    n_strat = n.get('execution_strategy', '') or '-'
+                    n_module = n.get('target_module', '') or '-'
+                    n_observer = n.get('observer_role', '') or ''
+                    n_title = n.get('suggested_test_title', '')
+                    suffix = f" — observer: {n_observer}" if n_observer else ""
+                    lines.append(
+                        f"- [{n_type}/{n_strat}] **{n_title}** (module: {n_module}){suffix}"
+                    )
+                lines.append("")
 
             # Coverage gaps
             gaps = tc.get('coverage_gaps', [])

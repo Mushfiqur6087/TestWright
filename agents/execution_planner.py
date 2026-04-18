@@ -50,6 +50,7 @@ class ExecutionSequence:
     verification_coverage: str = ""         # "full" | "partial" | "none"
     notes: str = ""                          # Additional execution notes
     has_before_after: bool = False           # Whether this plan uses before/after strategy
+    has_cross_user: bool = False             # Whether this plan uses cross-user strategy
 
     def to_dict(self) -> dict:
         return {
@@ -61,6 +62,7 @@ class ExecutionSequence:
             "verification_coverage": self.verification_coverage,
             "notes": self.notes,
             "has_before_after": self.has_before_after,
+            "has_cross_user": self.has_cross_user,
         }
 
 
@@ -146,6 +148,13 @@ Keep execution notes concise and actionable."""
         found_count = 0
         total_verifications = len(source_test.post_verifications)
         has_before_after = False
+        has_cross_user = False
+
+        # Build lookup of structured gap records keyed by ideal description
+        gap_lookup = {
+            g.get("description", ""): g
+            for g in (source_test.needs_new_verification_test or [])
+        }
 
         for pv in source_test.post_verifications:
             status = pv.get('status', 'not_found')
@@ -157,15 +166,28 @@ Keep execution notes concise and actionable."""
             ideal_desc = pv.get('ideal', '')
             before_action_desc = pv.get('before_action', '')
             after_action_desc = pv.get('after_action', '')
-            needs_session_switch = pv.get('requires_different_session', False)
-            session_note = pv.get('session_note', '')
+            observer_role = pv.get('observer_role', '')
+            needs_session_switch = pv.get('requires_different_session', False) or strategy == 'cross_user'
+            session_note = pv.get('session_note', '') or (
+                f"Log out and log in as {observer_role}" if observer_role else ""
+            )
+            verification_type = pv.get('verification_type', '')
 
             if status == 'not_found':
+                gap = gap_lookup.get(ideal_desc, {})
                 manual_steps.append({
                     "purpose": ideal_desc,
                     "suggested_step": pv.get('suggested_manual_step', ''),
                     "reason": pv.get('reason', 'No matching test case found'),
                     "execution_strategy": strategy,
+                    "verification_type": verification_type,
+                    "expected_change": gap.get("expected_change", ""),
+                    "target_module": gap.get("target_module", ""),
+                    "observer_role": observer_role,
+                    "suggested_test_title": gap.get(
+                        "suggested_test_title",
+                        pv.get('suggested_manual_step', '') or f"Verify {ideal_desc}",
+                    ),
                 })
                 continue
 
@@ -243,6 +265,46 @@ Keep execution notes concise and actionable."""
                     test_title=matched_title,
                     purpose=after_action_desc or f"Verify change: {ideal_desc}",
                     note=f"Run {matched_id} AGAIN and COMPARE with baseline values recorded in pre-verify",
+                    confidence=confidence,
+                    limitation=limitation,
+                ))
+
+            elif strategy == 'cross_user' and matched_id:
+                # --- cross_user: SESSION SWITCH (mandatory) → POST-VERIFY ---
+                has_cross_user = True
+
+                # Mandatory session switch to observer role
+                post_verify_steps.append(ExecutionStep(
+                    step=0,
+                    phase="session",
+                    action="session_switch",
+                    purpose=(
+                        f"Switch to observer role: {observer_role}"
+                        if observer_role else "Switch to observer user session"
+                    ),
+                    note=session_note or "Log out actor and log in as the observer role",
+                ))
+
+                if matched_module and matched_module != source_test.module_title:
+                    post_verify_steps.append(ExecutionStep(
+                        step=0,
+                        phase="navigate",
+                        action="navigate",
+                        purpose=f"Navigate to {matched_module}",
+                        note=f"As {observer_role or 'observer'}, navigate to {matched_module}",
+                    ))
+
+                post_verify_steps.append(ExecutionStep(
+                    step=0,
+                    phase="post_verify",
+                    action="execute_test" if is_full else "execute_test_partial",
+                    test_id=matched_id,
+                    test_title=matched_title,
+                    purpose=ideal_desc,
+                    note=pv.get(
+                        'execution_note',
+                        f"Run {matched_id} as {observer_role or 'observer'} to confirm the change is visible",
+                    ),
                     confidence=confidence,
                     limitation=limitation,
                 ))
@@ -331,7 +393,7 @@ Keep execution notes concise and actionable."""
 
         # Generate execution notes
         notes = self._generate_execution_notes(
-            source_test, execution_order, manual_steps, has_before_after
+            source_test, execution_order, manual_steps, has_before_after, has_cross_user
         )
 
         return ExecutionSequence(
@@ -343,6 +405,7 @@ Keep execution notes concise and actionable."""
             verification_coverage=coverage,
             notes=notes,
             has_before_after=has_before_after,
+            has_cross_user=has_cross_user,
         )
 
     def _generate_execution_notes(
@@ -351,6 +414,7 @@ Keep execution notes concise and actionable."""
         execution_order: List[Dict],
         manual_steps: List[Dict],
         has_before_after: bool,
+        has_cross_user: bool = False,
     ) -> str:
         """Generate human-readable execution notes"""
 
@@ -375,7 +439,9 @@ Keep execution notes concise and actionable."""
                 notes_parts.append(f"then verify with {', '.join(post_ids)}")
 
         has_session = any(s.get('action') == 'session_switch' for s in execution_order)
-        if has_session:
+        if has_cross_user:
+            notes_parts.append("(cross-user: switch to observer role)")
+        elif has_session:
             notes_parts.append("(requires user session switch)")
 
         if manual_steps:
@@ -398,6 +464,7 @@ Keep execution notes concise and actionable."""
                 "automation_rate": 0,
                 "before_after_plans": 0,
                 "after_only_plans": 0,
+                "cross_user_plans": 0,
             }
 
         coverage_dist = {"full": 0, "partial": 0, "minimal": 0, "none": 0}
@@ -405,6 +472,7 @@ Keep execution notes concise and actionable."""
         total_manual = 0
         before_after_count = 0
         after_only_count = 0
+        cross_user_count = 0
 
         for plan in execution_plans.values():
             coverage_dist[plan.verification_coverage] = coverage_dist.get(plan.verification_coverage, 0) + 1
@@ -412,7 +480,9 @@ Keep execution notes concise and actionable."""
             verify_steps = [s for s in plan.execution_order if s.get('phase') in ('pre_verify', 'post_verify')]
             total_automated += len(verify_steps)
             total_manual += len(plan.manual_steps)
-            if plan.has_before_after:
+            if plan.has_cross_user:
+                cross_user_count += 1
+            elif plan.has_before_after:
                 before_after_count += 1
             else:
                 after_only_count += 1
@@ -427,4 +497,5 @@ Keep execution notes concise and actionable."""
             ) if (total_automated + total_manual) > 0 else 0,
             "before_after_plans": before_after_count,
             "after_only_plans": after_only_count,
+            "cross_user_plans": cross_user_count,
         }

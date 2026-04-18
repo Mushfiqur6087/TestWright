@@ -29,7 +29,17 @@ def _coverage_key(test_case: dict) -> str:
 
 
 def _strategy_label(strategy: str) -> str:
-    return "Before/After" if strategy == "before_after" else "After Only"
+    if strategy == "before_after":
+        return "Before/After"
+    if strategy == "cross_user":
+        return "Cross-User"
+    return "After Only"
+
+
+def _type_label(vtype: str) -> str:
+    if not vtype:
+        return "-"
+    return vtype.replace("_", " ").title()
 
 
 def _confidence_label(raw_confidence) -> str:
@@ -90,6 +100,9 @@ def generate_post_verification_markdown(data: dict) -> str:
     no_coverage = post_summary.get("no_coverage", coverage_counts.get("none", 0))
     minimal_coverage = coverage_counts.get("minimal", 0)
 
+    tests_with_gaps = post_summary.get("tests_with_verification_gaps", 0)
+    total_missing = post_summary.get("total_missing_verifications", 0)
+
     lines.append("## Summary")
     lines.append("")
     lines.append("| Metric | Count |")
@@ -99,8 +112,32 @@ def generate_post_verification_markdown(data: dict) -> str:
     lines.append(f"| Partial Coverage | {partial_coverage} |")
     lines.append(f"| Minimal Coverage | {minimal_coverage} |")
     lines.append(f"| No Coverage | {no_coverage} |")
+    lines.append(f"| Tests With Verification Gaps | {tests_with_gaps} |")
+    lines.append(f"| Total Missing Verifications | {total_missing} |")
     lines.append(f"| Associated Verification Tests | {len(associated_tests)} |")
     lines.append("")
+
+    by_type = post_summary.get("by_verification_type") or {}
+    nonzero_types = [(k, v) for k, v in by_type.items() if v]
+    if nonzero_types:
+        lines.append("### Generated Verifications by Type")
+        lines.append("")
+        lines.append("| Type | Count |")
+        lines.append("|------|-------|")
+        for k, v in nonzero_types:
+            lines.append(f"| {_type_label(k)} | {v} |")
+        lines.append("")
+
+    by_strategy = post_summary.get("by_strategy") or {}
+    nonzero_strats = [(k, v) for k, v in by_strategy.items() if v]
+    if nonzero_strats:
+        lines.append("### Generated Verifications by Strategy")
+        lines.append("")
+        lines.append("| Strategy | Count |")
+        lines.append("|----------|-------|")
+        for k, v in nonzero_strats:
+            lines.append(f"| {_strategy_label(k)} | {v} |")
+        lines.append("")
 
     gaps = post_summary.get("coverage_gaps", []) or []
     if gaps:
@@ -157,12 +194,13 @@ def generate_post_verification_markdown(data: dict) -> str:
                 lines.append("No verification mappings were generated for this source test.")
                 lines.append("")
             else:
-                lines.append("| # | Ideal Verification | Status | Strategy | Matched Test | Confidence |")
-                lines.append("|---|--------------------|--------|----------|--------------|------------|")
+                lines.append("| # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |")
+                lines.append("|---|--------------------|--------|------|----------|--------------|------------|")
 
                 for idx, pv in enumerate(post_verifications, 1):
                     ideal = escape_md(truncate(pv.get("ideal", "-"), 120))
                     status = escape_md(pv.get("status", "unknown"))
+                    vtype = escape_md(_type_label(pv.get("verification_type", "")))
                     strategy = escape_md(_strategy_label(pv.get("execution_strategy", "after_only")))
 
                     matched_id = pv.get("matched_test_id", "-")
@@ -175,9 +213,26 @@ def generate_post_verification_markdown(data: dict) -> str:
                     confidence = _confidence_label(pv.get("confidence"))
 
                     lines.append(
-                        f"| {idx} | {ideal} | {status} | {strategy} | {escape_md(truncate(matched_value, 90))} | {confidence} |"
+                        f"| {idx} | {ideal} | {status} | {vtype} | {strategy} | {escape_md(truncate(matched_value, 90))} | {confidence} |"
                     )
 
+                lines.append("")
+
+            needed = tc.get("needs_new_verification_test", []) or []
+            if needed:
+                lines.append("#### Verification Tests Needed")
+                lines.append("")
+                lines.append("| # | Type | Strategy | Target Module | Observer | Suggested Test Title |")
+                lines.append("|---|------|----------|---------------|----------|----------------------|")
+                for idx, n in enumerate(needed, 1):
+                    n_type = escape_md(_type_label(n.get("verification_type", "")))
+                    n_strategy = escape_md(_strategy_label(n.get("execution_strategy", "after_only")))
+                    n_module = escape_md(n.get("target_module", "-") or "-")
+                    n_observer = escape_md(n.get("observer_role", "") or "-")
+                    n_title = escape_md(truncate(n.get("suggested_test_title", ""), 100))
+                    lines.append(
+                        f"| {idx} | {n_type} | {n_strategy} | {n_module} | {n_observer} | {n_title} |"
+                    )
                 lines.append("")
 
             coverage_gaps = tc.get("coverage_gaps", []) or []

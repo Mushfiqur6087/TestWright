@@ -13,27 +13,23 @@ class VerificationFlagAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return """You are an expert QA engineer who understands when test results need external verification.
+        return """You decide which positive tests modify persistent state and therefore need
+post-verification (an independent observation that proves the change).
 
-Your task is to analyze test cases and determine which ones need post-verification -
-meaning the test's success should be verified by checking data in another part of the application.
+For each test, output:
+- needs_post_verification: true if the test CREATES, UPDATES, DELETES,
+  TRANSITIONS status, or CHANGES credentials on persistent data.
+- modifies_state: short list of state names from the module summaries.
+- modification_kind: "create" | "update" | "delete" | "status_transition"
+                  | "credential_change" | "none"
 
-NEEDS POST-VERIFICATION (needs_post_verification = true):
-- Data creation: Verify new records appear in list/overview pages
-- Data modification: Verify changes are reflected in display pages
-- Data transfer/movement: Verify data moved from source to destination
-- Submissions: Verify submission appears in history/status pages
-- Any action that modifies persistent data viewable elsewhere
+needs_post_verification = false for: pure read/observe, navigation, search/filter,
+login, logout, account registration, validation/edge cases, and password-reset
+requests sent by email (the actual reset flow that changes the credential DOES need
+verification — old credential fails, new one succeeds).
 
-DOES NOT NEED POST-VERIFICATION (needs_post_verification = false):
-- Login/Logout: Session state, no persistent data change
-- Registration: Self-contained, success message is enough
-- Read-only pages: Just displaying data, nothing to verify elsewhere
-- Negative tests: Validation failures, no state change
-- Edge case tests: Usually testing boundaries, not state changes
-- Navigation: Just moving between pages
-- Password reset requests: External verification (email), out of scope
-- Search/Filter: Just filtering displayed data, no state change"""
+A success toast alone is NEVER proof. If a test only triggers a toast and does not
+write data viewable elsewhere, still flag it (the gap will be tracked downstream)."""
 
     # ---- Heuristic pre-filter for read-only tests -------------------------
     # Steps/results containing ONLY these words are almost certainly read-only
@@ -94,6 +90,7 @@ DOES NOT NEED POST-VERIFICATION (needs_post_verification = false):
             if self._is_likely_read_only(tc):
                 tc.needs_post_verification = False
                 tc.modifies_state = []
+                tc.modification_kind = "none"
                 read_only_tests.append(tc)
             else:
                 actionable_tests.append(tc)
@@ -119,7 +116,7 @@ DOES NOT NEED POST-VERIFICATION (needs_post_verification = false):
                 "expected_result": tc.expected_result
             })
 
-        prompt = f"""Analyze these POSITIVE test cases and determine which ones need post-verification.
+        prompt = f"""Analyze these POSITIVE test cases and decide which ones need post-verification.
 
 AVAILABLE MODULES AND THEIR CAPABILITIES:
 {modules_context}
@@ -127,9 +124,11 @@ AVAILABLE MODULES AND THEIR CAPABILITIES:
 TEST CASES TO ANALYZE:
 {self._format_tests(tests_for_analysis)}
 
-For each test case, determine:
+For each test case, output:
 1. needs_post_verification: true/false
-2. modifies_state: List of states this test modifies (use the state names from module summaries)
+2. modifies_state: list of state names (use names from the module summaries above)
+3. modification_kind: one of "create" | "update" | "delete" | "status_transition"
+                     | "credential_change" | "none"
 
 Return JSON:
 {{
@@ -138,24 +137,22 @@ Return JSON:
             "test_id": "ACTION-001",
             "needs_post_verification": true,
             "modifies_state": ["relevant_state_name"],
-            "reason": "This action modifies data which can be verified in another module"
-        }},
-        {{
-            "test_id": "LOGIN-001",
-            "needs_post_verification": false,
-            "modifies_state": ["session_status"],
-            "reason": "Login only affects session state, no persistent data to verify elsewhere"
+            "modification_kind": "create",
+            "reason": "Brief explanation"
         }}
     ]
 }}
 
 RULES:
-1. Only flag tests that MODIFY data which can be VERIFIED in ANOTHER module
-2. If a test modifies data but there's no way to verify it elsewhere, still flag it (we'll handle missing coverage later)
-3. Read-only tests should NEVER be flagged
-4. Login/logout/registration/password-reset should NOT be flagged
-5. Include ALL test cases in the output
-6. Use state names that match those defined in the module summaries"""
+1. Flag any test that creates / updates / deletes / transitions status / changes a credential
+   on persistent data — even if no module currently displays it (the gap is tracked downstream).
+2. modification_kind="none" iff needs_post_verification=false.
+3. Read-only / search / filter / navigation tests are never flagged.
+4. Login, logout, and account registration are not flagged.
+5. Password-reset REQUEST (email link) is not flagged; the actual password CHANGE is flagged
+   with modification_kind="credential_change".
+6. Include ALL test cases in the output.
+7. Use state names that match those in the module summaries."""
 
         try:
             result = self.call_llm_json(prompt, max_tokens=16000)
@@ -164,11 +161,19 @@ RULES:
             flags = {item["test_id"]: item for item in result.get("flagged_tests", [])}
 
             # Update test cases with flags (only actionable tests were sent to LLM)
+            valid_kinds = {
+                "create", "update", "delete", "status_transition",
+                "credential_change", "none",
+            }
             for tc in actionable_tests:
                 if tc.id in flags:
                     flag_data = flags[tc.id]
                     tc.needs_post_verification = flag_data.get("needs_post_verification", False)
                     tc.modifies_state = flag_data.get("modifies_state", [])
+                    kind = flag_data.get("modification_kind", "")
+                    tc.modification_kind = kind if kind in valid_kinds else (
+                        "none" if not tc.needs_post_verification else ""
+                    )
 
             # Combine back: actionable (LLM-flagged) + read-only (pre-filtered) + other types
             return actionable_tests + read_only_tests + other_tests
