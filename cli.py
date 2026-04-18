@@ -15,6 +15,7 @@ from pathlib import Path
 import testwright
 from testwright.core.generator import PostVerifyRunner, TestCaseGenerator
 from testwright.exporters.markdown_exporter import load_test_cases, generate_markdown
+from testwright.exporters.post_verification_markdown_exporter import generate_post_verification_markdown
 
 
 def main():
@@ -62,10 +63,20 @@ def main():
     export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
     export_parser.add_argument("--output", "-o", help="Output Markdown file path")
 
+    # Export post-verification-only markdown subcommand
+    post_verify_export_parser = subparsers.add_parser(
+        "export-post-verify-md",
+        help="Export post-verification-only report to Markdown",
+    )
+    post_verify_export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
+    post_verify_export_parser.add_argument("--output", "-o", help="Output Markdown file path")
+
     args = parser.parse_args()
 
     if args.command == "export-md":
         return _export_markdown(args)
+    elif args.command == "export-post-verify-md":
+        return _export_post_verify_markdown(args)
     elif getattr(args, "post_verify", False):
         return _post_verify(args)
     elif args.generate:
@@ -330,6 +341,32 @@ def _export_markdown(args):
 
     test_count = len(data.get('test_cases', []))
     print(f"Done! Exported {test_count} test cases to Markdown.")
+    return 0
+
+
+def _export_post_verify_markdown(args):
+    """Export post-verification-only report from JSON to Markdown."""
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        return 1
+
+    output_path = args.output
+    if not output_path:
+        output_path = input_path.with_name(f"{input_path.stem}-post-verification.md")
+
+    print(f"Reading test cases from: {input_path}")
+    data = load_test_cases(str(input_path))
+
+    print("Generating post-verification-only Markdown...")
+    markdown = generate_post_verification_markdown(data)
+
+    print(f"Writing to: {output_path}")
+    with open(output_path, 'w') as f:
+        f.write(markdown)
+
+    source_tests = [tc for tc in data.get('test_cases', []) if tc.get('needs_post_verification')]
+    print(f"Done! Exported {len(source_tests)} post-verification source tests to Markdown.")
     return 0
 
 
