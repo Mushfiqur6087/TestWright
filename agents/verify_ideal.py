@@ -1,7 +1,12 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 from testwright.agents.base import BaseAgent
-from testwright.models.schemas import TestCase, ModuleSummary, IdealVerification
+from testwright.models.schemas import (
+    IdealVerification,
+    ModuleSummary,
+    ProjectContext,
+    TestCase,
+)
 
 
 class IdealVerificationAgent(BaseAgent):
@@ -42,7 +47,8 @@ These are IDEAL verifications — we'll later match them to actual test cases th
     def run(
         self,
         flagged_tests: List[TestCase],
-        module_summaries: Dict[int, ModuleSummary]
+        module_summaries: Dict[int, ModuleSummary],
+        project_context: Optional[ProjectContext] = None,
     ) -> Dict[str, List[IdealVerification]]:
         """Generate ideal verifications for each flagged test case
 
@@ -65,7 +71,9 @@ These are IDEAL verifications — we'll later match them to actual test cases th
 
         for i in range(0, len(tests_needing_verification), batch_size):
             batch = tests_needing_verification[i:i+batch_size]
-            batch_verifications = self._generate_verifications_for_batch(batch, verification_context)
+            batch_verifications = self._generate_verifications_for_batch(
+                batch, verification_context, project_context
+            )
             all_verifications.update(batch_verifications)
 
         return all_verifications
@@ -100,9 +108,22 @@ These are IDEAL verifications — we'll later match them to actual test cases th
     def _generate_verifications_for_batch(
         self,
         test_cases: List[TestCase],
-        verification_context: str
+        verification_context: str,
+        project_context: Optional[ProjectContext] = None,
     ) -> Dict[str, List[IdealVerification]]:
         """Generate ideal verifications for a batch of test cases"""
+
+        # Project context block (domain awareness)
+        project_str = ""
+        if project_context and (project_context.project_name or project_context.navigation_overview):
+            project_str = f"""PROJECT CONTEXT:
+You are generating verifications for: {project_context.project_name or 'Unknown project'}
+Application overview: {project_context.navigation_overview or 'Not provided'}
+
+Use this context to phrase verifications in terms appropriate to the application domain.
+The patterns below are DOMAIN-AGNOSTIC; apply them using the project's own vocabulary.
+
+"""
 
         # Format test cases for prompt
         tests_text = ""
@@ -118,7 +139,7 @@ Expected Result: {tc.expected_result}
 ---
 """
 
-        prompt = f"""Generate IDEAL verification scenarios for each test case below.
+        prompt = f"""{project_str}Generate IDEAL verification scenarios for each test case below.
 
 {verification_context}
 
@@ -131,22 +152,22 @@ CRITICAL — CROSS-MODULE VERIFICATION RULE:
 When choosing target_module, consider ALL modules in the list above — not just the module
 where the action takes place. Many actions are best verified from a DIFFERENT module.
 
-Examples of cross-module verification:
-  - Teacher grades a submission (module: "Assignment Submissions") → verified in
-    "Assignment (Student View)" where the student sees their grade, AND in
-    "Gradebook / Grader Report" where the grade appears in the report.
-  - Teacher creates an assignment (module: "Adding Activities") → verified in
-    "Course Page" where the activity appears in sections, AND in
-    "Activities (Student View)" where students see it listed.
-  - User enrolls a participant (module: "Participants") → verified in
-    "Participants" list where the new user appears (same module is OK too).
+Cross-module verification applies across every domain. A few illustrations:
+  - A transfer/payment in an operational module → verified on the source AND destination
+    detail pages where current balances are displayed.
+  - A submission/content creation → verified on the listing/index page where the new
+    entity appears, AND on any aggregated report that includes it.
+  - A status transition (Approve/Disburse/Publish) → verified on the detail page where the
+    status badge is displayed AND in any audit/history module that logs the transition.
+  - A booking/reservation → verified on the user's "My Bookings" listing AND in the
+    confirmation/receipt section.
 
 If MULTIPLE modules can verify the same state, generate SEPARATE ideal verifications
 for each target module. This maximises the chance of finding a matching test case later.
 
 For EACH verification, you MUST choose an execution_strategy:
 - "before_after": When the action MODIFIES existing data. The same verification test runs
-  BEFORE the action (to record the baseline) and AFTER (to confirm the change).
+  BEFORE the action (to record the baseline) and AFTER (to compare and confirm the change).
   You must fill in before_action and after_action.
 - "after_only": When the action CREATES new data or a result that didn't previously exist.
   The verification test only needs to run after the action to confirm the new data appeared.
@@ -156,36 +177,44 @@ Also determine if verification requires a DIFFERENT user session:
 - session_note: description of who needs to be logged in (e.g., "Login as the recipient user")
 
 ═══════════════════════════════════════════════════════════
-FEW-SHOT EXAMPLES — Study these patterns carefully
+FEW-SHOT EXAMPLES — Each example states the PATTERN first,
+then shows a domain-specific instance. Apply the PATTERN using
+whatever domain vocabulary matches the current project.
 ═══════════════════════════════════════════════════════════
 
-EXAMPLE 1: Money movement between two entities (transfer, send, move)
+EXAMPLE 1 — Value movement between two entities
 ─────────────────────────────────────────────────────────
-If a test moves money/value from entity A to entity B, you MUST generate at
-minimum TWO verifications — one for the SOURCE and one for the DESTINATION:
+Pattern: A test moves a quantitative value from entity A to entity B. Verify BOTH
+the source decrease AND the destination increase as separate verifications.
+Applies to: fund transfers between accounts, payments to payees, inventory
+moves between warehouses, point/credit transfers between users, allocations
+between GL accounts, stock transfers between portfolios.
 
+Domain-specific instance:
   Verification 1 (SOURCE side):
-    description: "Verify the source balance decreased by the transferred amount"
+    description: "Verify the source value decreased by the exact amount"
     execution_strategy: "before_after"
-    before_action: "Record the source balance before the action"
-    after_action: "Compare the source balance and confirm it decreased by the exact amount"
+    before_action: "Record the source value before the action"
+    after_action: "Compare and confirm the source value decreased by the exact amount"
 
   Verification 2 (DESTINATION side):
-    description: "Verify the destination balance increased by the transferred amount"
+    description: "Verify the destination value increased by the exact amount"
     execution_strategy: "before_after"
-    before_action: "Record the destination balance before the action"
-    after_action: "Compare the destination balance and confirm it increased by the exact amount"
+    before_action: "Record the destination value before the action"
+    after_action: "Compare and confirm the destination value increased by the exact amount"
 
-This pattern applies to ANY action that moves value between two places: fund transfers,
-payments to payees, inter-account movements, sending money, etc. Always verify BOTH sides.
-
-EXAMPLE 2: Action that creates a new entity AND deducts from an existing one
+EXAMPLE 2 — Entity creation that also affects an existing value
 ─────────────────────────────────────────────────────────
-If a test creates something new (new record, new entry) AND also affects an
-existing value, generate verifications for BOTH aspects:
+Pattern: A test creates a new entity AND affects an existing numeric value.
+Generate verifications for BOTH sides: the new entity's appearance AND the
+before/after on the affected value.
+Applies to: opening a new account that draws an initial deposit, creating a
+loan that decrements available product quota, booking a seat that decrements
+remaining inventory, enrolling a student that decrements class capacity.
 
+Domain-specific instance:
   Verification 1 (NEW entity):
-    description: "Verify the newly created entity appears in the appropriate listing"
+    description: "Verify the newly created entity appears in its listing/overview"
     execution_strategy: "after_only"
     before_action: ""
     after_action: ""
@@ -196,91 +225,154 @@ existing value, generate verifications for BOTH aspects:
     before_action: "Record the current value before the action"
     after_action: "Compare and confirm the value decreased by the expected amount"
 
-EXAMPLE 3: Content creation verified on a different page (LMS/CMS pattern)
+EXAMPLE 3 — Content creation verified on other pages
 ─────────────────────────────────────────────────────────
-If a test creates content (e.g., a teacher adds an assignment, a user creates a post,
-an admin adds a course), verify the content appears on ALL relevant listing/overview pages,
-not just the page where it was created:
+Pattern: A test creates content/child entity in a configuration/editing UI.
+Verify the content appears on ALL relevant listing/index pages AND in any
+aggregate that should reflect the new entity.
+Applies to: adding activities to a course, creating forum posts, uploading
+resources, adding loan accounts under a client, adding rooms under a hotel,
+creating support tickets, adding portfolio items, adding catalog products.
 
+Domain-specific instance:
   Verification 1 (Primary listing page):
-    description: "Verify the new content appears on the main listing page in the correct section"
+    description: "Verify the new content appears on the primary listing/overview"
     execution_strategy: "after_only"
     before_action: ""
     after_action: ""
 
   Verification 2 (Secondary navigation/index):
-    description: "Verify the new content appears in the navigation index or sidebar"
+    description: "Verify the new content appears in a secondary index or sidebar"
     execution_strategy: "after_only"
     before_action: ""
     after_action: ""
 
-This pattern applies to ANY content management action: adding activities to a course,
-creating forum posts, uploading resources, adding quiz questions, etc. Content created
-in a configuration/editing interface should be verified in the user-facing views.
-
-EXAMPLE 4: Grading/scoring action that updates a cross-module report (LMS pattern)
+EXAMPLE 4 — Entry that updates an aggregate report
 ─────────────────────────────────────────────────────────
-If a test enters a grade, score, or evaluation in one module and the result should appear
-in a summary/report module, generate verifications for BOTH the individual entry and
-any aggregate values that may change:
+Pattern: A test enters individual data that feeds into a summary/report/aggregate.
+Generate verifications for BOTH the individual entry AND the aggregate change.
+Applies to: grading assignments → gradebook totals, recording attendance →
+attendance rate, approving expenses → departmental spend, closing a journal
+entry → trial balance, completing a task → progress indicator.
 
+Domain-specific instance:
   Verification 1 (Individual entry in report):
-    description: "Verify the individual grade/score appears in the report module"
+    description: "Verify the individual entry appears in the report module"
     execution_strategy: "after_only"
     before_action: ""
     after_action: ""
 
   Verification 2 (Aggregate/total updated):
-    description: "Verify the course total or average is updated to reflect the new entry"
+    description: "Verify the aggregate total is updated to reflect the new entry"
     execution_strategy: "before_after"
-    before_action: "Record the current course total/average before the grading action"
-    after_action: "Compare and confirm the total/average changed to include the new grade"
+    before_action: "Record the aggregate total before the action"
+    after_action: "Compare and confirm the total changed to include the new entry"
 
-This pattern applies to ANY action that adds data which feeds into an aggregate report:
-grading assignments, recording attendance, completing course activities, etc.
-
-EXAMPLE 5: Multi-user action requiring session switch (LMS/collaborative pattern)
+EXAMPLE 5 — Cross-user visibility requiring session switch
 ─────────────────────────────────────────────────────────
-If a test is performed by one user but the result should be visible to a DIFFERENT user
-(e.g., a student submits work and the teacher should see it, or one user sends a message
-and the recipient should receive it), you MUST set requires_different_session:
+Pattern: A test is performed by user A but the result should be visible to user B.
+Set requires_different_session=true.
+Applies to: student submission visible to teacher, customer message visible to
+support agent, shared document visible to collaborator, loan application visible
+to approver, booking visible to vendor, escalation visible to manager.
 
+Domain-specific instance:
   Verification 1 (Visible to different user):
     description: "Verify the action result is visible from the other user's perspective"
     execution_strategy: "after_only"
     before_action: ""
     after_action: ""
     requires_different_session: true
-    session_note: "Login as the other user role (e.g., teacher, recipient, admin)"
+    session_note: "Login as the other user role (e.g., approver, recipient, admin)"
 
-This pattern applies to ANY cross-user scenario: student submissions visible to teachers,
-messages between users, enrollment actions visible to enrolled users, shared content
-visible to collaborators, etc.
+EXAMPLE 6 — Booking / reservation funnel verification
+─────────────────────────────────────────────────────────
+Pattern: A test completes a booking or reservation funnel. Verify it appears in
+the user's booking history/listing AND that a confirmation reference is visible,
+and (if the spec describes it) that any linked wallet/credit/inventory updated.
+Applies to: hotel/flight/tour/car bookings, tickets, appointments, reservations,
+class enrolments, event registrations.
+
+Domain-specific instance:
+  Verification 1 (My Bookings listing):
+    description: "Verify the new booking appears in the user's bookings listing"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
+
+  Verification 2 (Confirmation reference / receipt):
+    description: "Verify a confirmation reference or receipt is displayed for the booking"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
+
+  Verification 3 (Wallet/inventory if applicable):
+    description: "Verify the linked wallet/credit/inventory decreased by the booking amount"
+    execution_strategy: "before_after"
+    before_action: "Record the wallet/credit/inventory value before the booking"
+    after_action: "Compare and confirm the value decreased appropriately"
+
+EXAMPLE 7 — Status-machine transition with audit trail
+─────────────────────────────────────────────────────────
+Pattern: A test transitions an entity from one status to another (Approve, Reject,
+Disburse, Publish, Activate, Close). Verify (a) the status badge on the detail page
+changed, (b) the set of available action buttons changed, (c) an audit/history
+entry was created, (d) if accounting is affected, a corresponding journal/ledger
+entry appears.
+Applies to: loan approval/disbursement/closure, client activation, account close,
+article publish/unpublish, ticket resolution, workflow approvals, document signing.
+
+Domain-specific instance:
+  Verification 1 (Status badge changed):
+    description: "Verify the entity's status badge on the detail page reflects the new status"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
+
+  Verification 2 (Action button set updated):
+    description: "Verify the action buttons available on the detail page match the new status"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
+
+  Verification 3 (Audit/history entry):
+    description: "Verify a new audit/history entry exists for this transition"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
+
+  Verification 4 (Accounting side effect, if applicable):
+    description: "Verify a corresponding journal/ledger entry appears in the accounting module"
+    execution_strategy: "after_only"
+    before_action: ""
+    after_action: ""
 
 ═══════════════════════════════════════════════════════════
 
-CRITICAL RULES FOR FINANCIAL/DATA-MOVEMENT ACTIONS:
+CRITICAL RULES FOR STATEFUL ACTIONS:
 
 1. NEVER generate a single vague verification like "Verify the action was successful"
    or "Verify the transfer status". Instead, break it down into CONCRETE observable
-   data checks (balances, counts, records).
+   data checks (values, counts, records, badges, log entries).
 
 2. For ANY action that moves value/data between two entities, you MUST verify BOTH
    the source AND the destination separately. Each gets its own verification entry.
 
-3. For ANY action that changes a numeric value (balance, count, quantity), ALWAYS use
-   "before_after" strategy — record the number before, check it changed after.
+3. For ANY action that changes a numeric value (balance, count, quantity, progress),
+   ALWAYS use "before_after" strategy — record the number before, check it changed
+   after.
 
 4. For ANY action that creates a new record/entry, use "after_only" — check it exists.
 
-5. Think about ALL side effects of an action. A payment doesn't just "succeed" — it
-   reduces a balance, creates a transaction record, updates a payee history, etc.
-   Generate verifications for each observable side effect.
+5. Think about ALL side effects of an action. An action rarely just "succeeds" in one
+   place — it may update a record, change an aggregate, create an audit/history entry,
+   update a status badge, or change the set of actions available on the page. Generate
+   verifications for each observable side effect.
 
-6. For ANY action in an LMS/CMS that creates content (assignments, activities, courses,
-   forum posts, resources), verify the content appears in ALL relevant listing/overview
-   pages, not just the page where it was created. Also consider whether the action
-   affects aggregates (gradebook totals, activity counts) and verify those too.
+6. For ANY action that creates content or child entities (assignments, forum posts,
+   loan accounts under a client, rooms under a hotel, items under a portfolio), verify
+   the content appears on ALL relevant listing/index pages AND verify any aggregates
+   that should reflect the new entity (counts, totals, progress indicators).
 
 ═══════════════════════════════════════════════════════════
 

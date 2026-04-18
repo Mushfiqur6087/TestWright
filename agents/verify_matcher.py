@@ -283,7 +283,7 @@ STATUS DEFINITIONS:
 - not_found: None of the candidates can verify this requirement"""
 
         try:
-            result = self.call_llm_json(prompt, max_tokens=1000)
+            result = self.call_llm_json(prompt, max_tokens=16000)
             match_data = result.get("best_match", {})
 
             status = match_data.get("status", "not_found")

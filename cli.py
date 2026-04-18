@@ -126,6 +126,47 @@ def _generate(args):
     return 0
 
 
+def _parse_markdown(text: str) -> tuple:
+    """Parse a functional spec markdown into (navigation_overview, modules).
+
+    Any ``## Navigation`` section (case-insensitive) is extracted as the
+    navigation overview and excluded from the modules list, so it doesn't
+    get processed as a page with testable workflows.
+    """
+    modules = []
+    navigation_overview = ""
+    module_id = 0
+
+    current_module = None       # {"id", "title", "description"}
+    collecting_nav = False      # True while inside the Navigation section
+
+    for line in text.split('\n'):
+        if line.startswith('## '):
+            # Close whatever section we were building
+            if current_module:
+                modules.append(current_module)
+                current_module = None
+            if collecting_nav:
+                collecting_nav = False
+
+            title = line[3:].strip()
+            if title.lower().startswith('navigation'):
+                collecting_nav = True
+            else:
+                module_id += 1
+                current_module = {"id": module_id, "title": title, "description": ""}
+        elif collecting_nav:
+            navigation_overview += line + "\n"
+        elif current_module:
+            current_module["description"] += line + "\n"
+
+    # Flush trailing section
+    if current_module:
+        modules.append(current_module)
+
+    return navigation_overview.strip(), modules
+
+
 def _load_from_files(spec_path: Path, nav_path=None) -> dict:
     """Load functional description from explicitly provided file paths."""
     if not spec_path.exists():
@@ -133,26 +174,14 @@ def _load_from_files(spec_path: Path, nav_path=None) -> dict:
         sys.exit(1)
 
     spec_text = spec_path.read_text(encoding='utf-8')
-    modules = []
-    current_module = None
-    module_id = 0
+    nav_from_spec, modules = _parse_markdown(spec_text)
 
-    for line in spec_text.split('\n'):
-        if line.startswith('## '):
-            if current_module:
-                modules.append(current_module)
-            module_id += 1
-            current_module = {"id": module_id, "title": line[3:].strip(), "description": ""}
-        elif current_module:
-            current_module["description"] += line + "\n"
-
-    if current_module:
-        modules.append(current_module)
-
-    navigation_overview = ""
+    # Explicit navigation file takes priority over the in-spec section
     if nav_path and nav_path.exists():
         navigation_overview = nav_path.read_text(encoding='utf-8')
         print(f"  Using navigation file: {nav_path.name}")
+    else:
+        navigation_overview = nav_from_spec
 
     project_name = spec_path.stem.replace('-', ' ').replace('_', ' ').title()
     print(f"  Spec: {spec_path.name}  ({len(modules)} modules)")
@@ -184,33 +213,13 @@ def _load_from_directory(dir_path: Path) -> dict:
 
     # Read the specification
     spec_text = spec_file.read_text(encoding='utf-8')
+    nav_from_spec, modules = _parse_markdown(spec_text)
 
-    # Parse modules from markdown headings
-    modules = []
-    current_module = None
-    module_id = 0
-
-    for line in spec_text.split('\n'):
-        if line.startswith('## '):
-            if current_module:
-                modules.append(current_module)
-            module_id += 1
-            title = line[3:].strip()
-            current_module = {
-                "id": module_id,
-                "title": title,
-                "description": ""
-            }
-        elif current_module:
-            current_module["description"] += line + "\n"
-
-    if current_module:
-        modules.append(current_module)
-
-    # Read navigation overview
-    navigation_overview = ""
+    # Explicit navigation.md takes priority; fall back to in-spec Navigation section
     if nav_file.exists():
         navigation_overview = nav_file.read_text(encoding='utf-8')
+    else:
+        navigation_overview = nav_from_spec
 
     # Read mock data
     mock_data = ""
@@ -232,30 +241,13 @@ def _load_from_directory(dir_path: Path) -> dict:
 def _load_from_markdown_file(md_path: Path) -> dict:
     """Load functional description from a single markdown file passed directly."""
     spec_text = md_path.read_text(encoding='utf-8')
-
-    modules = []
-    current_module = None
-    module_id = 0
-
-    for line in spec_text.split('\n'):
-        if line.startswith('## '):
-            if current_module:
-                modules.append(current_module)
-            module_id += 1
-            title = line[3:].strip()
-            current_module = {"id": module_id, "title": title, "description": ""}
-        elif current_module:
-            current_module["description"] += line + "\n"
-
-    if current_module:
-        modules.append(current_module)
-
+    navigation_overview, modules = _parse_markdown(spec_text)
     project_name = md_path.stem.replace('-', ' ').replace('_', ' ').title()
 
     return {
         "project_name": project_name,
         "website_url": "",
-        "navigation_overview": "",
+        "navigation_overview": navigation_overview,
         "mock_data": "",
         "modules": modules,
     }

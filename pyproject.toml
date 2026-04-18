@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.backends.legacy:build"
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "testwright"
@@ -11,6 +11,14 @@ dependencies = ["langgraph", "httpx"]
 [project.scripts]
 testwright = "testwright.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["testwright*"]
+[tool.setuptools]
+packages = [
+    "testwright",
+    "testwright.agents",
+    "testwright.core",
+    "testwright.models",
+    "testwright.exporters",
+]
+
+[tool.setuptools.package-dir]
+testwright = "."

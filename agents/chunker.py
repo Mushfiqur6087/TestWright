@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Optional
 
 from testwright.agents.base import BaseAgent
-from testwright.models.schemas import ParsedModule, WorkflowChunk
+from testwright.models.schemas import ParsedModule, ProjectContext, WorkflowChunk
 
 
 class ChunkerAgent(BaseAgent):
@@ -31,8 +31,17 @@ FIELD-LEVEL GRANULARITY:
 3. Each field with validation rules should retain its associated rules
 4. This granularity enables per-field test case generation for comprehensive coverage"""
 
-    def run(self, module: ParsedModule) -> List[WorkflowChunk]:
-        """Split a module into workflow-based chunks"""
+    def run(
+        self,
+        module: ParsedModule,
+        project_context: Optional[ProjectContext] = None,
+    ) -> List[WorkflowChunk]:
+        """Split a module into workflow-based chunks.
+
+        ``project_context`` is attached to every emitted chunk so that
+        downstream agents (test generator, verifier) have awareness of the
+        application domain without needing pipeline-wide wiring.
+        """
 
         # If no workflows detected, create a single "full" chunk
         if not module.workflows:
@@ -44,7 +53,8 @@ FIELD-LEVEL GRANULARITY:
                 workflow_description=module.raw_description[:200],
                 related_items=module.mentioned_items,
                 related_rules=module.business_rules,
-                related_behaviors=module.expected_behaviors
+                related_behaviors=module.expected_behaviors,
+                project_context=project_context,
             )]
 
         # If only one workflow, no need to split
@@ -57,13 +67,18 @@ FIELD-LEVEL GRANULARITY:
                 workflow_description=f"Primary workflow for {module.title}",
                 related_items=module.mentioned_items,
                 related_rules=module.business_rules,
-                related_behaviors=module.expected_behaviors
+                related_behaviors=module.expected_behaviors,
+                project_context=project_context,
             )]
 
         # Multiple workflows - use LLM to map items to workflows
-        return self._split_by_workflows(module)
+        return self._split_by_workflows(module, project_context)
 
-    def _split_by_workflows(self, module: ParsedModule) -> List[WorkflowChunk]:
+    def _split_by_workflows(
+        self,
+        module: ParsedModule,
+        project_context: Optional[ProjectContext] = None,
+    ) -> List[WorkflowChunk]:
         """Use LLM to intelligently map items/rules/behaviors to workflows"""
 
         workflows_list = "\n".join([f"  {i+1}. {w}" for i, w in enumerate(module.workflows)])
@@ -133,7 +148,8 @@ FIELD-LEVEL GRANULARITY:
                     workflow_description=chunk_data.get("workflow_description", ""),
                     related_items=chunk_data.get("related_items", []),
                     related_rules=chunk_data.get("related_rules", []),
-                    related_behaviors=chunk_data.get("related_behaviors", [])
+                    related_behaviors=chunk_data.get("related_behaviors", []),
+                    project_context=project_context,
                 ))
 
             # If LLM didn't return all workflows, add missing ones
@@ -148,7 +164,8 @@ FIELD-LEVEL GRANULARITY:
                         workflow_description=f"Workflow: {workflow}",
                         related_items=[],
                         related_rules=[],
-                        related_behaviors=[]
+                        related_behaviors=[],
+                        project_context=project_context,
                     ))
 
             # Annotate each chunk with sibling workflow names for cross-chunk dedup
@@ -157,13 +174,17 @@ FIELD-LEVEL GRANULARITY:
                 for chunk in chunks:
                     chunk.sibling_workflows = [w for w in all_names if w != chunk.workflow_name]
 
-            return chunks if chunks else self._fallback_chunks(module)
+            return chunks if chunks else self._fallback_chunks(module, project_context)
 
         except Exception as e:
             print(f"Warning: Workflow splitting failed for module {module.title}: {e}")
-            return self._fallback_chunks(module)
+            return self._fallback_chunks(module, project_context)
 
-    def _fallback_chunks(self, module: ParsedModule) -> List[WorkflowChunk]:
+    def _fallback_chunks(
+        self,
+        module: ParsedModule,
+        project_context: Optional[ProjectContext] = None,
+    ) -> List[WorkflowChunk]:
         """Fallback: create one chunk per workflow with all items"""
         chunks = []
 
@@ -176,7 +197,8 @@ FIELD-LEVEL GRANULARITY:
                 workflow_description=f"Workflow: {workflow}",
                 related_items=module.mentioned_items,  # Give all items to each workflow
                 related_rules=module.business_rules,
-                related_behaviors=module.expected_behaviors
+                related_behaviors=module.expected_behaviors,
+                project_context=project_context,
             ))
 
         # Annotate each chunk with sibling workflow names for cross-chunk dedup

@@ -126,7 +126,7 @@ Example for a Registration page:
 """
 
         try:
-            result = self.call_llm_json(extraction_prompt, max_tokens=4000)
+            result = self.call_llm_json(extraction_prompt, max_tokens=16000)
         except Exception as e:
             print(f"Warning: LLM extraction failed for module {title}: {e}")
             # Return module with empty extracted data
