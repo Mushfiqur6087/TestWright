@@ -3,12 +3,11 @@
 TestWright CLI - AI-powered test case generation from functional specifications.
 
 Usage:
-    testwright --generate --input spec.json --api-key "sk-..." --provider openai --output output/
+    testwright --generate --input spec.md --api-key "sk-..." --provider openai --output output/
     testwright export-md --input output/test-cases.json --output output/test-cases.md
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -27,9 +26,7 @@ def main():
 
     # Generate command (also accessible via --generate flag for backward compat)
     parser.add_argument("--generate", action="store_true", help="Generate test cases")
-    parser.add_argument("--input", "-i", help="Path to functional description directory or JSON file")
-    parser.add_argument("--spec", help="Path to functional specification markdown file (manual override)")
-    parser.add_argument("--nav", help="Path to navigation markdown file (manual override)")
+    parser.add_argument("--input", "-i", help="Path to functional specification markdown file")
     parser.add_argument("--api-key", help="API key for LLM provider")
     parser.add_argument("--model", default="gpt-4o", help="Model to use (default: gpt-4o)")
     parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"],
@@ -59,27 +56,19 @@ def _generate(args):
         print("Error: --api-key is required for generation")
         return 1
 
-    # Manual --spec / --nav takes priority over --input
-    if hasattr(args, 'spec') and args.spec:
-        functional_desc = _load_from_files(
-            spec_path=Path(args.spec),
-            nav_path=Path(args.nav) if args.nav else None,
-        )
-    elif args.input:
-        input_path = Path(args.input)
-        if not input_path.exists():
-            print(f"Error: Input path not found: {input_path}")
-            return 1
-        if input_path.is_dir():
-            functional_desc = _load_from_directory(input_path)
-        elif input_path.suffix.lower() == ".md":
-            functional_desc = _load_from_markdown_file(input_path)
-        else:
-            with open(input_path, 'r') as f:
-                functional_desc = json.load(f)
-    else:
-        print("Error: --input or --spec is required for generation")
+    if not args.input:
+        print("Error: --input is required for generation")
         return 1
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        return 1
+    if input_path.is_dir() or input_path.suffix.lower() != ".md":
+        print("Error: --input must be a markdown (.md) file")
+        return 1
+
+    functional_desc = _load_from_markdown_file(md_path=input_path)
 
     # Build output path: dataset/<website>/<website>-<model>
     # unless the user explicitly passed --output
@@ -88,12 +77,7 @@ def _generate(args):
     else:
         website_name = functional_desc.get("project_name", "output").replace(" ", "_")
         model_slug = args.model.replace("/", "-")
-        if hasattr(args, 'spec') and args.spec:
-            base_dir = str(Path(args.spec).parent)
-        elif args.input:
-            base_dir = str(Path(args.input) if Path(args.input).is_dir() else Path(args.input).parent)
-        else:
-            base_dir = "dataset"
+        base_dir = str(input_path.parent)
         output_dir = str(Path(base_dir) / f"{website_name}-{model_slug}")
 
     print(f"  Output directory: {output_dir}")
@@ -155,88 +139,17 @@ def _parse_markdown(text: str) -> tuple:
     return navigation_overview.strip(), modules
 
 
-def _load_from_files(spec_path: Path, nav_path=None) -> dict:
-    """Load functional description from explicitly provided file paths."""
-    if not spec_path.exists():
-        print(f"Error: Spec file not found: {spec_path}")
-        sys.exit(1)
-
-    spec_text = spec_path.read_text(encoding='utf-8')
-    nav_from_spec, modules = _parse_markdown(spec_text)
-
-    # Explicit navigation file takes priority over the in-spec section
-    if nav_path and nav_path.exists():
-        navigation_overview = nav_path.read_text(encoding='utf-8')
-        print(f"  Using navigation file: {nav_path.name}")
-    else:
-        navigation_overview = nav_from_spec
-
-    project_name = spec_path.stem.replace('-', ' ').replace('_', ' ').title()
-    print(f"  Spec: {spec_path.name}  ({len(modules)} modules)")
-
-    return {
-        "project_name": project_name,
-        "website_url": "",
-        "navigation_overview": navigation_overview,
-        "mock_data": "",
-        "modules": modules,
-    }
-
-
-def _load_from_directory(dir_path: Path) -> dict:
-    """Load functional description from a directory of markdown files."""
-    spec_file = dir_path / "functional_specification.md"
-    nav_file = dir_path / "navigation.md"
-    mock_file = dir_path / "mock_data.md"
-
-    if not spec_file.exists():
-        # Fall back to any single .md file in the directory
-        md_files = list(dir_path.glob("*.md"))
-        if len(md_files) == 1:
-            spec_file = md_files[0]
-            print(f"  Using {spec_file.name} as functional specification")
-        else:
-            print(f"Error: functional_specification.md not found in {dir_path}")
-            sys.exit(1)
-
-    # Read the specification
-    spec_text = spec_file.read_text(encoding='utf-8')
-    nav_from_spec, modules = _parse_markdown(spec_text)
-
-    # Explicit navigation.md takes priority; fall back to in-spec Navigation section
-    if nav_file.exists():
-        navigation_overview = nav_file.read_text(encoding='utf-8')
-    else:
-        navigation_overview = nav_from_spec
-
-    # Read mock data
-    mock_data = ""
-    if mock_file.exists():
-        mock_data = mock_file.read_text(encoding='utf-8')
-
-    # Build the project name from directory name
-    project_name = dir_path.name.replace('-', ' ').replace('_', ' ').title()
-
-    return {
-        "project_name": project_name,
-        "website_url": "",
-        "navigation_overview": navigation_overview,
-        "mock_data": mock_data,
-        "modules": modules
-    }
-
-
 def _load_from_markdown_file(md_path: Path) -> dict:
-    """Load functional description from a single markdown file passed directly."""
+    """Load functional description from a markdown file."""
     spec_text = md_path.read_text(encoding='utf-8')
     navigation_overview, modules = _parse_markdown(spec_text)
+
     project_name = md_path.stem.replace('-', ' ').replace('_', ' ').title()
 
     return {
         "project_name": project_name,
         "website_url": "",
         "navigation_overview": navigation_overview,
-        "mock_data": "",
         "modules": modules,
     }
 
