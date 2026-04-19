@@ -5,7 +5,7 @@ from testwright.models.schemas import ParsedModule, ModuleSummary
 
 
 class SummaryAgent(BaseAgent):
-    """Agent responsible for generating concise module summaries for post-verification matching"""
+    """Agent responsible for generating concise module summaries."""
 
     @property
     def name(self) -> str:
@@ -19,7 +19,7 @@ Your task is to create a 2-line summary of what each module/page does, focusing 
 1. What the page allows users to DO (actions)
 2. What information the page SHOWS (data displayed)
 
-These summaries will be used to match test cases that need post-verification with pages that can verify the results."""
+These summaries are used as project context and metadata for generated output."""
 
     def run(self, modules: List[ParsedModule]) -> Dict[int, ModuleSummary]:
         """Generate summaries for all modules in a single LLM call for efficiency"""

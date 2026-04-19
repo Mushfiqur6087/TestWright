@@ -13,9 +13,8 @@ import sys
 from pathlib import Path
 
 import testwright
-from testwright.core.generator import PostVerifyRunner, TestCaseGenerator
-from testwright.exporters.markdown_exporter import load_test_cases, generate_markdown
-from testwright.exporters.post_verification_markdown_exporter import generate_post_verification_markdown
+from testwright.core.generator import TestCaseGenerator
+from testwright.exporters.markdown_exporter import generate_markdown, load_test_cases
 
 
 def main():
@@ -38,47 +37,15 @@ def main():
     parser.add_argument("--output", "-o", default="output", help="Output directory (default: output)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
-    parser.add_argument(
-        "--mode",
-        default="full",
-        choices=["full", "basic"],
-        help=(
-            "Pipeline mode: 'full' (default) runs all nodes including post-verification "
-            "and execution planning; 'basic' stops after assembler — no verification "
-            "flagging, RAG matching, or execution plans are generated."
-        ),
-    )
-    parser.add_argument(
-        "--post-verify",
-        action="store_true",
-        help=(
-            "Run the post-verification pipeline on a previously saved test-cases.json. "
-            "Use --input to point at the output directory (or JSON file) from a prior "
-            "--mode basic run. Requires --api-key."
-        ),
-    )
-
     # Export markdown subcommand
     export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
     export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
     export_parser.add_argument("--output", "-o", help="Output Markdown file path")
 
-    # Export post-verification-only markdown subcommand
-    post_verify_export_parser = subparsers.add_parser(
-        "export-post-verify-md",
-        help="Export post-verification-only report to Markdown",
-    )
-    post_verify_export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
-    post_verify_export_parser.add_argument("--output", "-o", help="Output Markdown file path")
-
     args = parser.parse_args()
 
     if args.command == "export-md":
         return _export_markdown(args)
-    elif args.command == "export-post-verify-md":
-        return _export_post_verify_markdown(args)
-    elif getattr(args, "post_verify", False):
-        return _post_verify(args)
     elif args.generate:
         return _generate(args)
     else:
@@ -137,55 +104,11 @@ def _generate(args):
         provider=args.provider,
         debug=args.debug,
         debug_file=args.debug_file,
-        mode=args.mode,
     )
 
     output = generator.generate(functional_desc, output_dir=output_dir)
 
     print(f"\nGeneration complete!")
-    print(f"  Total tests: {output.summary.get('total_tests', 0)}")
-    print(f"  Output: {output_dir}/")
-    return 0
-
-
-def _post_verify(args):
-    """Run the post-verification pipeline on a previously saved test-cases.json."""
-    if not args.api_key:
-        print("Error: --api-key is required for --post-verify")
-        return 1
-
-    if not args.input:
-        print("Error: --input is required for --post-verify")
-        return 1
-
-    input_path = Path(args.input)
-    if input_path.is_dir():
-        json_path = input_path / "test-cases.json"
-    elif input_path.suffix.lower() == ".json":
-        json_path = input_path
-    else:
-        json_path = input_path / "test-cases.json"
-
-    if not json_path.exists():
-        print(
-            f"Error: No test-cases.json found at {json_path}. "
-            "Run --generate --mode basic first to produce the input file."
-        )
-        return 1
-
-    output_dir = args.output if args.output != "output" else str(json_path.parent)
-
-    runner = PostVerifyRunner(
-        api_key=args.api_key,
-        model=args.model,
-        provider=args.provider,
-        debug=args.debug,
-        debug_file=args.debug_file,
-    )
-
-    output = runner.run(str(json_path), output_dir=output_dir)
-
-    print(f"\nPost-verification complete!")
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
     print(f"  Output: {output_dir}/")
     return 0
@@ -341,32 +264,6 @@ def _export_markdown(args):
 
     test_count = len(data.get('test_cases', []))
     print(f"Done! Exported {test_count} test cases to Markdown.")
-    return 0
-
-
-def _export_post_verify_markdown(args):
-    """Export post-verification-only report from JSON to Markdown."""
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input file not found: {input_path}")
-        return 1
-
-    output_path = args.output
-    if not output_path:
-        output_path = input_path.with_name(f"{input_path.stem}-post-verification.md")
-
-    print(f"Reading test cases from: {input_path}")
-    data = load_test_cases(str(input_path))
-
-    print("Generating post-verification-only Markdown...")
-    markdown = generate_post_verification_markdown(data)
-
-    print(f"Writing to: {output_path}")
-    with open(output_path, 'w') as f:
-        f.write(markdown)
-
-    source_tests = [tc for tc in data.get('test_cases', []) if tc.get('needs_post_verification')]
-    print(f"Done! Exported {len(source_tests)} post-verification source tests to Markdown.")
     return 0
 
 

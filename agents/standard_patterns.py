@@ -318,7 +318,6 @@ HARD REMINDER:
                 steps=[str(s).strip() for s in steps if str(s).strip()],
                 expected_result=expected,
                 spec_evidence="",
-                needs_post_verification=False,
             )
             out.append(tc)
 
