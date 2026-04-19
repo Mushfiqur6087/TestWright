@@ -15,10 +15,9 @@ from typing import Any, Dict, List
 from testwright.agents import (
     AssemblerAgent,
     ChunkerAgent,
-    ExecutionPlanAgent,
-    IdealVerificationAgent,
     NavigationAgent,
     ParserAgent,
+    PlanGeneratorAgent,
     StandardPatternsAgent,
     SummaryAgent,
     TestGenerationAgent,
@@ -26,6 +25,10 @@ from testwright.agents import (
     VerificationMatcherAgent,
 )
 from testwright.agents.base import BaseAgent
+from testwright.core.reporter import (
+    generate_execution_plan_summary,
+    run_reporter,
+)
 from testwright.core.state import PipelineState
 from testwright.models.schemas import ProjectContext
 
@@ -295,54 +298,48 @@ def verification_flag_node(state: PipelineState) -> Dict[str, Any]:
 
 
 # ===========================================================================
-# Node 8 -- Generate ideal verification scenarios
+# Node 8 -- Stage 2: Plan Generator (ideal plan, spec-only)
 # ===========================================================================
 
-def ideal_verification_node(state: PipelineState) -> Dict[str, Any]:
-    """Generate ideal verification scenarios for flagged tests."""
-    print("\n[8/11] Generating ideal verification scenarios...")
+def plan_generator_node(state: PipelineState) -> Dict[str, Any]:
+    """Generate ideal post-verification plans for flagged tests.
+
+    Stage 2 has ZERO knowledge of the test catalog by design — the signature
+    of PlanGeneratorAgent.run() deliberately excludes it.
+    """
+    print("\n[8/11] Generating ideal post-verification plans (Stage 2)...")
 
     parsed_desc = state["parsed_desc"]
-    project_context = ProjectContext(
-        project_name=parsed_desc.project_name or "",
-        navigation_overview=parsed_desc.navigation_overview or "",
+
+    agent = PlanGeneratorAgent(**_agent_kwargs(state))
+    ideal_plans = agent.run(
+        flagged_tests=state["flagged_tests"],
+        parsed_desc=parsed_desc,
+        module_summaries=state["module_summaries"],
     )
+    total_steps = sum(len(p.steps) for p in ideal_plans.values())
+    print(f"  - Generated {len(ideal_plans)} plans containing {total_steps} steps")
+    if parsed_desc.system_constraints:
+        print(f"  - Applying {len(parsed_desc.system_constraints)} system constraints")
 
-    module_descriptions = {m.id: m for m in parsed_desc.modules}
-    system_constraints = list(parsed_desc.system_constraints or [])
-
-    agent = IdealVerificationAgent(**_agent_kwargs(state))
-    ideal_verifications = agent.run(
-        state["flagged_tests"],
-        state["module_summaries"],
-        project_context=project_context,
-        module_descriptions=module_descriptions,
-        system_constraints=system_constraints,
-    )
-    total_ideals = sum(len(v) for v in ideal_verifications.values())
-    print(f"  - Generated {total_ideals} ideal verification scenarios for {len(ideal_verifications)} tests")
-    if system_constraints:
-        print(f"  - Applying {len(system_constraints)} system constraints")
-
-    return {"ideal_verifications": ideal_verifications}
+    return {"ideal_plans": ideal_plans}
 
 
 # ===========================================================================
-# Node 9 -- Match verifications to actual test cases via RAG
+# Node 9 -- Stage 3: Honest matcher (RAG shortlist + per-step grading)
 # ===========================================================================
 
 def verification_matcher_node(state: PipelineState) -> Dict[str, Any]:
-    """Match ideal verifications to existing test cases using RAG search."""
-    print("\n[9/11] Matching verifications with RAG...")
+    """Grade each ideal plan step against the real test catalog."""
+    print("\n[9/11] Grading plan steps against test catalog (Stage 3)...")
 
     parsed_desc = state["parsed_desc"]
     module_descriptions = {m.id: m for m in (parsed_desc.modules or [])}
     system_constraints = list(parsed_desc.system_constraints or [])
 
     agent = VerificationMatcherAgent(**_agent_kwargs(state))
-    final_tests = agent.run(
-        flagged_tests=state["flagged_tests"],
-        ideal_verifications=state["ideal_verifications"],
+    matched_plans = agent.run(
+        ideal_plans=state["ideal_plans"],
         all_test_cases=state["output"].test_cases,
         module_summaries=state["module_summaries"],
         use_embeddings=True,
@@ -350,27 +347,53 @@ def verification_matcher_node(state: PipelineState) -> Dict[str, Any]:
         system_constraints=system_constraints,
     )
 
-    return {"final_tests": final_tests}
+    # Quick stats
+    total_observed = 0
+    total_found = 0
+    total_partial = 0
+    total_gap = 0
+    for steps in matched_plans.values():
+        for s in steps:
+            if s.status == "procedural":
+                continue
+            total_observed += 1
+            if s.status == "found":
+                total_found += 1
+            elif s.status == "partial":
+                total_partial += 1
+            elif s.status == "gap":
+                total_gap += 1
+    print(
+        f"  - Observations: {total_observed} | found: {total_found} | "
+        f"partial: {total_partial} | gap: {total_gap}"
+    )
+
+    return {"matched_plans": matched_plans}
 
 
 # ===========================================================================
-# Node 10 -- Generate execution plans
+# Node 10 -- Stage 4: Reporter (deterministic merge; no LLM)
 # ===========================================================================
 
-def execution_plan_node(state: PipelineState) -> Dict[str, Any]:
-    """Compile final execution plans for all verified test cases."""
-    print("\n[10/11] Generating execution plans...")
+def reporter_node(state: PipelineState) -> Dict[str, Any]:
+    """Walk the paired ideal/matched plans and emit execution sequences."""
+    print("\n[10/11] Building execution plans from matched steps (Stage 4)...")
 
-    # Update output test cases with verification data first
     output = state["output"]
-    output.test_cases = state["final_tests"]
+    test_lookup = {tc.id: tc for tc in output.test_cases}
 
-    agent = ExecutionPlanAgent(**_agent_kwargs(state))
-    execution_plans = agent.run(output.test_cases)
-    plan_summary = agent.generate_execution_plan_summary(execution_plans)
+    execution_plans = run_reporter(
+        ideal_plans=state["ideal_plans"],
+        matched_plans=state["matched_plans"],
+        test_lookup=test_lookup,
+    )
+    plan_summary = generate_execution_plan_summary(execution_plans)
 
     print(f"  - Generated {plan_summary.get('total_plans', 0)} execution plans")
-    print(f"  - Automated steps: {plan_summary.get('total_automated_steps', 0)}, Manual steps: {plan_summary.get('total_manual_steps', 0)}")
+    print(
+        f"  - Automated steps: {plan_summary.get('total_automated_steps', 0)}, "
+        f"Manual steps: {plan_summary.get('total_manual_steps', 0)}"
+    )
     print(f"  - Automation rate: {plan_summary.get('automation_rate', 0)}%")
 
     output.execution_plans = execution_plans

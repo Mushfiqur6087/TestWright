@@ -6,9 +6,8 @@ from testwright.agents.test_generator import TestGenerationAgent
 from testwright.agents.assembler import AssemblerAgent
 from testwright.agents.summary import SummaryAgent
 from testwright.agents.verify_flag import VerificationFlagAgent
-from testwright.agents.verify_ideal import IdealVerificationAgent
+from testwright.agents.plan_generator import PlanGeneratorAgent
 from testwright.agents.verify_matcher import VerificationMatcherAgent
-from testwright.agents.execution_planner import ExecutionPlanAgent
 from testwright.agents.rag_indexer import RAGIndexer
 from testwright.agents.standard_patterns import StandardPatternsAgent
 
@@ -21,9 +20,8 @@ __all__ = [
     "AssemblerAgent",
     "SummaryAgent",
     "VerificationFlagAgent",
-    "IdealVerificationAgent",
+    "PlanGeneratorAgent",
     "VerificationMatcherAgent",
-    "ExecutionPlanAgent",
     "RAGIndexer",
     "StandardPatternsAgent",
 ]

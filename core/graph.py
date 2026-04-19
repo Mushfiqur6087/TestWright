@@ -8,7 +8,7 @@ Graph topology - full mode (sequential)
 
   parse -> navigation -> chunker -> summary -> test_generation
     -> standard_patterns -> assembler -> verification_flag
-    -> ideal_verification -> verification_matcher -> execution_plan
+    -> plan_generator -> verification_matcher -> reporter
     -> finalize -> END
 
 Graph topology - basic mode (no post-verification)
@@ -20,8 +20,8 @@ Graph topology - basic mode (no post-verification)
 Graph topology - post_verify mode (load saved + verify only)
 =============================================================
 
-  load_assembled -> verification_flag -> ideal_verification
-    -> verification_matcher -> execution_plan -> finalize -> END
+  load_assembled -> verification_flag -> plan_generator
+    -> verification_matcher -> reporter -> finalize -> END
 
 All steps run sequentially to avoid LangGraph fan-in state-merge
 issues that cause duplicate node executions in parallel branches.
@@ -34,12 +34,12 @@ from langgraph.graph import END, StateGraph
 from testwright.core.nodes import (
     assembler_node,
     chunker_node,
-    execution_plan_node,
     finalize_node,
-    ideal_verification_node,
     load_assembled_node,
     navigation_node,
     parse_node,
+    plan_generator_node,
+    reporter_node,
     standard_patterns_node,
     summary_node,
     test_generation_node,
@@ -70,17 +70,17 @@ def build_graph(mode: str = "full") -> StateGraph:
     if mode == "post_verify":
         graph.add_node("load_assembled", load_assembled_node)
         graph.add_node("verification_flag", verification_flag_node)
-        graph.add_node("ideal_verification", ideal_verification_node)
+        graph.add_node("plan_generator", plan_generator_node)
         graph.add_node("verification_matcher", verification_matcher_node)
-        graph.add_node("execution_plan", execution_plan_node)
+        graph.add_node("reporter", reporter_node)
         graph.add_node("finalize", finalize_node)
 
         graph.set_entry_point("load_assembled")
         graph.add_edge("load_assembled", "verification_flag")
-        graph.add_edge("verification_flag", "ideal_verification")
-        graph.add_edge("ideal_verification", "verification_matcher")
-        graph.add_edge("verification_matcher", "execution_plan")
-        graph.add_edge("execution_plan", "finalize")
+        graph.add_edge("verification_flag", "plan_generator")
+        graph.add_edge("plan_generator", "verification_matcher")
+        graph.add_edge("verification_matcher", "reporter")
+        graph.add_edge("reporter", "finalize")
         graph.add_edge("finalize", END)
 
         return graph.compile()
@@ -112,15 +112,15 @@ def build_graph(mode: str = "full") -> StateGraph:
     else:
         # -- Sequential verification pipeline (full mode only) ----------------
         graph.add_node("verification_flag", verification_flag_node)
-        graph.add_node("ideal_verification", ideal_verification_node)
+        graph.add_node("plan_generator", plan_generator_node)
         graph.add_node("verification_matcher", verification_matcher_node)
-        graph.add_node("execution_plan", execution_plan_node)
+        graph.add_node("reporter", reporter_node)
 
         graph.add_edge("assembler", "verification_flag")
-        graph.add_edge("verification_flag", "ideal_verification")
-        graph.add_edge("ideal_verification", "verification_matcher")
-        graph.add_edge("verification_matcher", "execution_plan")
-        graph.add_edge("execution_plan", "finalize")
+        graph.add_edge("verification_flag", "plan_generator")
+        graph.add_edge("plan_generator", "verification_matcher")
+        graph.add_edge("verification_matcher", "reporter")
+        graph.add_edge("reporter", "finalize")
 
     # -- End ------------------------------------------------------------------
     graph.add_edge("finalize", END)
