@@ -9,46 +9,46 @@
 |--------|-------|
 | Source Tests Needing Verification | 27 |
 | Full Coverage | 1 |
-| Partial Coverage | 24 |
+| Partial Coverage | 18 |
 | Minimal Coverage | 0 |
-| No Coverage | 2 |
-| Tests With Verification Gaps | 7 |
-| Total Missing Verifications | 8 |
-| Associated Verification Tests | 22 |
+| No Coverage | 8 |
+| Tests With Verification Gaps | 11 |
+| Total Missing Verifications | 12 |
+| Associated Verification Tests | 16 |
 
 ### Generated Verifications by Type
 
 | Type | Count |
 |------|-------|
-| Existence | 25 |
+| Existence | 22 |
 | Absence | 1 |
-| Field Persistence | 4 |
+| Field Persistence | 10 |
 | Status Transition | 1 |
-| Cascading Update | 6 |
+| Cascading Update | 3 |
 | Credential Change | 1 |
-| Session Persistence | 4 |
-| Financial Delta | 12 |
+| Session Persistence | 1 |
+| Financial Delta | 10 |
 
 ### Generated Verifications by Strategy
 
 | Strategy | Count |
 |----------|-------|
-| After Only | 31 |
-| Before/After | 18 |
-| Cross-User | 5 |
+| After Only | 28 |
+| Before/After | 20 |
+| Cross-User | 1 |
 
 ### Top Coverage Gaps
 
-- The candidate operates on the correct module and shows a ticket ID on successful send, so it partially confirms creation. However it does not explicitly access the user's ticket list or view the ticket detail to confirm category and message content, which the after_only strategy requires.
-- Although this test targets the correct module (Accounts Overview), it only accesses Current Balance values and the footer total. It does not currently read or display the hold/reserve indicator or held amount required by the verification. Therefore it cannot be used as-is but is the closest candidate and can be adapted.
-- Correct module (Accounts Overview) but the test as written does not access or display the hold/reserve indicator or held-amount/available-balance values required by the verification. Because execution_strategy is before_after, a test that simply observes those fields would be sufficient — this one needs to be modified to capture them.
-- This test operates on the correct module (Account Statements) and displays the generated transactions for a chosen period, so it can surface the transaction list. However, it does not explicitly check for the presence of a payment transaction, the payment reference code, or payee details. Because the execution strategy is after_only, the test must confirm the expected outcome by itself; as written it only generates the statement and does not assert the specific fields required.
-- The candidate is on the correct module and touches the relevant UI elements, but it performs modifications and save attempts (negative validation scenario) rather than simply observing/displaying the current e_statement_preference. Because the execution_strategy is before_after, the verification test must be able to OBSERVE the checkbox state and email without causing state changes—this test as written would alter state and/or trigger validation, so it is not a full match.
-- Test 12.SECSET-006 checks the password change action and success message but does not confirm persistence by performing logout and re-login. Tests 12.SECSET-004 and 12.SECSET-002 are negative validation cases and do not verify successful persistence either.
-- None of the candidates explicitly exercise the admin-facing Recent Tickets view or include a search for a ticket referencing a card request/tracking ID. 13.SUPCEN-001 is the closest because it uses the Support Center and shows a generated ticket ID, but its steps only cover sending a message and confirming the success message/ID for the creator — it does not describe the admin-side observation (Recent Tickets search and status check). 9.MANCAR-002 creates the card request and returns a tracking ID but is in Manage Cards (creator action), not in the admin Support Center view. 9.MANCAR-010 is negative/blocked flow and irrelevant.
-- The test displays the relevant data (portfolio holdings) but as-written it only observes read-only values and does not perform the necessary confirmation/assertion that the holding decreased by the sold quantity. Because execution_strategy is after_only, the verification must confirm the expected numeric change by itself; the candidate lacks that explicit check.
-- Correct module (Accounts Overview) and reads account balances, but it does not access/display the specific hold/reserve indicator or held amount required by the before_after verification.
-- All three candidates operate in the Manage Cards module and exercise the Update Controls flow, but none explicitly state that they access or display the card's current spending limit in the Controls view. They focus on validation or successful update behavior (entering new values and checking validation/success messages) rather than explicitly reading and reporting the persisted spending limit field. Because the verification requires recording the displayed spending limit before and after, these candidates do not guarantee the required observation step.
+- Hard module rule: the target module is Manage Cards and the required state to verify is card_control_update. All provided candidates are from different modules and their can_verify_states do not overlap with card_control_update, so they cannot observe the travel notice entries. Therefore none can be marked as a match.
+- All candidate tests belong to Investments or Manage Cards modules and their can_verify_states (portfolio_snapshot, fund_holdings, card_request_status, shipping_address, etc.) do not overlap with the source test's modified state (support_ticket_creation). Per the HARD MODULE RULE, a candidate from a different module may only be 'found' if its can_verify_states overlap the modified state. They do not, so they cannot verify the Support Center attachment requirement.
+- The candidate runs in the correct module and touches external transfer inputs, but it only validates UI input/option behavior rather than confirming persistence of a new external transfer record. Also its module action_states overlap the source modification (external_transfer_request), so it appears to be an action/form test rather than an observation of the resulting stored record.
+- All three candidate tests operate on the Transfer Funds page and their module action_states include 'funds_transfer' (they exercise the transfer action rather than observe history). Per the HARD MODULE RULE, a candidate whose action_states overlap the source test's modifies_state should not be marked 'found' because it performs the same action instead of verifying the result. None of the candidates open transfer history or a transfer-details view or search by transaction ID (they do not access/display the required transfer record or its transaction ID), so none fully satisfies the after_only verification requirement.
+- All candidate tests are for different modules and their can_verify_states (account_creation_status, transfer_status, payment_status, account_balance, etc.) do not overlap with the required modifies_state card_control_update. Per the HARD MODULE RULE, a candidate from another module can only be used if its can_verify_states overlap the target state; they do not. Therefore none are suitable.
+- Right module and touches the required state fields (card_status and card_controls), but the candidate's steps perform the Update Controls action (overlaps with the source test's modifies_state). Per the rule, a test that performs the same action cannot be marked as a full verification — it must be an observer-only test.
+- All provided candidates belong to other modules (Accounts Overview, Investments) and their can_verify_states do not include card_control_update. Per the Hard Module Rule, a candidate from a different module can only be considered if its can_verify_states overlaps with the source test's modifies_state (card_control_update). None do. Details: Test 3.ACCOVE-002 and 3.ACCOVE-007 are for Accounts Overview and verify account table fields (no card/travel-notice data). Test 10.INVEST-016 is for Investments and verifies plan start-date validation (no card/travel-notice data).
+- The candidate operates in the correct module (Investments) but does not access or display the plan detail or scheduled occurrences required by the verification. It observes portfolio snapshot data, not recurring plan schedule or next execution date, so it cannot by itself confirm the expected weekly cadence or persistence after refresh/login.
+- Not marked 'found' because the candidate performs a callback request creation (same modifies_state as the source). The after_only strategy requires a test that confirms the existing callback_request record after the action, not another submission.
+- Same module (Investments) but the test inspects portfolio snapshot rather than Order History/Trades and its action_states overlap with the source test's modified states, so it cannot, as written, confirm the existence of the executed trade record after the sell action.
 
 ---
 
@@ -80,24 +80,30 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the executed buy trade appears in the user's trade history with the order ID, fund symbol, quantity, and execu... | partial | Existence | After Only | 10.INVEST-002 - Execute a Sell trade successfully and update holdings | 65% |
-| 2 | Verify the user's cash balance decreased by the expected cash amount debited for the buy. | partial | Financial Delta | After Only | 10.INVEST-002 - Execute a Sell trade successfully and update holdings | 45% |
-| 3 | Verify the fund holdings increased by the purchased quantity (or shares) in the portfolio snapshot. | partial | Financial Delta | After Only | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 70% |
+| 1 | Confirm the trade order was recorded by locating the executed trade in the user's trade history/Orders with the retur... | partial | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 20% |
+| 2 | Record the funding account cash balance before the buy, execute the buy, then verify the funding account cash balance... | partial | Financial Delta | Before/After | 4.ONA-011 - Real-time validation appears and clears for Initial Deposit field | 50% |
+| 3 | Record the fund holdings for the bought fund before the trade, execute the buy, then verify the fund holdings increas... | found | Financial Delta | Before/After | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 90% |
 
 #### Coverage Gaps
 
-- The candidate runs in the Investments module and captures an order ID on the confirmation screen, but it is for a Sell flow and does not navigate to the Trade History/Orders page or verify Action=Buy, execution timestamp, or status='Executed'. As an after_only verification, the test must confirm the record exists in Trade History with all required fields — the current test only partially covers this.
-- The candidate is on the correct module and verifies trade execution, but it is a Sell scenario and does not read or assert the cash_balance or compute the expected debit. As written it cannot, by itself (after-only), confirm that cash_balance decreased by price*quantity+fees.
-- The test is on the correct module and displays the relevant portfolio/holding data, but it does not include steps to confirm the holding increased by the executed buy quantity. Because execution_strategy is after_only, the verification must confirm the expected outcome by itself; this candidate lacks the comparison/assertion needed.
+- Required target is Investments -> Order History/Trades. The candidate is in Accounts Overview and only verifies account-level columns (account number, type, balance, status, open date). Its can_verify_states do not include trade_execution, trade_status, order_id, fund symbol, or quantity. Under the HARD MODULE RULE a different-module candidate can be 'found' only if its verifiable states overlap with the source test's modifies_state (trade_execution, cash_balance, fund_holdings); this candidate does not provide those states, so it cannot fully verify the requirement.
+- Required target module is Investments. Candidate is from Open New Account; although its can_verify_states includes funding_account_balance (overlaps the required cash_balance), its action_states include funding_transfer (overlaps the source test's modifies_state). Per the HARD MODULE RULE, a different-module candidate whose action_states overlap with the source modifies_state must not be marked 'found'. Also the candidate's explicit steps do not show a direct read of the cash_balance value.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | action | execute_test | 10.INVEST-001 | Execute the action: Execute a Buy trade successfully and update holdings |
-| 2 | post_verify | execute_test_partial | 10.INVEST-002 | Verify the executed buy trade appears in the user's trade history with the order ID, fund symbol,... |
-| 3 | post_verify | execute_test_partial | 10.INVEST-002 | Verify the user's cash balance decreased by the expected cash amount debited for the buy. |
-| 4 | post_verify | execute_test_partial | 10.INVEST-007 | Verify the fund holdings increased by the purchased quantity (or shares) in the portfolio snapshot. |
+| 1 | pre_verify | execute_test | 10.INVEST-007 | Record held quantity of the fund before the trade in the portfolio snapshot. |
+| 2 | action | execute_test | 10.INVEST-001 | Execute the action: Execute a Buy trade successfully and update holdings |
+| 3 | post_verify | execute_test | 10.INVEST-007 | Record held quantity after trade; expected increase = purchased quantity. |
+
+**Manual Verification Required:**
+- Purpose: Confirm the trade order was recorded by locating the executed trade in the user's trade history/Orders with the returned order ID, action = Buy, symbol and quantity matching the submission.
+- Suggested Step: Verify in module 'Investments' — matcher chose 3.ACCOVE-002 in 'Accounts Overview' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Accounts Overview', but verification should occur in 'Investments'.
+- Purpose: Record the funding account cash balance before the buy, execute the buy, then verify the funding account cash balance decreased by the trade cost (expected quantity * execution price) and that the decrease persists.
+- Suggested Step: Verify in module 'Investments' — matcher chose 4.ONA-011 in 'Open New Account' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Open New Account', but verification should occur in 'Investments'.
 
 ---
 
@@ -127,34 +133,27 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the executed sell trade appears in the user's trade history with the order ID, fund symbol, quantity, and exec... | partial | Existence | After Only | 10.INVEST-001 - Execute a Buy trade successfully and update holdings | 65% |
-| 2 | Verify the user's cash balance increased by the expected proceeds from the sell. | not_found | Financial Delta | After Only | - | - |
-| 3 | Verify the fund holdings decreased by the sold quantity in the portfolio snapshot. | partial | Financial Delta | After Only | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 75% |
-
-#### Verification Tests Needed
-
-| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
-|---|------|----------|---------------|----------|----------------------|
-| 1 | Financial Delta | After Only | Investments | - | After the sell completes, in the Investments module: 1) Open the trade confirmation / order detai... |
+| 1 | Confirm the sell order was recorded by locating the executed trade in the user's trade history/Orders with the return... | partial | Existence | After Only | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 35% |
+| 2 | Record the fund holdings for the sold fund before the trade, execute the sell, then verify the fund holdings decrease... | found | Financial Delta | Before/After | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 92% |
+| 3 | Record the destination account cash balance before the sell, execute the sell, then verify the destination account ca... | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 95% |
 
 #### Coverage Gaps
 
-- Test 10.INVEST-001 validates a trade execution confirmation and order details but is focused on a Buy flow and the confirmation area rather than the Trade History / Orders view. Because the execution strategy is after_only, the verification must confirm the new record exists in Trade History; the candidate does not include that navigation/check, so it cannot fully confirm the required outcome as-is.
-- All candidates are either buy flow or failure/validation flows and do not access or display the account cash balance or the cash transaction that results from a successful sell. The requirement is after_only and must confirm the cash increase by comparing trade proceeds minus fees to the cash credit/new balance; none of the tests extract or assert that data.
-- The test displays the relevant data (portfolio holdings) but as-written it only observes read-only values and does not perform the necessary confirmation/assertion that the holding decreased by the sold quantity. Because execution_strategy is after_only, the verification must confirm the expected numeric change by itself; the candidate lacks that explicit check.
+- Same module (Investments) but the test inspects portfolio snapshot rather than Order History/Trades and its action_states overlap with the source test's modified states, so it cannot, as written, confirm the existence of the executed trade record after the sell action.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | action | execute_test | 10.INVEST-002 | Execute the action: Execute a Sell trade successfully and update holdings |
-| 2 | post_verify | execute_test_partial | 10.INVEST-001 | Verify the executed sell trade appears in the user's trade history with the order ID, fund symbol... |
-| 3 | post_verify | execute_test_partial | 10.INVEST-007 | Verify the fund holdings decreased by the sold quantity in the portfolio snapshot. |
+| 1 | pre_verify | execute_test | 10.INVEST-007 | Record held quantity of the fund before the trade in the portfolio snapshot. |
+| 2 | action | execute_test | 10.INVEST-002 | Execute the action: Execute a Sell trade successfully and update holdings |
+| 3 | post_verify | execute_test_partial | 10.INVEST-007 | Confirm the sell order was recorded by locating the executed trade in the user's trade history/Or... |
+| 4 | post_verify | execute_test | 10.INVEST-007 | Record held quantity after trade; expected decrease = sold quantity. |
 
 **Manual Verification Required:**
-- Purpose: Verify the user's cash balance increased by the expected proceeds from the sell.
-- Suggested Step: After the sell completes, in the Investments module: 1) Open the trade confirmation / order details and record the gross proceeds and fees (or net amount). 2) Open the Account Cash / Transaction History and locate the transaction linked to the sell (filter by order ID, timestamp, or trade reference). 3) Verify there is a cash credit entry whose amount equals proceeds - fees. 4) Verify the current/displayed cash balance reflects that credit (i.e., the balance after the transaction equals the prior balance plus the credit). If prior balance is not available in the test run, confirming the cash credit amount matches proceeds - fees and that the displayed balance corresponds to the balance shown immediately after that transaction is sufficient for after_only verification.
-- Reason: All candidates are either buy flow or failure/validation flows and do not access or display the account cash balance or the cash transaction that results from a successful sell. The requirement is after_only and must confirm the cash increase by comparing trade proceeds minus fees to the cash credit/new balance; none of the tests extract or assert that data.
+- Purpose: Record the destination account cash balance before the sell, execute the sell, then verify the destination account cash balance increased by the sale proceeds (quantity * execution price) and the increase persists.
+- Suggested Step: Verify in module 'Investments' — matcher chose 3.ACCOVE-003 in 'Accounts Overview' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Accounts Overview', but verification should occur in 'Investments'.
 
 ---
 
@@ -183,21 +182,31 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm the recurring investment plan exists in Investments -> Recurring Plans with Weekly frequency, contribution am... | partial | Existence | After Only | 10.INVEST-004 - Create recurring investment plan with Monthly frequency | 60% |
-| 2 | Verify the plan produced a scheduled job / next-occurrence entry in the system's scheduled trades list. | partial | Cascading Update | After Only | 10.INVEST-004 - Create recurring investment plan with Monthly frequency | 65% |
+| 1 | Confirm the recurring investment plan was created by locating the plan in the Investments recurring plans list and ve... | not_found | Existence | After Only | - | - |
+| 2 | Verify the schedule for the created Weekly plan persists after refresh and re-login and that the next scheduled execu... | partial | Field Persistence | After Only | 10.INVEST-007 - Portfolio snapshot displays current holdings and read-only values | 40% |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Existence | After Only | Investments | - | After creating the recurring plan, verify manually: 1) Log into the app and navigate to Investmen... |
 
 #### Coverage Gaps
 
-- The test runs in the correct module and confirms creation, but it does not inspect the Recurring Plans list or verify the specific fields required (frequency, start date, fund symbol, funding account, Plan ID). Also the candidate uses Monthly frequency rather than Weekly, so as-is it cannot confirm the expected Weekly plan.
-- The candidate operates in the correct module and stores a schedule, but it does not access/display the Scheduled Jobs / Next Transactions list or verify the next-occurrence entry or the required Weekly frequency. Also the test uses Monthly frequency rather than Weekly.
+- All candidate tests belong to other modules (Open New Account, Payments). Their can_verify_states (account_creation_status, funding_account_balance, payment_status, etc.) do not overlap with the source test's modified state (trade_execution). Per the HARD MODULE RULE, a different-module candidate can only be used if its can_verify_states overlap; they do not. Additionally, none of the candidates display or open the Investments recurring plans list or plan detail view required to confirm frequency, fund symbol, contribution amount, start date, and funding account.
+- The candidate operates in the correct module (Investments) but does not access or display the plan detail or scheduled occurrences required by the verification. It observes portfolio snapshot data, not recurring plan schedule or next execution date, so it cannot by itself confirm the expected weekly cadence or persistence after refresh/login.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 10.INVEST-003 | Execute the action: Create recurring investment plan with Weekly frequency |
-| 2 | post_verify | execute_test_partial | 10.INVEST-004 | Confirm the recurring investment plan exists in Investments -> Recurring Plans with Weekly freque... |
-| 3 | post_verify | execute_test_partial | 10.INVEST-004 | Verify the plan produced a scheduled job / next-occurrence entry in the system's scheduled trades... |
+| 2 | post_verify | execute_test_partial | 10.INVEST-007 | Verify the schedule for the created Weekly plan persists after refresh and re-login and that the ... |
+
+**Manual Verification Required:**
+- Purpose: Confirm the recurring investment plan was created by locating the plan in the Investments recurring plans list and verifying frequency = Weekly, contribution amount, fund symbol, start date, and funding account match the submitted values.
+- Suggested Step: After creating the recurring plan, verify manually: 1) Log into the app and navigate to Investments -> Recurring Plans (or Scheduled Trades). 2) Search or filter by the submitted Fund Symbol, Start Date, or Funding Account to locate the new plan. 3) Open the plan's detail view. 4) Assert the Frequency field equals 'Weekly'. 5) Assert the Contribution Amount equals the submitted amount. 6) Assert the Fund Symbol matches the submitted symbol. 7) Assert the Start Date matches the submitted date. 8) Assert the Funding Account matches the submitted funding account. If automating, implement a new Investments test that performs these steps and asserts the values.
+- Reason: All candidate tests belong to other modules (Open New Account, Payments). Their can_verify_states (account_creation_status, funding_account_balance, payment_status, etc.) do not overlap with the source test's modified state (trade_execution). Per the HARD MODULE RULE, a different-module candidate can only be used if its can_verify_states overlap; they do not. Additionally, none of the candidates display or open the Investments recurring plans list or plan detail view required to confirm frequency, fund symbol, contribution amount, start date, and funding account.
 
 ---
 
@@ -226,21 +235,33 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm the recurring investment plan exists in Investments -> Recurring Plans with Monthly frequency, contribution a... | partial | Existence | After Only | 10.INVEST-003 - Create recurring investment plan with Weekly frequency | 65% |
-| 2 | Verify the plan created the next scheduled trade entry reflecting Monthly frequency in the scheduled jobs list. | partial | Cascading Update | After Only | 10.INVEST-003 - Create recurring investment plan with Weekly frequency | 60% |
+| 1 | Confirm the recurring investment plan was created by locating the plan in the Investments recurring plans list and ve... | not_found | Existence | After Only | - | - |
+| 2 | Verify the schedule for the created Monthly plan persists after refresh and re-login and that the next scheduled exec... | partial | Field Persistence | After Only | 1.LOGIN-012 - Page refresh on authenticated page retains logged-in state | 35% |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Existence | After Only | Investments | - | After creating the recurring plan, navigate to Investments -> Recurring Plans (or Scheduled Trade... |
 
 #### Coverage Gaps
 
-- The candidate operates on the correct module and confirms creation, but it does not inspect the Recurring Plans listing nor verify the specific fields required (Monthly frequency, contribution amount, start date, fund symbol, funding account, Plan ID). As written it creates a Weekly plan and only checks for a confirmation message, so it cannot by itself confirm the expected post-condition for an after_only verification.
-- The test operates in the correct Investments module and creates a recurring plan (so it partially addresses the requirement). However, it uses a Weekly frequency (not Monthly) and does not access or verify the Scheduled Jobs / Next Transactions list or the next-occurrence date. As written it cannot, by itself (after_only), confirm the expected scheduled trade entry exists.
+- All candidate tests are for different modules (Open New Account, Payments) and their can_verify_states do not overlap with the source test's modifies_state (trade_execution). Under the HARD MODULE RULE, a different-module candidate can only be 'found' if its can_verify_states overlap with trade_execution. None do, so none can confirm the Investments recurring plan creation.
+- This candidate is for Login/session persistence and can confirm the user remains authenticated across refresh, which helps the refresh/re-login part of the requirement. However it does not operate on the Investments module nor does it read or display trade_execution (plan schedule, frequency, or next execution date). Therefore it cannot, by itself, confirm that the Monthly frequency and next scheduled execution date persisted after refresh and re-login.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 10.INVEST-004 | Execute the action: Create recurring investment plan with Monthly frequency |
-| 2 | post_verify | execute_test_partial | 10.INVEST-003 | Confirm the recurring investment plan exists in Investments -> Recurring Plans with Monthly frequ... |
-| 3 | post_verify | execute_test_partial | 10.INVEST-003 | Verify the plan created the next scheduled trade entry reflecting Monthly frequency in the schedu... |
+
+**Manual Verification Required:**
+- Purpose: Confirm the recurring investment plan was created by locating the plan in the Investments recurring plans list and verifying frequency = Monthly, contribution amount, fund symbol, start date, and funding account match the submitted values.
+- Suggested Step: After creating the recurring plan, navigate to Investments -> Recurring Plans (or Scheduled Trades). Locate the entry for the newly created plan and open its details. Verify: 1) Frequency = Monthly; 2) Fund symbol matches submitted symbol; 3) Contribution amount matches submitted amount; 4) Start date matches submitted date; 5) Funding account matches submitted account.
+- Reason: All candidate tests are for different modules (Open New Account, Payments) and their can_verify_states do not overlap with the source test's modifies_state (trade_execution). Under the HARD MODULE RULE, a different-module candidate can only be 'found' if its can_verify_states overlap with trade_execution. None do, so none can confirm the Investments recurring plan creation.
+- Purpose: Verify the schedule for the created Monthly plan persists after refresh and re-login and that the next scheduled execution date matches a monthly cadence from the start date.
+- Suggested Step: Verify in module 'Investments' — matcher chose 1.LOGIN-012 in 'Login' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Login', but verification should occur in 'Investments'.
 
 ---
 
@@ -270,20 +291,22 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify a generated statement record exists for the selected account and month-year and includes a populated transacti... | found | Existence | After Only | 11.ACCSTA-002 - Generate statement using custom date range | 80% |
-| 2 | Verify the generated statement remains accessible after logging out and logging back in (the statement persists in th... | partial | Session Persistence | After Only | 11.ACCSTA-002 - Generate statement using custom date range | 65% |
+| 1 | Open the generated statement for the selected account and month and inspect the statement metadata and transaction li... | partial | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 15% |
 
 #### Coverage Gaps
 
-- The candidate is on the correct module and shows the generated statement data (so it can confirm the statement exists), but it does NOT include the required logout/login and re-check steps. Because execution_strategy is after_only, the test must itself confirm persistence after logout/login — currently it does not.
+- Target module is 'Account Statements' and the verification requires inspecting a generated statement's statement_data and transaction_list. None of the provided candidates operate in the Account Statements module or expose statement_data/transaction_list. The Accounts Overview test's can_verify_states do not overlap with the source test's modifies_state (statement_generation), so it cannot serve as the after_only verifier.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 11.ACCSTA-001 | Execute the action: Generate statement using month-and-year period |
-| 2 | post_verify | execute_test | 11.ACCSTA-002 | Verify a generated statement record exists for the selected account and month-year and includes a... |
-| 3 | post_verify | execute_test_partial | 11.ACCSTA-002 | Verify the generated statement remains accessible after logging out and logging back in (the stat... |
+
+**Manual Verification Required:**
+- Purpose: Open the generated statement for the selected account and month and inspect the statement metadata and transaction list to confirm the statement contains transactions whose transaction dates fall within the selected month and are associated with the selected account.
+- Suggested Step: Verify in module 'Account Statements' — matcher chose 3.ACCOVE-002 in 'Accounts Overview' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Accounts Overview', but verification should occur in 'Account Statements'.
 
 ---
 
@@ -295,7 +318,7 @@
 | Workflow | Generate Statement |
 | Test Type | positive |
 | Priority | High |
-| Coverage | partial |
+| Coverage | none |
 | Modifies State | statement_generation |
 
 #### Source Test Details
@@ -313,21 +336,28 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify a generated statement record exists for the selected account and custom date range and includes transactions f... | partial | Existence | After Only | 11.ACCSTA-001 - Generate statement using month-and-year period | 62% |
-| 2 | Verify the generated custom-range statement persists across a logout/login and remains viewable in the statements list. | partial | Session Persistence | After Only | 11.ACCSTA-001 - Generate statement using month-and-year period | 60% |
+| 1 | Open the generated statement for the selected account and custom date range and verify the returned statement contain... | not_found | Existence | After Only | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Existence | After Only | Account Statements | - | After running 'Generate statement using custom date range', navigate to Account Statements → loca... |
 
 #### Coverage Gaps
 
-- The candidate operates on the correct module and displays transactions for a selected period, so it can confirm that displayed transactions match a requested period. However it targets a month-and-year period rather than a custom date range and does not explicitly include the step to open Statement History and validate the statement record's transaction_list contents for the custom start/end dates.
-- The candidate operates in the correct module and verifies statement generation and that transactions are displayed. However, it uses a month-and-year period (not a custom date range) and does not include logout/login or a persistence check. Because the execution strategy is after_only, the verification must by itself confirm the persisted record after login — the candidate lacks those steps.
+- All candidates are from different modules (Accounts Overview, Open New Account) and their can_verify_states do not include statement_generation or transaction_list. Per the Hard Module Rule, a candidate from a different module can only be 'found' if its can_verify_states overlap the source test's modifies_state (statement_generation). No overlap exists, so none can serve as the after_only verification of the generated statement.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 11.ACCSTA-002 | Execute the action: Generate statement using custom date range |
-| 2 | post_verify | execute_test_partial | 11.ACCSTA-001 | Verify a generated statement record exists for the selected account and custom date range and inc... |
-| 3 | post_verify | execute_test_partial | 11.ACCSTA-001 | Verify the generated custom-range statement persists across a logout/login and remains viewable i... |
+
+**Manual Verification Required:**
+- Purpose: Open the generated statement for the selected account and custom date range and verify the returned statement contains transactions only within the specified start and end dates and is tied to the selected account.
+- Suggested Step: After running 'Generate statement using custom date range', navigate to Account Statements → locate the generated statement for the selected account and date range → open Statement Details → inspect statement_data.transaction_list and for each transaction verify: (1) transaction.date is >= start_date and <= end_date, and (2) transaction.account_id (or account identifier) matches the selected account. Also verify a statement record exists for the date range and that statement_data contains the filtered transaction_list.
+- Reason: All candidates are from different modules (Accounts Overview, Open New Account) and their can_verify_states do not include statement_generation or transaction_list. Per the Hard Module Rule, a candidate from a different module can only be 'found' if its can_verify_states overlap the source test's modifies_state (statement_generation). No overlap exists, so none can serve as the after_only verification of the generated statement.
 
 ---
 
@@ -339,7 +369,7 @@
 | Workflow | Save Preference |
 | Test Type | positive |
 | Priority | High |
-| Coverage | partial |
+| Coverage | none |
 | Modifies State | e_statement_preference |
 
 #### Source Test Details
@@ -356,19 +386,28 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Record the e-Statement preference before saving, then save the paperless checkbox and email, and verify the preferenc... | partial | Field Persistence | Before/After | 11.ACCSTA-008 - Save preference with invalid email format | 72% |
+| 1 | Record the current paperless checkbox state and email; after saving the e-Statement preference, refresh the preferenc... | not_found | Field Persistence | Before/After | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Field Persistence | Before/After | Account Statements | - | Create or run a test that opens the Account Statements > Preferences page and records the followi... |
 
 #### Coverage Gaps
 
-- The candidate is on the correct module and touches the relevant UI elements, but it performs modifications and save attempts (negative validation scenario) rather than simply observing/displaying the current e_statement_preference. Because the execution_strategy is before_after, the verification test must be able to OBSERVE the checkbox state and email without causing state changes—this test as written would alter state and/or trigger validation, so it is not a full match.
+- All candidate tests are in other modules (Login, Open New Account) and their can_verify_states do not overlap with the modified state e_statement_preference. Per the Hard Module Rule, a candidate from a different module can only be used if its can_verify_states overlaps with e_statement_preference — none do. Therefore none can serve as the before/after observer for Account Statements preferences.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | pre_verify | execute_test_partial | 11.ACCSTA-008 | Record current e_statement_preference (checkbox state and email) from Account Statements preferen... |
-| 2 | action | execute_test | 11.ACCSTA-003 | Execute the action: Save e-Statement preference with a valid email |
-| 3 | post_verify | execute_test_partial | 11.ACCSTA-008 | After saving, refresh and re-login then read e_statement_preference again to confirm checkbox is ... |
+| 1 | action | execute_test | 11.ACCSTA-003 | Execute the action: Save e-Statement preference with a valid email |
+
+**Manual Verification Required:**
+- Purpose: Record the current paperless checkbox state and email; after saving the e-Statement preference, refresh the preferences page and re-open the account (and perform a re-login) to confirm the paperless checkbox remains selected and the entered email persists.
+- Suggested Step: Create or run a test that opens the Account Statements > Preferences page and records the following (this is sufficient for before_after execution):<br>1) Log in as the test user.<br>2) Navigate to Account Statements -> Preferences (or Account Statements preferences page).<br>3) Record the current state of the 'Paperless statements' checkbox (checked/unchecked) and the value in the 'Email Address' field.<br>(Record these values as the BEFORE snapshot.)<br>4) Perform the source action: check the paperless checkbox, enter the valid email, and click 'Save Preference'.<br>5) After saving, refresh the Preferences page and observe the checkbox and email field — record these values.<br>6) Log out, then log back in as the same user, re-open Account Statements -> Preferences and record the checkbox state and email field again (AFTER snapshot).<br>7) Compare BEFORE and AFTER snapshots: the paperless checkbox should be selected and the entered email should persist across refresh and re-login.<br>Note: Because the strategy is before_after, the test only needs to display/read these values (no automated assertion of change is required by the verifier).
+- Reason: All candidate tests are in other modules (Login, Open New Account) and their can_verify_states do not overlap with the modified state e_statement_preference. Per the Hard Module Rule, a candidate from a different module can only be used if its can_verify_states overlaps with e_statement_preference — none do. Therefore none can serve as the before/after observer for Account Statements preferences.
 
 ---
 
@@ -398,31 +437,22 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify credential change by confirming the old password no longer authenticates and the new password does authenticate. | not_found | Credential Change | Before/After | - | - |
-| 2 | Verify the password change persists across logout/login (user can log in with the new password later). | partial | Session Persistence | After Only | 12.SECSET-006 - Change password using a minimally-compliant strong password | 72% |
-
-#### Verification Tests Needed
-
-| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
-|---|------|----------|---------------|----------|----------------------|
-| 1 | Credential Change | Before/After | Security Settings | - | Implement or run a verification test that performs sign-in attempts and is safe to run before and... |
+| 1 | Attempt authentication using the old/current password and then using the new password after the change: the old passw... | found | Credential Change | After Only | 1.LOGIN-008 - After changing password the old password no longer works | 90% |
+| 2 | Verify the password change persists across logout/login by logging out and then logging back in with the new password... | partial | Session Persistence | After Only | 3.ACCOVE-001 - Welcome message shows the user's name | 60% |
 
 #### Coverage Gaps
 
-- All candidates are on the correct module (Security Settings) but none exercise or display authentication results:<br>- 12.SECSET-002: Tests validation when the current password entered into the change form is incorrect. It only checks for a validation error on the change form, not whether signing in with the old/new passwords authenticates. Running this before/after will not record authentication success/failure.<br>- 12.SECSET-004: Tests mismatch between New Password and Confirm fields; only a form validation negative test. It does not attempt or display sign-in results.<br>- 12.SECSET-006: Executes a password change and expects a success result. This is an action that would alter credentials rather than merely observe them; running it BEFORE the password-change action (as a baseline) would itself change credentials and invalidate the baseline. It does not explicitly perform sign-in attempts to show whether old/new credentials authenticate. Therefore none of these can serve as the before_after verification test that must observe authentication success/failure.
-- Test 12.SECSET-006 checks the password change action and success message but does not confirm persistence by performing logout and re-login. Tests 12.SECSET-004 and 12.SECSET-002 are negative validation cases and do not verify successful persistence either.
+- The requirement (after_only) needs a test that confirms the new credentials actually create a session by themselves (i.e., perform or validate login). 3.ACCOVE-001 observes session-dependent UI (good), but it does not perform the login/authentication step or explicitly verify that the new password succeeded — therefore it cannot by itself confirm the credential change persisted.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 12.SECSET-001 | Execute the action: Change password with valid current and strong matching new password |
-| 2 | post_verify | execute_test_partial | 12.SECSET-006 | Verify the password change persists across logout/login (user can log in with the new password la... |
-
-**Manual Verification Required:**
-- Purpose: Verify credential change by confirming the old password no longer authenticates and the new password does authenticate.
-- Suggested Step: Implement or run a verification test that performs sign-in attempts and is safe to run before and after the password-change action:<br>1) BEFORE password change (baseline):<br>   - Sign out (if necessary).<br>   - Attempt to sign in with the target username and the current (old) password.<br>   - Record that sign-in succeeded (timestamp, user id/session token or success result).<br>2) AFTER password change:<br>   - Sign out (if necessary).<br>   - Attempt to sign in with the same username and the OLD password — expect failure; record failure.<br>   - Attempt to sign in with the same username and the NEW password — expect success; record success.<br>Notes: Automate these as a dedicated authentication verification test (not as a change-password form test). Ensure the test does not perform the password-change action itself when run for the baseline.
-- Reason: All candidates are on the correct module (Security Settings) but none exercise or display authentication results:<br>- 12.SECSET-002: Tests validation when the current password entered into the change form is incorrect. It only checks for a validation error on the change form, not whether signing in with the old/new passwords authenticates. Running this before/after will not record authentication success/failure.<br>- 12.SECSET-004: Tests mismatch between New Password and Confirm fields; only a form validation negative test. It does not attempt or display sign-in results.<br>- 12.SECSET-006: Executes a password change and expects a success result. This is an action that would alter credentials rather than merely observe them; running it BEFORE the password-change action (as a baseline) would itself change credentials and invalidate the baseline. It does not explicitly perform sign-in attempts to show whether old/new credentials authenticate. Therefore none of these can serve as the before_after verification test that must observe authentication success/failure.
+| 2 | navigate | navigate | - | Navigate to Login |
+| 3 | post_verify | execute_test | 1.LOGIN-008 | Attempt authentication using the old/current password and then using the new password after the c... |
+| 4 | navigate | navigate | - | Navigate to Accounts Overview |
+| 5 | post_verify | execute_test_partial | 3.ACCOVE-001 | Verify the password change persists across logout/login by logging out and then logging back in w... |
 
 ---
 
@@ -434,8 +464,8 @@
 | Workflow | Send Message |
 | Test Type | positive |
 | Priority | High |
-| Coverage | partial |
-| Modifies State | support_ticket_creation, message_status |
+| Coverage | none |
+| Modifies State | support_ticket_creation |
 
 #### Source Test Details
 
@@ -451,22 +481,28 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify a support ticket is created and appears in the user's Support Center ticket list with the submitted subject, c... | partial | Existence | After Only | 13.SUPCEN-002 - Send message successfully with a valid attachment | 65% |
-| 2 | Verify the created ticket is visible to the support team (a support agent can observe the ticket in the Support Cente... | partial | Existence | Cross-User | 13.SUPCEN-002 - Send message successfully with a valid attachment | 65% |
+| 1 | Locate the newly created support ticket in the Support Center ticket list or open the ticket detail by ticket ID and ... | not_found | Existence | After Only | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Existence | After Only | Support Center | - | After the 'Send Message' action completes, copy the returned ticket ID (or go to Support Center >... |
 
 #### Coverage Gaps
 
-- The candidate operates on the correct module and shows a ticket ID on successful send, so it partially confirms creation. However it does not explicitly access the user's ticket list or view the ticket detail to confirm category and message content, which the after_only strategy requires.
-- The candidate runs in the correct module and produces a ticket ID, but it is a requester-side test and does not itself open the Support Center agent queue or display the ticket details from a support_agent view. Because the execution_strategy is cross_user, the verification must be performed while logged in as a support_agent and the test must reveal agent-visible data — the candidate does not do this by itself.
+- Execution strategy is after_only, so the verification test must, by itself, confirm that a support_ticket record exists with the submitted subject, category, and message body (by searching/opening the ticket in the Support Center). All candidate tests are for other modules (Manage Cards, Update Contact Info, Payments) and their can_verify_states do not overlap with the source test's modified state (support_ticket_creation). Per the Hard Module Rule, a candidate from a different module can be 'found' only if its can_verify_states overlap with the modified state — none do. Therefore none can verify the support_ticket outcome.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 13.SUPCEN-001 | Execute the action: Send message successfully with required fields (no attachment) |
-| 2 | post_verify | execute_test_partial | 13.SUPCEN-002 | Verify a support ticket is created and appears in the user's Support Center ticket list with the ... |
-| 3 | session | session_switch | - | Switch to observer role: support_agent |
-| 4 | post_verify | execute_test_partial | 13.SUPCEN-002 | Verify the created ticket is visible to the support team (a support agent can observe the ticket ... |
+
+**Manual Verification Required:**
+- Purpose: Locate the newly created support ticket in the Support Center ticket list or open the ticket detail by ticket ID and confirm the ticket record contains the submitted subject, category, and message body.
+- Suggested Step: After the 'Send Message' action completes, copy the returned ticket ID (or go to Support Center > Recent Tickets). In Support Center: search or open the ticket by that ticket ID (or select the recent ticket). Open the ticket detail and confirm the Subject, Category, and Message Body fields exactly match the submitted values. Record the ticket ID and screenshots of the ticket detail as evidence.
+- Reason: Execution strategy is after_only, so the verification test must, by itself, confirm that a support_ticket record exists with the submitted subject, category, and message body (by searching/opening the ticket in the Support Center). All candidate tests are for other modules (Manage Cards, Update Contact Info, Payments) and their can_verify_states do not overlap with the source test's modified state (support_ticket_creation). Per the Hard Module Rule, a candidate from a different module can be 'found' only if its can_verify_states overlap with the modified state — none do. Therefore none can verify the support_ticket outcome.
 
 ---
 
@@ -478,8 +514,8 @@
 | Workflow | Send Message |
 | Test Type | positive |
 | Priority | High |
-| Coverage | partial |
-| Modifies State | support_ticket_creation, message_status |
+| Coverage | none |
+| Modifies State | support_ticket_creation |
 
 #### Source Test Details
 
@@ -495,22 +531,28 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify a support ticket with an attached file is created and the ticket entry lists the attachment metadata. | partial | Existence | After Only | 13.SUPCEN-001 - Send message successfully with required fields (no attachment) | 60% |
-| 2 | Verify the support agent can access the ticket and download or view the attached file from the agent queue. | partial | Existence | Cross-User | 13.SUPCEN-007 - Submit with unsupported attachment type | 50% |
+| 1 | Open the created support ticket in Support Center and confirm the attached file is recorded with filename and content... | not_found | Existence | After Only | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Existence | After Only | Support Center | - | In Support Center, open the ticket detail for the returned ticket ID. Inspect the Attachments sec... |
 
 #### Coverage Gaps
 
-- The test operates on the correct module and confirms ticket creation, but it explicitly has no attachment step and does not access the ticket's attachments section. Because the execution_strategy is after_only, the verification must confirm the attachment metadata exists; this test as-written cannot do that.
-- The candidate operates in the correct module and touches attachment behavior, but it does not run as a support_agent nor does it open the agent queue/ticket details to display or download an attachment. Under the cross_user execution strategy the verification must be observable while logged in as support_agent; this test lacks those observer-side steps.
+- All candidate tests belong to Investments or Manage Cards modules and their can_verify_states (portfolio_snapshot, fund_holdings, card_request_status, shipping_address, etc.) do not overlap with the source test's modified state (support_ticket_creation). Per the HARD MODULE RULE, a candidate from a different module may only be 'found' if its can_verify_states overlap the modified state. They do not, so they cannot verify the Support Center attachment requirement.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 13.SUPCEN-002 | Execute the action: Send message successfully with a valid attachment |
-| 2 | post_verify | execute_test_partial | 13.SUPCEN-001 | Verify a support ticket with an attached file is created and the ticket entry lists the attachmen... |
-| 3 | session | session_switch | - | Switch to observer role: support_agent |
-| 4 | post_verify | execute_test_partial | 13.SUPCEN-007 | Verify the support agent can access the ticket and download or view the attached file from the ag... |
+
+**Manual Verification Required:**
+- Purpose: Open the created support ticket in Support Center and confirm the attached file is recorded with filename and content-type metadata and that the attachment can be downloaded/opened.
+- Suggested Step: In Support Center, open the ticket detail for the returned ticket ID. Inspect the Attachments section and verify: (1) the attachment is listed with the correct filename, size, and MIME/content-type metadata; (2) clicking the attachment initiates a download or opens the file and the file content matches the uploaded file. Record screenshots of metadata and confirm successful download/open and content match.
+- Reason: All candidate tests belong to Investments or Manage Cards modules and their can_verify_states (portfolio_snapshot, fund_holdings, card_request_status, shipping_address, etc.) do not overlap with the source test's modified state (support_ticket_creation). Per the HARD MODULE RULE, a candidate from a different module may only be 'found' if its can_verify_states overlap the modified state. They do not, so they cannot verify the Support Center attachment requirement.
 
 ---
 
@@ -539,31 +581,31 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify a callback request record is created with the selected reason, preferred date/time window and phone number and... | partial | Existence | After Only | 13.SUPCEN-010 - Submit with Preferred Date set to the next business day (boundary) | 73% |
-| 2 | Verify the support agent (callback scheduler) can see the callback request in their queue and the scheduled date/time... | not_found | Existence | Cross-User | - | - |
+| 1 | Confirm a callback request record is created in Support Center with the selected reason, preferred date (at least nex... | partial | Existence | After Only | 13.SUPCEN-010 - Submit with Preferred Date set to the next business day (boundary) | 72% |
+| 2 | Verify the callback request is visible to Support Center agents by having a support_agent observer view the support q... | not_found | Existence | Cross-User | - | - |
 
 #### Verification Tests Needed
 
 | # | Type | Strategy | Target Module | Observer | Suggested Test Title |
 |---|------|----------|---------------|----------|----------------------|
-| 1 | Existence | Cross-User | Support Center | support_agent | 1) Log in as support_agent. 2) Go to Support Center -> Callback Scheduling (or Callback Requests/... |
+| 1 | Existence | Cross-User | Support Center | support_agent | Log in as a support_agent -> Navigate to Support Center -> Open Incoming Requests / Support Queue... |
 
 #### Coverage Gaps
 
-- The test operates on the correct module and creates the callback_request, but it does not access/display the user's callbacks/requests listing or the detailed record fields required by the verification (reason, preferred date/time window, phone number). Because the execution_strategy is after_only, the verification must confirm the outcome itself — this test does not.
-- All candidates are end-user submission tests (or unrelated message submission) and do not navigate to or display the support agent callback scheduling queue or the callback_request details. Under the cross_user strategy the verification test must be runnable as the observer (support_agent) and reveal the created callback_request; none of the candidates meet that requirement.
+- Not marked 'found' because the candidate performs a callback request creation (same modifies_state as the source). The after_only strategy requires a test that confirms the existing callback_request record after the action, not another submission.
+- All provided candidate tests operate in unrelated modules (Manage Cards, Payments). Per the HARD MODULE RULE, a candidate from a different module can only be considered if its can_verify_states overlaps with the source test's modifies_state (callback_request_creation). None of the candidates list callback_request or related states in their can_verify_states, so they cannot display or verify the created callback_request in the Support Center. They also do not run in the Support Center module and therefore cannot be used for cross_user observation as a support_agent.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 13.SUPCEN-003 | Execute the action: Submit Request Callback with valid inputs |
-| 2 | post_verify | execute_test_partial | 13.SUPCEN-010 | Verify a callback request record is created with the selected reason, preferred date/time window ... |
+| 2 | post_verify | execute_test_partial | 13.SUPCEN-010 | Confirm a callback request record is created in Support Center with the selected reason, preferre... |
 
 **Manual Verification Required:**
-- Purpose: Verify the support agent (callback scheduler) can see the callback request in their queue and the scheduled date/time/phone details for fulfillment.
-- Suggested Step: 1) Log in as support_agent. 2) Go to Support Center -> Callback Scheduling (or Callback Requests/Queue) view. 3) Use filters/sort to locate the most recent callback_request (or search by requester/email/time). 4) Open the callback_request and confirm the Preferred Date, Preferred Time Window, and Phone Number fields match the submitted values. 5) Record the request ID, timestamp, and displayed scheduling details as evidence.
-- Reason: All candidates are end-user submission tests (or unrelated message submission) and do not navigate to or display the support agent callback scheduling queue or the callback_request details. Under the cross_user strategy the verification test must be runnable as the observer (support_agent) and reveal the created callback_request; none of the candidates meet that requirement.
+- Purpose: Verify the callback request is visible to Support Center agents by having a support_agent observer view the support queue and confirm the new callback request appears for agents to action.
+- Suggested Step: Log in as a support_agent -> Navigate to Support Center -> Open Incoming Requests / Support Queue -> Filter or search for request type 'Callback' or the submitting user's name/phone -> Locate the new callback request and confirm the displayed Reason for Call, Preferred Date/Time, and Phone match the submitted values.
+- Reason: All provided candidate tests operate in unrelated modules (Manage Cards, Payments). Per the HARD MODULE RULE, a candidate from a different module can only be considered if its can_verify_states overlaps with the source test's modifies_state (callback_request_creation). None of the candidates list callback_request or related states in their can_verify_states, so they cannot display or verify the created callback_request in the Support Center. They also do not run in the Support Center module and therefore cannot be used for cross_user observation as a support_agent.
 
 ---
 
@@ -575,7 +617,7 @@
 | Workflow | Open Account |
 | Test Type | positive |
 | Priority | High |
-| Coverage | partial |
+| Coverage | full |
 | Modifies State | account_opening, funding_transfer, account_status |
 
 #### Source Test Details
@@ -592,30 +634,24 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm the newly opened Checking account appears in the Accounts Overview listing with account type = Checking and t... | partial | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 70% |
-| 2 | Verify the funding source account was debited by the initial deposit amount (source balance decreased by deposit). | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
-| 3 | Verify the new Checking account's balance reflects the credited initial deposit (destination balance increased by dep... | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
-
-#### Coverage Gaps
-
-- 3.ACCOVE-002 operates on the correct module and displays the required columns (Account Type and Current Balance), so it can observe the needed data. However, it does not by itself search for or assert the presence of a new Checking account with a specific balance value or verify the masked account number. Because the execution_strategy is after_only, the verification must confirm the specific outcome (existence of a Checking row with balance equal to the initial deposit), which this test does not currently perform.
+| 1 | Verify the newly opened Checking account appears in the Accounts Overview listing with type Checking, a masked accoun... | found | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 85% |
+| 2 | Verify funds were transferred from the selected funding source by confirming the funding account's available balance ... | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 80% |
+| 3 | Verify the new checking account's balance reflects the deposited amount (complements the funding account debit). | found | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 80% |
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record funding source account balance in Accounts Overview before opening the new account. |
-| 3 | navigate | navigate | - | Navigate to Accounts Overview |
-| 4 | pre_verify | execute_test | 3.ACCOVE-003 | Confirm the Checking account does not exist or had no balance in Accounts Overview before the ope... |
-| 5 | navigate | navigate | - | Navigate to Open New Account |
-| 6 | action | execute_test | 4.ONA-001 | Execute the action: Open a new Checking account with valid initial deposit |
-| 7 | navigate | navigate | - | Navigate to Accounts Overview |
-| 8 | post_verify | execute_test_partial | 3.ACCOVE-002 | Confirm the newly opened Checking account appears in the Accounts Overview listing with account t... |
-| 9 | navigate | navigate | - | Navigate to Accounts Overview |
-| 10 | post_verify | execute_test | 3.ACCOVE-003 | Record funding source account balance in Accounts Overview after account opening and compute delta. |
-| 11 | navigate | navigate | - | Navigate to Accounts Overview |
-| 12 | post_verify | execute_test | 3.ACCOVE-003 | Record the newly created Checking account balance in Accounts Overview after the open-account act... |
+| 1 | action | execute_test | 4.ONA-001 | Execute the action: Open a new Checking account with valid initial deposit |
+| 2 | navigate | navigate | - | Navigate to Accounts Overview |
+| 3 | post_verify | execute_test | 3.ACCOVE-002 | Verify the newly opened Checking account appears in the Accounts Overview listing with type Check... |
+| 4 | navigate | navigate | - | Navigate to Accounts Overview |
+| 5 | post_verify | execute_test | 3.ACCOVE-002 | Verify the new checking account's balance reflects the deposited amount (complements the funding ... |
+
+**Manual Verification Required:**
+- Purpose: Verify funds were transferred from the selected funding source by confirming the funding account's available balance decreased by the initial deposit amount.
+- Suggested Step: Verify in module 'Open New Account' — matcher chose 3.ACCOVE-003 in 'Accounts Overview' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Accounts Overview', but verification should occur in 'Open New Account'.
 
 ---
 
@@ -644,30 +680,29 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm the newly opened Savings account appears in the Accounts Overview listing with account type = Savings and the... | partial | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 75% |
-| 2 | Verify the funding source account was debited by the initial deposit amount (source balance decreased by deposit). | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
-| 3 | Verify the new Savings account's balance reflects the credited initial deposit (destination balance increased by depo... | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 88% |
+| 1 | Verify the newly opened Savings account appears in the Accounts Overview listing with type Savings, a masked account ... | partial | Existence | After Only | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 70% |
+| 2 | Verify the funding source account was debited by the initial deposit amount used to open the Savings account. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 80% |
+| 3 | Verify the new savings account's balance reflects the deposited amount (the created account shows the initial balance). | partial | Existence | After Only | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 75% |
 
 #### Coverage Gaps
 
-- As-written the test only verifies that the expected columns are present in each row, not that a specific newly opened Savings account exists or that a row's balance equals the initial deposit. It therefore observes the relevant fields but does not confirm the specific expected outcome by itself.
+- The candidate is in the correct module and exposes the required fields (account_list, masked_account_number, balance_display), but as written it only verifies column presence/visibility for all rows rather than locating and asserting the specific new Savings account and its exact initial balance. Because the execution_strategy is after_only, the test must by itself confirm the new record and expected balance — this test does not currently perform that confirmation.
+- Candidate operates in the correct module and exposes balance_display, so it can observe the relevant data, but the test's current assertions focus on the footer total rather than confirming an individual account's balance matches the deposit amount. Therefore it cannot, as-is, confirm the expected result by itself.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record funding source account balance in Accounts Overview before opening the new account. |
-| 3 | navigate | navigate | - | Navigate to Accounts Overview |
-| 4 | pre_verify | execute_test | 3.ACCOVE-003 | Confirm the Savings account does not exist or had no balance in Accounts Overview before the open... |
-| 5 | navigate | navigate | - | Navigate to Open New Account |
-| 6 | action | execute_test | 4.ONA-002 | Execute the action: Open a new Savings account with valid initial deposit |
-| 7 | navigate | navigate | - | Navigate to Accounts Overview |
-| 8 | post_verify | execute_test_partial | 3.ACCOVE-002 | Confirm the newly opened Savings account appears in the Accounts Overview listing with account ty... |
-| 9 | navigate | navigate | - | Navigate to Accounts Overview |
-| 10 | post_verify | execute_test | 3.ACCOVE-003 | Record funding source account balance in Accounts Overview after account opening and compute delta. |
-| 11 | navigate | navigate | - | Navigate to Accounts Overview |
-| 12 | post_verify | execute_test | 3.ACCOVE-003 | Record the newly created Savings account balance in Accounts Overview after the open-account acti... |
+| 1 | action | execute_test | 4.ONA-002 | Execute the action: Open a new Savings account with valid initial deposit |
+| 2 | navigate | navigate | - | Navigate to Accounts Overview |
+| 3 | post_verify | execute_test_partial | 3.ACCOVE-002 | Verify the newly opened Savings account appears in the Accounts Overview listing with type Saving... |
+| 4 | navigate | navigate | - | Navigate to Accounts Overview |
+| 5 | post_verify | execute_test_partial | 3.ACCOVE-003 | Verify the new savings account's balance reflects the deposited amount (the created account shows... |
+
+**Manual Verification Required:**
+- Purpose: Verify the funding source account was debited by the initial deposit amount used to open the Savings account.
+- Suggested Step: Verify in module 'Open New Account' — matcher chose 3.ACCOVE-003 in 'Accounts Overview' which is not the observer module.
+- Reason: Module mismatch: matched test is in 'Accounts Overview', but verification should occur in 'Open New Account'.
 
 ---
 
@@ -697,30 +732,29 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify source account balance decreased by the transfer amount after completing an internal transfer. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 92% |
-| 2 | Verify destination account balance increased by the transfer amount after completing an internal transfer. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 85% |
-| 3 | Confirm a transfer transaction record appears in the transaction list (Account Statements) referencing the transfer a... | partial | Existence | After Only | 11.ACCSTA-002 - Generate statement using custom date range | 65% |
+| 1 | Verify the source account's balance decreased by the transfer amount. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 95% |
+| 2 | Verify the destination internal account's balance increased by the transfer amount. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 95% |
+| 3 | Verify a transfer record exists with the shown transaction ID in the Transfer Funds records/history. | partial | Existence | After Only | 5.TRAFUN-004 - Destination options update when changing transfer type | 30% |
 
 #### Coverage Gaps
 
-- This test operates on the correct module (Account Statements) and retrieves transactions for a specified date range, so it can display the transaction list needed for verification. However its expected result only states 'retrieved transactions' and does not explicitly assert that the transaction ID is shown or that a specific transaction (amount + ID) exists, so it does not fully guarantee the required verification by itself.
+- All three candidate tests operate on the Transfer Funds page and their module action_states include 'funds_transfer' (they exercise the transfer action rather than observe history). Per the HARD MODULE RULE, a candidate whose action_states overlap the source test's modifies_state should not be marked 'found' because it performs the same action instead of verifying the result. None of the candidates open transfer history or a transfer-details view or search by transaction ID (they do not access/display the required transfer record or its transaction ID), so none fully satisfies the after_only verification requirement.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview before performing the transfer. |
+| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record source account available balance prior to transfer. |
 | 3 | navigate | navigate | - | Navigate to Accounts Overview |
-| 4 | pre_verify | execute_test | 3.ACCOVE-003 | Record Destination Account balance in Accounts Overview before performing the transfer. |
+| 4 | pre_verify | execute_test | 3.ACCOVE-003 | Record destination account available balance prior to transfer. |
 | 5 | navigate | navigate | - | Navigate to Transfer Funds |
 | 6 | action | execute_test | 5.TRAFUN-001 | Execute the action: Successful internal transfer between own accounts |
 | 7 | navigate | navigate | - | Navigate to Accounts Overview |
-| 8 | post_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview after the transfer and compute delta. |
+| 8 | post_verify | execute_test | 3.ACCOVE-003 | Record source account available balance after transfer and verify decrease equals transfer amount. |
 | 9 | navigate | navigate | - | Navigate to Accounts Overview |
-| 10 | post_verify | execute_test | 3.ACCOVE-003 | Record Destination Account balance in Accounts Overview after the transfer and compute delta. |
-| 11 | navigate | navigate | - | Navigate to Account Statements |
-| 12 | post_verify | execute_test_partial | 11.ACCSTA-002 | Confirm a transfer transaction record appears in the transaction list (Account Statements) refere... |
+| 10 | post_verify | execute_test | 3.ACCOVE-003 | Record destination account available balance after transfer and verify increase equals transfer a... |
+| 11 | post_verify | execute_test_partial | 5.TRAFUN-004 | Verify a transfer record exists with the shown transaction ID in the Transfer Funds records/history. |
 
 ---
 
@@ -733,7 +767,7 @@
 | Test Type | positive |
 | Priority | High |
 | Coverage | partial |
-| Modifies State | external_transfer_request, account_balance |
+| Modifies State | funds_transfer, account_balance, external_transfer_request |
 
 #### Source Test Details
 
@@ -750,34 +784,24 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the source account balance decreased by the external transfer amount. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
-| 2 | Verify an external transfer request/record exists in Transfer Funds (outgoing transfers) that includes the destinatio... | not_found | Existence | After Only | - | - |
-
-#### Verification Tests Needed
-
-| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
-|---|------|----------|---------------|----------|----------------------|
-| 1 | Existence | After Only | Transfer Funds | - | After submitting the external transfer, navigate to Transfer Funds -> Outgoing/External Transfers... |
+| 1 | Verify the source account's balance decreased by the external transfer amount. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 93% |
+| 2 | Verify an external transfer request/record was created for the provided destination account number (external transfer... | partial | Existence | After Only | 5.TRAFUN-004 - Destination options update when changing transfer type | 70% |
 
 #### Coverage Gaps
 
-- Evaluated candidates:<br>- 5.TRAFUN-006: Operates in Transfer Funds and uses external transfer path, but it intentionally causes a validation failure (non-matching account numbers) and therefore does not produce a transfer record or transaction ID. Cannot confirm a successful external transfer record (not suitable for after_only verification).<br>- 5.TRAFUN-001: Confirms a successful transfer and shows a transaction ID, but it is an internal transfer between own accounts, not an external/outgoing transfer. It does not validate that an outgoing external transfer record exists or appears in the outgoing transfers list with destination account number.<br>- 5.TRAFUN-004: Verifies the UI switches to external-account input fields when transfer type changes; it does not perform or confirm a transfer nor check the outgoing/recent transfers list for a resulting record or transaction ID.<br>Because none of the candidates open the outgoing/external transfers list and assert existence of an external transfer entry with the destination account number and transaction ID, no candidate fully satisfies the after_only verification requirement.
+- The candidate runs in the correct module and touches external transfer inputs, but it only validates UI input/option behavior rather than confirming persistence of a new external transfer record. Also its module action_states overlap the source modification (external_transfer_request), so it appears to be an action/form test rather than an observation of the resulting stored record.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview before initiating the external transfer. |
+| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record source account available balance prior to external transfer. |
 | 3 | navigate | navigate | - | Navigate to Transfer Funds |
 | 4 | action | execute_test | 5.TRAFUN-002 | Execute the action: Successful external transfer to matching account number |
 | 5 | navigate | navigate | - | Navigate to Accounts Overview |
-| 6 | post_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview after the external transfer and compute delta. |
-
-**Manual Verification Required:**
-- Purpose: Verify an external transfer request/record exists in Transfer Funds (outgoing transfers) that includes the destination account number and returned transaction ID/reference.
-- Suggested Step: After submitting the external transfer, navigate to Transfer Funds -> Outgoing/External Transfers or Recent Transfers. Search or scan the list for an entry matching the destination account number used in the transfer. Verify that the entry exists and that it displays the transaction ID/reference for that transfer. Record the transfer row details (destination account number, transaction ID/reference, date/time, amount) as evidence.
-- Reason: Evaluated candidates:<br>- 5.TRAFUN-006: Operates in Transfer Funds and uses external transfer path, but it intentionally causes a validation failure (non-matching account numbers) and therefore does not produce a transfer record or transaction ID. Cannot confirm a successful external transfer record (not suitable for after_only verification).<br>- 5.TRAFUN-001: Confirms a successful transfer and shows a transaction ID, but it is an internal transfer between own accounts, not an external/outgoing transfer. It does not validate that an outgoing external transfer record exists or appears in the outgoing transfers list with destination account number.<br>- 5.TRAFUN-004: Verifies the UI switches to external-account input fields when transfer type changes; it does not perform or confirm a transfer nor check the outgoing/recent transfers list for a resulting record or transaction ID.<br>Because none of the candidates open the outgoing/external transfers list and assert existence of an external transfer entry with the destination account number and transaction ID, no candidate fully satisfies the after_only verification requirement.
+| 6 | post_verify | execute_test | 3.ACCOVE-003 | Record source account available balance after transfer and verify decrease equals transfer amount. |
+| 7 | post_verify | execute_test_partial | 5.TRAFUN-004 | Verify an external transfer request/record was created for the provided destination account numbe... |
 
 ---
 
@@ -807,25 +831,24 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the source account balance decreased by the payment amount after submitting the bill payment. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
-| 2 | Confirm the payment transaction appears in the Account Statements transaction list with a payment reference code and ... | partial | Existence | After Only | 11.ACCSTA-001 - Generate statement using month-and-year period | 60% |
+| 1 | Verify the source account's balance decreased by the payment amount after submitting the bill payment. | found | Financial Delta | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 95% |
+| 2 | Verify a payment record with the referenced payment code exists and contains matching payee, amount, and source accou... | partial | Existence | After Only | 6.PAYMEN-004 - Submit payment when amount equals available funds (boundary) | 58% |
 
 #### Coverage Gaps
 
-- This test operates on the correct module (Account Statements) and displays the generated transactions for a chosen period, so it can surface the transaction list. However, it does not explicitly check for the presence of a payment transaction, the payment reference code, or payee details. Because the execution strategy is after_only, the test must confirm the expected outcome by itself; as written it only generates the statement and does not assert the specific fields required.
+- The candidate is in the correct module and exposes the relevant states (payment_reference, payee_details, account_balance), but it performs the same create action as the source test (overlapping action_states: bill_payment, account_balance). Per the hard module rule, a test that performs the action cannot be marked 'found' as the verification — we need a read-only/observational test that can confirm the payment record exists after the submit action.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview before submitting the payment. |
+| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record source account available balance prior to payment submission. |
 | 3 | navigate | navigate | - | Navigate to Payments |
 | 4 | action | execute_test | 6.PAYMEN-001 | Execute the action: Submit valid payment and verify reference code and balance update |
 | 5 | navigate | navigate | - | Navigate to Accounts Overview |
-| 6 | post_verify | execute_test | 3.ACCOVE-003 | Record Source Account balance in Accounts Overview after the payment and compute delta. |
-| 7 | navigate | navigate | - | Navigate to Account Statements |
-| 8 | post_verify | execute_test_partial | 11.ACCSTA-001 | Confirm the payment transaction appears in the Account Statements transaction list with a payment... |
+| 6 | post_verify | execute_test | 3.ACCOVE-003 | Record source account available balance after payment and verify decrease equals payment amount. |
+| 7 | post_verify | execute_test_partial | 6.PAYMEN-004 | Verify a payment record with the referenced payment code exists and contains matching payee, amou... |
 
 ---
 
@@ -854,25 +877,25 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the approved Personal loan record exists and is listed with loan terms (amount, rate, status) in the Request L... | partial | Existence | After Only | 7.REQLOA-013 - Accept Personal loan request when Loan Amount equals the Personal minimum | 72% |
-| 2 | Verify a collateral hold indicator or hold amount appears on the selected collateral account (related account shows a... | partial | Cascading Update | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 65% |
+| 1 | Verify a new Personal loan application/loan record exists and is recorded as approved/created in the Request Loan rec... | partial | Existence | After Only | 7.REQLOA-013 - Accept Personal loan request when Loan Amount equals the Personal minimum | 70% |
+| 2 | Verify the selected collateral account reflects the collateral hold/reservation (related account shows hold or reserv... | partial | Cascading Update | Before/After | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 60% |
 
 #### Coverage Gaps
 
-- Test 7.REQLOA-013 uses the correct module and loan type (Personal) but its expected outcome only states the request 'may be approved' and does not include steps to view the loan listing or assert the created/approved status and displayed loan terms. The other candidates (7.REQLOA-002 and 7.REQLOA-003) are for Auto and Home loans respectively and therefore do not match the required Personal loan verification.
-- Correct module (Accounts Overview) and reads account balances, but it does not access/display the specific hold/reserve indicator or held amount required by the before_after verification.
+- The candidate test submits a Personal loan request (its action_states include loan_creation, collateral_hold, loan_status), so it performs the same state-changing action as the source test rather than observing the result. The execution_strategy is after_only and requires a test that can confirm the new record exists and shows type='Personal', approved/created status, and the chosen terms. The candidate can verify the required states but must be adapted to only read/display the loan record rather than creating one.
+- The candidate is in the required Accounts Overview module and reads per-account Current Balance and status, but its listed verifiable states do not include a hold/reservation indicator or reserved_amount. Because the verification requires observing a hold/reserved indicator or reserved amount for the collateral account, this test alone is insufficient.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview before submittin... |
+| 2 | pre_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and any hold/reservation indicator prior to loan request. |
 | 3 | navigate | navigate | - | Navigate to Request Loan |
 | 4 | action | execute_test | 7.REQLOA-001 | Execute the action: Request a Personal loan with valid inputs |
-| 5 | post_verify | execute_test_partial | 7.REQLOA-013 | Verify the approved Personal loan record exists and is listed with loan terms (amount, rate, stat... |
+| 5 | post_verify | execute_test_partial | 7.REQLOA-013 | Verify a new Personal loan application/loan record exists and is recorded as approved/created in ... |
 | 6 | navigate | navigate | - | Navigate to Accounts Overview |
-| 7 | post_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview after loan creat... |
+| 7 | post_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and hold/reservation indicator after loan creation and verify t... |
 
 ---
 
@@ -901,35 +924,25 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the approved Auto loan record exists and is listed with loan terms (amount, rate, status) in the Request Loan/... | not_found | Existence | After Only | - | - |
-| 2 | Verify a collateral hold indicator or hold amount appears on the selected collateral account after the Auto loan is c... | partial | Cascading Update | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 60% |
-
-#### Verification Tests Needed
-
-| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
-|---|------|----------|---------------|----------|----------------------|
-| 1 | Existence | After Only | Request Loan | - | After the loan submission action completes, navigate to Request Loan -> Loan Listing (or Loan Det... |
+| 1 | Verify a new Auto loan application/loan record exists and is recorded as approved/created in the Request Loan records... | partial | Existence | After Only | 7.REQLOA-009 - Reject Auto loan request when Loan Amount is above allowed maximum | 45% |
+| 2 | Verify the selected collateral account reflects the collateral hold/reservation (related account shows hold or reserv... | partial | Cascading Update | Before/After | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 55% |
 
 #### Coverage Gaps
 
-- All provided tests operate on the Request Loan module (good), but each submits Personal or Home loan types—not 'Auto'. While they expect an approval message and display new loan details, they would not validate the presence of an Auto loan record or its loan terms. Since after_only requires the verification to confirm the Auto loan exists, none of these candidates meet the requirement.
-- Although this test targets the correct module (Accounts Overview), it only accesses Current Balance values and the footer total. It does not currently read or display the hold/reserve indicator or held amount required by the verification. Therefore it cannot be used as-is but is the closest candidate and can be adapted.
+- Although this candidate touches the correct module and exposes the relevant state fields (loan_application_status, loan_terms), it is itself an action-oriented test that submits a loan request (and in this case expects rejection). Per the rules, tests whose action_states overlap the source's modifies_state cannot be marked 'found' because they perform the same action rather than observing the result. Also the expected outcome of 7.REQLOA-009 (validation error) is the opposite of the desired verification (an approved/created Auto loan record).
+- The candidate operates in the required Accounts Overview module and exposes the Current Balance (needed for before/after recording) but its listed verifiable states do not include a hold/reservation indicator or reserved_amount. Because the verification strategy is before_after, the test can serve to capture balances but cannot by itself capture the hold/reservation state required to confirm collateral holds.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview before submittin... |
+| 2 | pre_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and any hold/reservation indicator prior to loan request. |
 | 3 | navigate | navigate | - | Navigate to Request Loan |
 | 4 | action | execute_test | 7.REQLOA-002 | Execute the action: Request an Auto loan with valid inputs |
-| 5 | navigate | navigate | - | Navigate to Accounts Overview |
-| 6 | post_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview after loan creat... |
-
-**Manual Verification Required:**
-- Purpose: Verify the approved Auto loan record exists and is listed with loan terms (amount, rate, status) in the Request Loan/loan listing.
-- Suggested Step: After the loan submission action completes, navigate to Request Loan -> Loan Listing (or Loan Details for the user). Filter or scan for entries with Loan Type = 'Auto'. Locate the entry with the expected Loan Amount and Interest Rate and verify loan_application_status is 'Approved' or 'Active' and that displayed amount and rate match the submitted values. If automating, create a new test that: 1) opens Request Loan listing, 2) searches/filters for Loan Type = Auto and the expected amount, 3) asserts interest rate equals expected value, and 4) asserts loan_application_status equals 'Approved' or 'Active'.
-- Reason: All provided tests operate on the Request Loan module (good), but each submits Personal or Home loan types—not 'Auto'. While they expect an approval message and display new loan details, they would not validate the presence of an Auto loan record or its loan terms. Since after_only requires the verification to confirm the Auto loan exists, none of these candidates meet the requirement.
+| 5 | post_verify | execute_test_partial | 7.REQLOA-009 | Verify a new Auto loan application/loan record exists and is recorded as approved/created in the ... |
+| 6 | navigate | navigate | - | Navigate to Accounts Overview |
+| 7 | post_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and hold/reservation indicator after loan creation and verify t... |
 
 ---
 
@@ -958,25 +971,25 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify the approved Home loan record exists and is listed with loan terms (amount, rate, status) in the Request Loan/... | partial | Existence | After Only | 7.REQLOA-014 - Accept Home loan request when Loan Amount equals the Home maximum | 70% |
-| 2 | Verify a collateral hold indicator or hold amount appears on the selected collateral account after the Home loan is c... | partial | Cascading Update | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 72% |
+| 1 | Verify a new Home loan application/loan record exists and is recorded as approved/created in the Request Loan records... | partial | Existence | After Only | 7.REQLOA-014 - Accept Home loan request when Loan Amount equals the Home maximum | 65% |
+| 2 | Verify the selected collateral account reflects the collateral hold/reservation (related account shows hold or reserv... | partial | Cascading Update | Before/After | 3.ACCOVE-002 - Accounts table displays expected columns in each row | 55% |
 
 #### Coverage Gaps
 
-- The candidate is the only Home-type submission among the options (so it's the best starting point), but it does not explicitly display or assert the loan listing/loan_application_status after submission. Since the execution strategy is after_only, the test must itself confirm the created/approved Home loan with matching terms; the current test does not guarantee that.
-- Correct module (Accounts Overview) but the test as written does not access or display the hold/reserve indicator or held-amount/available-balance values required by the verification. Because execution_strategy is before_after, a test that simply observes those fields would be sufficient — this one needs to be modified to capture them.
+- Candidate 7.REQLOA-014 is the most relevant (correct module and Home loan), but it is itself a create/action test (its action_states overlap the source test). Per the hard rule, an action-test cannot be marked as the observer-only verification. The other provided candidates are for other loan types or are also action tests and thus are not suitable.
+- The candidate is in the required Accounts Overview module and exposes Current Balance and account row data, but its can_verify_states do not include a hold/reservation indicator or reserved amount. The verification requires observing a hold/reservation indicator or reserved amount on the collateral account, which this test does not explicitly access.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview before submittin... |
+| 2 | pre_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and any hold/reservation indicator prior to loan request. |
 | 3 | navigate | navigate | - | Navigate to Request Loan |
 | 4 | action | execute_test | 7.REQLOA-003 | Execute the action: Request a Home loan with valid inputs |
-| 5 | post_verify | execute_test_partial | 7.REQLOA-014 | Verify the approved Home loan record exists and is listed with loan terms (amount, rate, status) ... |
+| 5 | post_verify | execute_test_partial | 7.REQLOA-014 | Verify a new Home loan application/loan record exists and is recorded as approved/created in the ... |
 | 6 | navigate | navigate | - | Navigate to Accounts Overview |
-| 7 | post_verify | execute_test_partial | 3.ACCOVE-003 | Record collateral account hold/available-balance indicators in Accounts Overview after loan creat... |
+| 7 | post_verify | execute_test_partial | 3.ACCOVE-002 | Record collateral account balance and hold/reservation indicator after loan creation and verify t... |
 
 ---
 
@@ -988,7 +1001,7 @@
 | Workflow | Request Loan |
 | Test Type | positive |
 | Priority | Medium |
-| Coverage | full |
+| Coverage | none |
 | Modifies State | loan_creation, collateral_hold, loan_status |
 
 #### Source Test Details
@@ -1005,18 +1018,28 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Demonstrate that the collateral account's actual available balance is unchanged after loan creation (no debit), by co... | found | Cascading Update | Before/After | 3.ACCOVE-003 - Footer displays the total balance across all accounts | 90% |
+| 1 | Verify that the collateral account's actual available balance remains unchanged after loan creation (no debit occurre... | not_found | Field Persistence | Before/After | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Field Persistence | Before/After | Accounts Overview | - | 1) Navigate to Accounts Overview while logged in as the loan requester. 2) Locate the collateral ... |
+
+#### Coverage Gaps
+
+- Hard Module Rule: the target module is Accounts Overview. A candidate from another module can only be used if its can_verify_states overlaps the source's modifies_state and it actually displays the required collateral account balance. Although some candidates mention account_balance, none run in Accounts Overview or explicitly expose the collateral_account available balance (or the sequence of immediate re-check, refresh, and re-login). Therefore they cannot serve as the before_after observation test for collateral_account.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | navigate | navigate | - | Navigate to Accounts Overview |
-| 2 | pre_verify | execute_test | 3.ACCOVE-003 | Record the collateral account available/current balance in Accounts Overview before submitting th... |
-| 3 | navigate | navigate | - | Navigate to Request Loan |
-| 4 | action | execute_test | 7.REQLOA-010 | Execute the action: Verify no actual balance debits occur after loan creation |
-| 5 | navigate | navigate | - | Navigate to Accounts Overview |
-| 6 | post_verify | execute_test | 3.ACCOVE-003 | Record the collateral account available/current balance in Accounts Overview after loan creation ... |
+| 1 | action | execute_test | 7.REQLOA-010 | Execute the action: Verify no actual balance debits occur after loan creation |
+
+**Manual Verification Required:**
+- Purpose: Verify that the collateral account's actual available balance remains unchanged after loan creation (no debit occurred) and that the unchanged value persists after page refresh and re-login.
+- Suggested Step: 1) Navigate to Accounts Overview while logged in as the loan requester. 2) Locate the collateral account and record its Available Balance (and Ledger Balance if shown). 3) Submit the loan request (execute 7.REQLOA-010). 4) Immediately return to Accounts Overview and record the collateral account Available Balance again. 5) Refresh the Accounts Overview page and record the Available Balance. 6) Log out and log back in, open Accounts Overview, and record the Available Balance. 7) Confirm all recorded Available Balance values are identical (no debit occurred).
+- Reason: Hard Module Rule: the target module is Accounts Overview. A candidate from another module can only be used if its can_verify_states overlaps the source's modifies_state and it actually displays the required collateral account balance. Although some candidates mention account_balance, none run in Accounts Overview or explicitly expose the collateral_account available balance (or the sequence of immediate re-check, refresh, and re-login). Therefore they cannot serve as the before_after observation test for collateral_account.
 
 ---
 
@@ -1045,19 +1068,19 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Verify that updated contact fields persist after a page refresh and after logging out and logging back in (the profil... | partial | Field Persistence | Before/After | 8.UCI-002 - Submit with all required fields empty | 60% |
+| 1 | Verify the updated contact fields are saved and persist after refresh and after signing out and back in. | partial | Field Persistence | Before/After | 8.UCI-005 - Submit with multiple fields failing format validation | 60% |
 
 #### Coverage Gaps
 
-- Although the test targets the correct module, its steps exercise validation for empty required fields and do not read or display the existing contact field values. Under a before_after execution strategy the test must OBSERVE/DISPLAY the contact_fields so they can be recorded before and after the update; this candidate does not do that.
+- The candidate is in the correct module and can access the required state (user_profile/contact_fields), but its defined steps perform an update (action_states overlap with the source modifies_state) rather than only observing the profile. The hard-module rule forbids marking such an action-test as a full match for an observation-only before_after verification.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | pre_verify | execute_test_partial | 8.UCI-002 | Record existing contact fields on the profile page before performing the update. |
+| 1 | pre_verify | execute_test_partial | 8.UCI-005 | Record current contact field values shown on the profile page prior to update. |
 | 2 | action | execute_test | 8.UCI-001 | Execute the action: Update profile with all valid contact fields |
-| 3 | post_verify | execute_test_partial | 8.UCI-002 | After updating, refresh the page and then perform logout/login; record contact fields after refre... |
+| 3 | post_verify | execute_test_partial | 8.UCI-005 | After update, refresh the page and re-open profile after logout/login; verify contact fields refl... |
 
 ---
 
@@ -1070,7 +1093,7 @@
 | Test Type | positive |
 | Priority | High |
 | Coverage | partial |
-| Modifies State | card_request_creation, card_status |
+| Modifies State | card_request_creation, card_status, card_control_update |
 
 #### Source Test Details
 
@@ -1088,23 +1111,21 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm a new card-request record exists in Manage Cards requests with the tracking ID, requested card type (Debit), ... | partial | Existence | After Only | 9.MANCAR-002 - Request a new Credit card with valid linked account and complete shippin... | 55% |
-| 2 | Verify an operational ticket referencing the card request and tracking ID is visible to bank staff. | partial | Existence | Cross-User | 13.SUPCEN-001 - Send message successfully with required fields (no attachment) | 55% |
+| 1 | Confirm a card-request ticket was created for the selected linked account by locating the new request in the Manage C... | partial | Existence | After Only | 9.MANCAR-015 - Submit with incomplete Shipping Address | 60% |
+| 2 | Verify the provided shipping address was persisted for the created card request and remains correct after page refres... | partial | Field Persistence | After Only | 9.MANCAR-015 - Submit with incomplete Shipping Address | 62% |
 
 #### Coverage Gaps
 
-- While 9.MANCAR-002 is on the correct module and confirms a tracking ID on submission, it targets Credit (not Debit) and does not inspect the Manage Cards -> Requests list or verify the linked account identifier, full shipping address, or request status. The other candidates are negative/validation tests and cannot confirm that a request was created.
-- None of the candidates explicitly exercise the admin-facing Recent Tickets view or include a search for a ticket referencing a card request/tracking ID. 13.SUPCEN-001 is the closest because it uses the Support Center and shows a generated ticket ID, but its steps only cover sending a message and confirming the success message/ID for the creator — it does not describe the admin-side observation (Recent Tickets search and status check). 9.MANCAR-002 creates the card request and returns a tracking ID but is in Manage Cards (creator action), not in the admin Support Center view. 9.MANCAR-010 is negative/blocked flow and irrelevant.
+- The test is in the Manage Cards module and references card_request_status, but it is an action test that overlaps the source's action_states (card_request_creation) and expects request not to be submitted. It does not observe or display the Requests list or the tracking ID, so it cannot serve as an after-only verification of a successful request.
+- Module matches and the candidate can access shipping_address, but its action_states overlap with the source test's modifies_state (it performs a card request submission). Per the HARD MODULE RULE, a candidate that performs the same action cannot be marked 'found' because it does not serve as a pure observer. Also, the candidate's expected outcome is a validation error for incomplete input — not a verification that a previously-created request persisted correct address data.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 9.MANCAR-001 | Execute the action: Request a new Debit card with valid linked account and complete shipping address |
-| 2 | post_verify | execute_test_partial | 9.MANCAR-002 | Confirm a new card-request record exists in Manage Cards requests with the tracking ID, requested... |
-| 3 | session | session_switch | - | Switch to observer role: admin |
-| 4 | navigate | navigate | - | Navigate to Support Center |
-| 5 | post_verify | execute_test_partial | 13.SUPCEN-001 | Verify an operational ticket referencing the card request and tracking ID is visible to bank staff. |
+| 2 | post_verify | execute_test_partial | 9.MANCAR-015 | Confirm a card-request ticket was created for the selected linked account by locating the new req... |
+| 3 | post_verify | execute_test_partial | 9.MANCAR-015 | Verify the provided shipping address was persisted for the created card request and remains corre... |
 
 ---
 
@@ -1117,7 +1138,7 @@
 | Test Type | positive |
 | Priority | High |
 | Coverage | partial |
-| Modifies State | card_request_creation, card_status |
+| Modifies State | card_request_creation, card_status, card_control_update |
 
 #### Source Test Details
 
@@ -1135,23 +1156,21 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm a new card-request record exists in Manage Cards requests with the tracking ID, requested card type (Credit),... | partial | Existence | After Only | 9.MANCAR-001 - Request a new Debit card with valid linked account and complete shipping... | 60% |
-| 2 | Verify a bank-side ticket was created for the credit card request and is visible to card-ops staff. | partial | Existence | Cross-User | 13.SUPCEN-001 - Send message successfully with required fields (no attachment) | 65% |
+| 1 | Confirm a card-request ticket was created for the selected linked account by locating the new request in the Manage C... | partial | Existence | After Only | 9.MANCAR-015 - Submit with incomplete Shipping Address | 65% |
+| 2 | Verify the provided shipping address was persisted for the created card request and remains correct after page refres... | partial | Field Persistence | After Only | 9.MANCAR-015 - Submit with incomplete Shipping Address | 65% |
 
 #### Coverage Gaps
 
-- Candidate 9.MANCAR-001 uses the correct module and returns a tracking ID on submission but requests a Debit card (not Credit) and only verifies a submission confirmation message — it does not inspect the Manage Cards Requests/Request History list to confirm the stored request row and its fields. The other candidates either expect blocked submissions or validation errors and therefore cannot verify a created request.
-- Operates on the correct module and produces a ticket ID, but does not include actions to view Recent Tickets as admin or to verify that the created ticket references the credit card request/tracking ID and is in open/assigned state. Because the verification strategy is cross_user (observer = admin), the candidate needs to display the ticket in the admin-accessible Recent Tickets view — which this test does not do by itself.
+- Same module and capable of verifying card_request_status and related fields, but the test currently performs a create action (card_request_creation) and expects failure — per the hard-module rule, a candidate whose action_states overlap the source's modifies_state cannot be marked 'found'. The test must be converted into a read/inspection test (no submit) to serve as a proper after-only verification.
+- Same module (Manage Cards) and the test exposes shipping_address, but the candidate currently performs a create/submit action (card_request_creation overlaps the source modifies_state). Per the hard-module rule, a test that performs the same action cannot be marked as a verification-only test. Also the candidate verifies input validation for an incomplete address rather than persistence across refresh and re-login.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
 | 1 | action | execute_test | 9.MANCAR-002 | Execute the action: Request a new Credit card with valid linked account and complete shipping add... |
-| 2 | post_verify | execute_test_partial | 9.MANCAR-001 | Confirm a new card-request record exists in Manage Cards requests with the tracking ID, requested... |
-| 3 | session | session_switch | - | Switch to observer role: admin |
-| 4 | navigate | navigate | - | Navigate to Support Center |
-| 5 | post_verify | execute_test_partial | 13.SUPCEN-001 | Verify a bank-side ticket was created for the credit card request and is visible to card-ops staff. |
+| 2 | post_verify | execute_test_partial | 9.MANCAR-015 | Confirm a card-request ticket was created for the selected linked account by locating the new req... |
+| 3 | post_verify | execute_test_partial | 9.MANCAR-015 | Verify the provided shipping address was persisted for the created card request and remains corre... |
 
 ---
 
@@ -1180,17 +1199,17 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Record the card's current controls, update spending limit, then verify the new limit persists after refresh and re-lo... | not_found | Field Persistence | Before/After | - | - |
+| 1 | Record the selected card's spending limit before the update, submit the update, then verify the spending limit value ... | not_found | Field Persistence | Before/After | - | - |
 
 #### Verification Tests Needed
 
 | # | Type | Strategy | Target Module | Observer | Suggested Test Title |
 |---|------|----------|---------------|----------|----------------------|
-| 1 | Field Persistence | Before/After | Manage Cards | - | Create/execute a verification test that: 1) Log in and navigate to Manage Cards. 2) Select the ta... |
+| 1 | Field Persistence | Before/After | Manage Cards | - | Automated or manual verification needed in Manage Cards: 1) Open Manage Cards, select the existin... |
 
 #### Coverage Gaps
 
-- All three candidates operate in the Manage Cards module and exercise the Update Controls flow, but none explicitly state that they access or display the card's current spending limit in the Controls view. They focus on validation or successful update behavior (entering new values and checking validation/success messages) rather than explicitly reading and reporting the persisted spending limit field. Because the verification requires recording the displayed spending limit before and after, these candidates do not guarantee the required observation step.
+- All candidates are for other modules (Open New Account, Payments, Transfer Funds) and their can_verify_states do not include card_control_update or spending_limit. Per the Hard Module Rule, a candidate from a different module can only be considered if its verifiable states overlap the source's modified states — they do not.
 
 #### Execution Plan
 
@@ -1199,9 +1218,9 @@
 | 1 | action | execute_test | 9.MANCAR-003 | Execute the action: Update spending limit with a valid amount |
 
 **Manual Verification Required:**
-- Purpose: Record the card's current controls, update spending limit, then verify the new limit persists after refresh and re-login.
-- Suggested Step: Create/execute a verification test that: 1) Log in and navigate to Manage Cards. 2) Select the target existing card. 3) Open the Controls section and read/record the displayed Spending Limit value (card_controls). 4) (After the Update action runs) Refresh the page, then log out and log back in. 5) Reopen Manage Cards -> select the same card -> Controls and read the Spending Limit value again for comparison. Record both values for before/after comparison.
-- Reason: All three candidates operate in the Manage Cards module and exercise the Update Controls flow, but none explicitly state that they access or display the card's current spending limit in the Controls view. They focus on validation or successful update behavior (entering new values and checking validation/success messages) rather than explicitly reading and reporting the persisted spending limit field. Because the verification requires recording the displayed spending limit before and after, these candidates do not guarantee the required observation step.
+- Purpose: Record the selected card's spending limit before the update, submit the update, then verify the spending limit value changed to the new numeric amount and persists after refresh and re-login.
+- Suggested Step: Automated or manual verification needed in Manage Cards: 1) Open Manage Cards, select the existing card and open its controls; record the current Spending Limit value. 2) Submit the Update Controls action with the new numeric limit (as in 9.MANCAR-003). 3) After update, reopen the card controls (or refresh), record the Spending Limit value. 4) Log out and log back in, reopen Manage Cards -> Existing Card controls, and record the Spending Limit again. Confirm the recorded post-update values equal the newly entered numeric amount and persist after refresh and re-login.
+- Reason: All candidates are for other modules (Open New Account, Payments, Transfer Funds) and their can_verify_states do not include card_control_update or spending_limit. Per the Hard Module Rule, a candidate from a different module can only be considered if its verifiable states overlap the source's modified states — they do not.
 
 ---
 
@@ -1230,19 +1249,19 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Record the card status before freeze, apply the freeze, then verify the status badge changed to Frozen and available ... | partial | Status Transition | Before/After | 9.MANCAR-006 - Add a travel notice with valid dates and destination | 55% |
+| 1 | Record the card's status and available card-control actions before changing status, set Card Status to Frozen and sub... | partial | Status Transition | Before/After | 9.MANCAR-014 - Multiple simultaneous validation failures shown inline prevent update | 45% |
 
 #### Coverage Gaps
 
-- The candidate operates in the correct module and uses Update Controls, but its documented steps/expected results focus on saving controls (and travel notice) and the success message. It does not explicitly open the Card List/Card Details to display the current status badge, available action buttons, or audit/history entry, which are required to record the before/after observations.
+- Right module and touches the required state fields (card_status and card_controls), but the candidate's steps perform the Update Controls action (overlaps with the source test's modifies_state). Per the rule, a test that performs the same action cannot be marked as a full verification — it must be an observer-only test.
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | pre_verify | execute_test_partial | 9.MANCAR-006 | Record current status badge and action buttons for the selected card in Manage Cards before update. |
+| 1 | pre_verify | execute_test_partial | 9.MANCAR-014 | Record current card status badge and available card-control buttons for the selected card before ... |
 | 2 | action | execute_test | 9.MANCAR-004 | Execute the action: Freeze an active card by updating Card Status |
-| 3 | post_verify | execute_test_partial | 9.MANCAR-006 | After Update Controls, reload Card List and open Card Details to confirm badge reads 'Frozen', 'U... |
+| 3 | post_verify | execute_test_partial | 9.MANCAR-014 | Record card status badge and available card-control buttons after update; expected badge = Frozen... |
 
 ---
 
@@ -1255,7 +1274,7 @@
 | Test Type | positive |
 | Priority | Medium |
 | Coverage | none |
-| Modifies State | card_control_update, card_controls |
+| Modifies State | card_control_update |
 
 #### Source Test Details
 
@@ -1271,20 +1290,17 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Confirm the travel notice entry exists in the card's controls with the exact start date, end date, and destination. | not_found | Existence | After Only | - | - |
-| 2 | Verify the travel notice persists across sessions (survives logout and login). | not_found | Session Persistence | After Only | - | - |
+| 1 | Record existing travel notice data (none or prior notices), submit the new travel notice with start/end dates and des... | not_found | Field Persistence | Before/After | - | - |
 
 #### Verification Tests Needed
 
 | # | Type | Strategy | Target Module | Observer | Suggested Test Title |
 |---|------|----------|---------------|----------|----------------------|
-| 1 | Existence | After Only | Manage Cards | - | Manually verify after performing the add action: Open Manage Cards -> Select the target card -> C... |
-| 2 | Session Persistence | After Only | Manage Cards | - | 1) Log in as the target user. 2) Go to Manage Cards and select the card that had the travel notic... |
+| 1 | Field Persistence | Before/After | Manage Cards | - | Manual verification steps to implement/run as the before/after test: 1) Log in as the test user. ... |
 
 #### Coverage Gaps
 
-- The verification requires an after-only check that a travel notice row exists showing the exact Start Date, End Date, and Destination for the selected card. Candidate tests: 9.MANCAR-013 is a negative validation test (ensures an invalid date range is rejected) and explicitly expects the travel notice NOT to be saved; 9.MANCAR-007 and 9.MANCAR-003 update controls while leaving travel notice empty and do not inspect the travel notices list. None of them open the Controls -> Travel Notices and assert the presence and contents of the newly added notice.
-- Required verification must run after the action and independently confirm the travel notice still exists after logout/login. Candidate tests: 9.MANCAR-013 operates on Manage Cards and travel notice fields but tests invalid input and non-persistence; 9.MANCAR-007 updates controls without a travel notice; 9.MANCAR-001 is unrelated (card request). None access/display an existing travel notice after a new session, so none can serve as the after_only verification.
+- Hard module rule: the target module is Manage Cards and the required state to verify is card_control_update. All provided candidates are from different modules and their can_verify_states do not overlap with card_control_update, so they cannot observe the travel notice entries. Therefore none can be marked as a match.
 
 #### Execution Plan
 
@@ -1293,12 +1309,9 @@
 | 1 | action | execute_test | 9.MANCAR-006 | Execute the action: Add a travel notice with valid dates and destination |
 
 **Manual Verification Required:**
-- Purpose: Confirm the travel notice entry exists in the card's controls with the exact start date, end date, and destination.
-- Suggested Step: Manually verify after performing the add action: Open Manage Cards -> Select the target card -> Click Controls -> Travel Notices. Locate a travel notice row that matches the exact Start Date, End Date, and Destination submitted and confirm it is associated with the selected card. Record or assert the displayed Start Date, End Date, and Destination match the submitted values.
-- Reason: The verification requires an after-only check that a travel notice row exists showing the exact Start Date, End Date, and Destination for the selected card. Candidate tests: 9.MANCAR-013 is a negative validation test (ensures an invalid date range is rejected) and explicitly expects the travel notice NOT to be saved; 9.MANCAR-007 and 9.MANCAR-003 update controls while leaving travel notice empty and do not inspect the travel notices list. None of them open the Controls -> Travel Notices and assert the presence and contents of the newly added notice.
-- Purpose: Verify the travel notice persists across sessions (survives logout and login).
-- Suggested Step: 1) Log in as the target user. 2) Go to Manage Cards and select the card that had the travel notice. 3) Open Controls → Travel Notices and record the notice's Start Date, End Date, and Destination (or confirm presence). 4) Log out. 5) Log back in as the same user. 6) Navigate again to Manage Cards → Controls → Travel Notices. 7) Verify the same travel notice is present and that Start Date, End Date, and Destination exactly match the previously recorded values. Expected result: the travel notice remains present with identical Start Date, End Date, and Destination.
-- Reason: Required verification must run after the action and independently confirm the travel notice still exists after logout/login. Candidate tests: 9.MANCAR-013 operates on Manage Cards and travel notice fields but tests invalid input and non-persistence; 9.MANCAR-007 updates controls without a travel notice; 9.MANCAR-001 is unrelated (card request). None access/display an existing travel notice after a new session, so none can serve as the after_only verification.
+- Purpose: Record existing travel notice data (none or prior notices), submit the new travel notice with start/end dates and destination, then verify the travel notice entry appears in the card controls with the correct dates and destination and persists after refresh and re-login.
+- Suggested Step: Manual verification steps to implement/run as the before/after test: 1) Log in as the test user. 2) Navigate to Manage Cards. 3) Select the card used in the update action and open its Controls/Manage Controls view. 4) Locate the Travel Notices section and record any existing entries (for each: start date, end date, destination) — this is the BEFORE snapshot. 5) After the source test runs (the Update Controls action), refresh the page, or log out and log back in, then re-open Manage Cards -> same card -> Controls. 6) Locate Travel Notices and record entries again — verify there is an entry with the submitted start date, end date, and destination, and that it persists after refresh and re-login.
+- Reason: Hard module rule: the target module is Manage Cards and the required state to verify is card_control_update. All provided candidates are from different modules and their can_verify_states do not overlap with card_control_update, so they cannot observe the travel notice entries. Therefore none can be marked as a match.
 
 ---
 
@@ -1310,7 +1323,7 @@
 | Workflow | Update Controls |
 | Test Type | positive |
 | Priority | Medium |
-| Coverage | partial |
+| Coverage | none |
 | Modifies State | card_control_update |
 
 #### Source Test Details
@@ -1327,21 +1340,34 @@
 
 | # | Ideal Verification | Status | Type | Strategy | Matched Test | Confidence |
 |---|--------------------|--------|------|----------|--------------|------------|
-| 1 | Record card controls before update, perform the update without travel notice, and verify the updated control values p... | found | Field Persistence | Before/After | 9.MANCAR-003 - Update spending limit with a valid amount | 90% |
-| 2 | Verify that no travel notice record was created for the card after the update (travel notice fields were left empty). | partial | Absence | After Only | 9.MANCAR-003 - Update spending limit with a valid amount | 72% |
+| 1 | Record the selected card's controls before update, submit Update Controls without travel notice fields filled, then v... | not_found | Field Persistence | Before/After | - | - |
+| 2 | Verify explicitly that no travel notice record exists for the card after the update (travel notice optional and was l... | not_found | Absence | After Only | - | - |
+
+#### Verification Tests Needed
+
+| # | Type | Strategy | Target Module | Observer | Suggested Test Title |
+|---|------|----------|---------------|----------|----------------------|
+| 1 | Field Persistence | Before/After | Manage Cards | - | Manual verification steps to implement or run as an automated test:<br>1) Log into the system and na... |
+| 2 | Absence | After Only | Manage Cards | - | After performing 9.MANCAR-007 (update controls leaving Travel Notice fields empty), verify manual... |
 
 #### Coverage Gaps
 
-- 9.MANCAR-003 operates in the correct module and matches the scenario of leaving Travel Notice empty, but its expected checks only confirm the spending limit update and success message — it does not currently inspect the Travel Notices list to confirm absence. 9.MANCAR-006 creates a travel notice (opposite of required) and 9.MANCAR-013 checks validation for invalid dates (different negative case), so both are less suitable.
+- All candidate tests are for different modules and their can_verify_states (account_creation_status, transfer_status, payment_status, account_balance, etc.) do not overlap with the required modifies_state card_control_update. Per the HARD MODULE RULE, a candidate from another module can only be used if its can_verify_states overlap the target state; they do not. Therefore none are suitable.
+- All provided candidates belong to other modules (Accounts Overview, Investments) and their can_verify_states do not include card_control_update. Per the Hard Module Rule, a candidate from a different module can only be considered if its can_verify_states overlaps with the source test's modifies_state (card_control_update). None do. Details: Test 3.ACCOVE-002 and 3.ACCOVE-007 are for Accounts Overview and verify account table fields (no card/travel-notice data). Test 10.INVEST-016 is for Investments and verifies plan start-date validation (no card/travel-notice data).
 
 #### Execution Plan
 
 | Step | Phase | Action | Test ID | Purpose |
 |------|-------|--------|---------|---------|
-| 1 | pre_verify | execute_test | 9.MANCAR-003 | Record current controls (spending limit, status) for the selected card. |
-| 2 | action | execute_test | 9.MANCAR-007 | Execute the action: Update controls without adding a travel notice (travel notice optional) |
-| 3 | post_verify | execute_test | 9.MANCAR-003 | After Update Controls, refresh and logout/login; reopen Controls and compare values to before to ... |
-| 4 | post_verify | execute_test_partial | 9.MANCAR-003 | Verify that no travel notice record was created for the card after the update (travel notice fiel... |
+| 1 | action | execute_test | 9.MANCAR-007 | Execute the action: Update controls without adding a travel notice (travel notice optional) |
+
+**Manual Verification Required:**
+- Purpose: Record the selected card's controls before update, submit Update Controls without travel notice fields filled, then verify the requested control changes (e.g., spending limit or status) persisted and no travel notice entry was created.
+- Suggested Step: Manual verification steps to implement or run as an automated test:<br>1) Log into the system and navigate to Manage Cards.<br>2) Select the existing card to test and open its Controls/Update Controls view.<br>3) Record current values: Spending Limit, Card Status, and any Travel Notice entries (or absence thereof).<br>4) (This is the source action already run separately) Submit Update Controls with the desired changes (e.g., change spending limit or status) and leave all Travel Notice fields empty.<br>5) Refresh the page or log out and log back in, then re-open the same card's Controls view.<br>6) Record the Spending Limit, Card Status, and Travel Notice entries again.<br>7) Confirm the spending limit and/or status reflect the requested changes and persist after refresh/re-login, and confirm there is no travel notice entry present for the card.
+- Reason: All candidate tests are for different modules and their can_verify_states (account_creation_status, transfer_status, payment_status, account_balance, etc.) do not overlap with the required modifies_state card_control_update. Per the HARD MODULE RULE, a candidate from another module can only be used if its can_verify_states overlap the target state; they do not. Therefore none are suitable.
+- Purpose: Verify explicitly that no travel notice record exists for the card after the update (travel notice optional and was left empty).
+- Suggested Step: After performing 9.MANCAR-007 (update controls leaving Travel Notice fields empty), verify manually in Manage Cards as follows:<br>1) Log into the application and navigate to Manage Cards.<br>2) Locate and select the same card used in the update (use the card identifier from the update step).<br>3) Open the card's Travel Notice section or Travel Notices list.<br>4) Inspect the list for any entries matching the update date range (or any entries at all).<br>5) Expected outcome: the Travel Notice section is empty or shows an explicit message such as 'No travel notices' and there are no entries covering the updated date range. If the UI displays entries, record their details for investigation.
+- Reason: All provided candidates belong to other modules (Accounts Overview, Investments) and their can_verify_states do not include card_control_update. Per the Hard Module Rule, a candidate from a different module can only be considered if its can_verify_states overlaps with the source test's modifies_state (card_control_update). None do. Details: Test 3.ACCOVE-002 and 3.ACCOVE-007 are for Accounts Overview and verify account table fields (no card/travel-notice data). Test 10.INVEST-016 is for Investments and verifies plan start-date validation (no card/travel-notice data).
 
 ---
 
@@ -1351,25 +1377,19 @@ These are matched test cases referenced by post-verification mappings.
 
 | TC ID | Module | Title | Type | Priority | Expected Result |
 |-------|--------|-------|------|----------|------------------|
-| 10.INVEST-001 | Investments | Execute a Buy trade successfully and update holdings | positive | High | A same-day trade is executed; confirmation displays "Trade executed successfully." with an order ID and portfolio hol... |
-| 10.INVEST-002 | Investments | Execute a Sell trade successfully and update holdings | positive | High | A same-day trade is executed; confirmation displays "Trade executed successfully." with an order ID and portfolio hol... |
-| 10.INVEST-003 | Investments | Create recurring investment plan with Weekly frequency | positive | High | Plan created successfully. The schedule is stored and a confirmation message "Plan created successfully." is shown. |
-| 10.INVEST-004 | Investments | Create recurring investment plan with Monthly frequency | positive | High | Plan created successfully. The schedule is stored and a confirmation message "Plan created successfully." is shown. |
+| 1.LOGIN-008 | Login | After changing password the old password no longer works | standard | High | Login with the old password fails (authentication denied); login with the new password succeeds, confirming the old p... |
+| 1.LOGIN-012 | Login | Page refresh on authenticated page retains logged-in state | standard | Medium | After refresh the user remains authenticated and the authenticated content (account details, user name, etc.) is stil... |
 | 10.INVEST-007 | Investments | Portfolio snapshot displays current holdings and read-only values | positive | Medium | Portfolio snapshot shows current fund holdings, market value, and unrealised gain or loss and is presented as read-only. |
-| 11.ACCSTA-001 | Account Statements | Generate statement using month-and-year period | positive | High | Displays 'Statement generated successfully.' and the generated statement shows the retrieved transactions for the sel... |
-| 11.ACCSTA-002 | Account Statements | Generate statement using custom date range | positive | High | Displays 'Statement generated successfully.' and the generated statement shows the retrieved transactions for the spe... |
-| 11.ACCSTA-008 | Account Statements | Save preference with invalid email format | negative | Medium | Email field is highlighted with guidance and the preference is not saved. |
-| 12.SECSET-006 | Security Settings | Change password using a minimally-compliant strong password | edge_case | Low | Password changed successfully and credentials are updated. |
-| 13.SUPCEN-001 | Support Center | Send message successfully with required fields (no attachment) | positive | High | A success notification "Message sent successfully." is displayed and a ticket ID is shown |
-| 13.SUPCEN-002 | Support Center | Send message successfully with a valid attachment | positive | High | A success notification "Message sent successfully." is displayed and a ticket ID is shown |
-| 13.SUPCEN-007 | Support Center | Submit with unsupported attachment type | negative | Medium | Inline validation guidance about the attachment type is displayed and the message is not sent. |
 | 13.SUPCEN-010 | Support Center | Submit with Preferred Date set to the next business day (boundary) | edge_case | Medium | Request is accepted and a success message "Callback request submitted." is displayed; an email confirmation is sent. |
+| 3.ACCOVE-001 | Accounts Overview | Welcome message shows the user's name | positive | High | Welcome message displays the user's name. |
 | 3.ACCOVE-002 | Accounts Overview | Accounts table displays expected columns in each row | positive | High | Every row contains Account Number, Account Type, Current Balance, Account Status (Active badge), and Open Date. |
 | 3.ACCOVE-003 | Accounts Overview | Footer displays the total balance across all accounts | positive | High | Footer total balance equals the sum of all Current Balance values shown in the table. |
+| 4.ONA-011 | Open New Account | Real-time validation appears and clears for Initial Deposit field | edge_case | Medium | Validation messages for the Initial Deposit field appear in real-time when invalid input is entered and clear when co... |
+| 5.TRAFUN-004 | Transfer Funds | Destination options update when changing transfer type | positive | Medium | Destination options change based on the selected transfer type. |
+| 6.PAYMEN-004 | Payments | Submit payment when amount equals available funds (boundary) | edge_case | Low | Payment is executed successfully and the source account balance is updated to reflect the zero (or new) available bal... |
+| 7.REQLOA-009 | Request Loan | Reject Auto loan request when Loan Amount is above allowed maximum | edge_case | High | Validation error indicating Loan Amount is outside the allowed Auto range. |
 | 7.REQLOA-013 | Request Loan | Accept Personal loan request when Loan Amount equals the Personal minimum | edge_case | Medium | Loan request is processed and may be approved; amount is accepted as within allowed Personal range. |
 | 7.REQLOA-014 | Request Loan | Accept Home loan request when Loan Amount equals the Home maximum | edge_case | Medium | Loan request is processed and may be approved; amount is accepted as within allowed Home range. |
-| 8.UCI-002 | Update Contact Info | Submit with all required fields empty | negative | Medium | Validation errors shown for all required fields and invalid fields are highlighted. |
-| 9.MANCAR-001 | Manage Cards | Request a new Debit card with valid linked account and complete shipping address | positive | High | A card-request ticket is opened and the UI shows "Card request submitted successfully." with a tracking ID |
-| 9.MANCAR-002 | Manage Cards | Request a new Credit card with valid linked account and complete shipping address | positive | High | A card-request ticket is opened and the UI shows "Card request submitted successfully." with a tracking ID |
-| 9.MANCAR-003 | Manage Cards | Update spending limit with a valid amount | positive | High | "Card controls updated successfully." is displayed and the spending limit shown in the controls reflects the new amount. |
-| 9.MANCAR-006 | Manage Cards | Add a travel notice with valid dates and destination | positive | Medium | "Card controls updated successfully." is displayed and the travel notice (dates and destination) is saved and shown i... |
+| 8.UCI-005 | Update Contact Info | Submit with multiple fields failing format validation | edge_case | Low | Both invalid fields are highlighted and an inline error banner is displayed summarizing the failures. |
+| 9.MANCAR-014 | Manage Cards | Multiple simultaneous validation failures shown inline prevent update | edge_case | Medium | Multiple inline validation errors are displayed, the form remains editable, and no changes are applied. |
+| 9.MANCAR-015 | Manage Cards | Submit with incomplete Shipping Address | edge_case | Low | Validation error indicating the address is incomplete and the request is not submitted. |

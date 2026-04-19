@@ -308,14 +308,21 @@ def ideal_verification_node(state: PipelineState) -> Dict[str, Any]:
         navigation_overview=parsed_desc.navigation_overview or "",
     )
 
+    module_descriptions = {m.id: m for m in parsed_desc.modules}
+    system_constraints = list(parsed_desc.system_constraints or [])
+
     agent = IdealVerificationAgent(**_agent_kwargs(state))
     ideal_verifications = agent.run(
         state["flagged_tests"],
         state["module_summaries"],
         project_context=project_context,
+        module_descriptions=module_descriptions,
+        system_constraints=system_constraints,
     )
     total_ideals = sum(len(v) for v in ideal_verifications.values())
     print(f"  - Generated {total_ideals} ideal verification scenarios for {len(ideal_verifications)} tests")
+    if system_constraints:
+        print(f"  - Applying {len(system_constraints)} system constraints")
 
     return {"ideal_verifications": ideal_verifications}
 
@@ -328,6 +335,10 @@ def verification_matcher_node(state: PipelineState) -> Dict[str, Any]:
     """Match ideal verifications to existing test cases using RAG search."""
     print("\n[9/11] Matching verifications with RAG...")
 
+    parsed_desc = state["parsed_desc"]
+    module_descriptions = {m.id: m for m in (parsed_desc.modules or [])}
+    system_constraints = list(parsed_desc.system_constraints or [])
+
     agent = VerificationMatcherAgent(**_agent_kwargs(state))
     final_tests = agent.run(
         flagged_tests=state["flagged_tests"],
@@ -335,6 +346,8 @@ def verification_matcher_node(state: PipelineState) -> Dict[str, Any]:
         all_test_cases=state["output"].test_cases,
         module_summaries=state["module_summaries"],
         use_embeddings=True,
+        module_descriptions=module_descriptions,
+        system_constraints=system_constraints,
     )
 
     return {"final_tests": final_tests}

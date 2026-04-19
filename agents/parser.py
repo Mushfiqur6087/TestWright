@@ -56,12 +56,78 @@ WORKFLOW GUIDANCE:
             parsed_module = self._parse_module(module)
             parsed_modules.append(parsed_module)
 
+        system_constraints = self._extract_system_constraints(
+            project_name, navigation_overview, raw_modules
+        )
+
         return ParsedFunctionalDescription(
             project_name=project_name,
             base_url=base_url,
             navigation_overview=navigation_overview,
-            modules=parsed_modules
+            modules=parsed_modules,
+            system_constraints=system_constraints
         )
+
+    def _extract_system_constraints(
+        self,
+        project_name: str,
+        navigation_overview: str,
+        raw_modules: list
+    ) -> list:
+        """Extract sentences describing what the system explicitly does NOT do,
+        or mock/sandbox limitations. Returns [] if none found."""
+
+        module_blobs = []
+        for m in raw_modules:
+            title = m.get("title", "")
+            desc = m.get("description", "")
+            if desc:
+                module_blobs.append(f"[{title}]\n{desc}")
+
+        combined_text = "\n\n".join(filter(None, [
+            f"PROJECT: {project_name}",
+            f"NAVIGATION OVERVIEW:\n{navigation_overview}" if navigation_overview else "",
+            "MODULES:\n" + "\n\n".join(module_blobs) if module_blobs else "",
+        ]))
+
+        prompt = f"""Extract system constraints from the functional description below.
+
+A system constraint is a short standalone sentence describing something the
+system explicitly does NOT do, or a mock/sandbox limitation.
+
+Capture sentences like:
+- "no actual balance debits occur"
+- "emails are simulated, not sent"
+- "this is a demo system; data resets nightly"
+- "deletion is soft-delete only; records remain queryable"
+- "payments are not actually processed"
+
+Look both for explicit negations ("does not", "no actual", "never") and for
+clear sandbox/mock/demo disclaimers.
+
+IMPORTANT:
+- Return ONLY constraints that have a textual basis in the description below.
+- Do NOT invent constraints.
+- Return [] if the description only describes what the system DOES.
+
+Return a JSON object:
+{{
+    "system_constraints": ["constraint1", "constraint2", ...]
+}}
+
+FUNCTIONAL DESCRIPTION:
+{combined_text}
+"""
+
+        try:
+            result = self.call_llm_json(prompt, max_tokens=2000)
+            constraints = result.get("system_constraints", [])
+            if not isinstance(constraints, list):
+                return []
+            return [str(c).strip() for c in constraints if c and str(c).strip()]
+        except Exception as e:
+            print(f"Warning: system_constraints extraction failed: {e}")
+            return []
 
     def _parse_module(self, module: Dict[str, Any]) -> ParsedModule:
         """Parse a single module using LLM to extract details"""

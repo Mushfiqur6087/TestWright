@@ -28,6 +28,10 @@ class ParsedFunctionalDescription:
     base_url: str
     navigation_overview: str
     modules: List[ParsedModule] = field(default_factory=list)
+    # Sentences describing behaviors the system does NOT have, or
+    # sandbox/mock limitations. Used by verify_ideal and verify_matcher
+    # to prevent emitting / matching verifications the system cannot satisfy.
+    system_constraints: List[str] = field(default_factory=list)
 
 
 # ============================================================================
@@ -310,6 +314,7 @@ class VerificationMatch:
     observer_role: str = ""
     requires_different_session: bool = False
     session_note: str = ""
+    target_module: str = ""
 
     def to_dict(self) -> dict:
         result = {
@@ -319,6 +324,8 @@ class VerificationMatch:
         }
         if self.verification_type:
             result["verification_type"] = self.verification_type
+        if self.target_module:
+            result["target_module"] = self.target_module
         if self.status == "found" or self.status == "partial":
             result["matched_test_id"] = self.matched_test_id
             result["matched_test_title"] = self.matched_test_title

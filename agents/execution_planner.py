@@ -191,6 +191,38 @@ Keep execution notes concise and actionable."""
                 })
                 continue
 
+            # Defense-in-depth: the matcher's HARD MODULE RULE should prevent
+            # a matched test from being in a different module than the ideal's
+            # target_module. If it slips through, demote to a manual gap
+            # rather than render a misleading plan that navigates to the wrong
+            # module (e.g., an action module instead of an observer module).
+            target_module = pv.get('target_module', '')
+            if (
+                matched_test
+                and target_module
+                and matched_test.module_title != target_module
+            ):
+                manual_steps.append({
+                    "purpose": ideal_desc,
+                    "suggested_step": (
+                        f"Verify in module '{target_module}' — matcher chose "
+                        f"{matched_id} in '{matched_test.module_title}' which is "
+                        f"not the observer module."
+                    ),
+                    "reason": (
+                        f"Module mismatch: matched test is in "
+                        f"'{matched_test.module_title}', but verification should "
+                        f"occur in '{target_module}'."
+                    ),
+                    "execution_strategy": strategy,
+                    "verification_type": verification_type,
+                    "expected_change": pv.get("expected_change", ""),
+                    "target_module": target_module,
+                    "observer_role": observer_role,
+                    "suggested_test_title": f"Verify {ideal_desc}",
+                })
+                continue
+
             confidence = pv.get('confidence', 0.0)
             is_full = (status == 'found')
             limitation = pv.get('reason', '') if not is_full else ''

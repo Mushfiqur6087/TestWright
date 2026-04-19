@@ -4,6 +4,7 @@ from testwright.agents.base import BaseAgent
 from testwright.models.schemas import (
     IdealVerification,
     ModuleSummary,
+    ParsedModule,
     ProjectContext,
     TestCase,
 )
@@ -39,6 +40,8 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
         flagged_tests: List[TestCase],
         module_summaries: Dict[int, ModuleSummary],
         project_context: Optional[ProjectContext] = None,
+        module_descriptions: Optional[Dict[int, ParsedModule]] = None,
+        system_constraints: Optional[List[str]] = None,
     ) -> Dict[str, List[IdealVerification]]:
         """Generate ideal verifications for each flagged test case
 
@@ -55,6 +58,14 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
         # Build verification context from module summaries
         verification_context = self._build_verification_context(module_summaries)
 
+        module_descriptions = module_descriptions or {}
+        system_constraints = system_constraints or []
+
+        # Index modules by title (parsed modules may be keyed by id).
+        modules_by_title = {
+            m.title: m for m in module_descriptions.values()
+        }
+
         # Process in batches to avoid token limits
         all_verifications = {}
         batch_size = 10
@@ -62,7 +73,8 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
         for i in range(0, len(tests_needing_verification), batch_size):
             batch = tests_needing_verification[i:i+batch_size]
             batch_verifications = self._generate_verifications_for_batch(
-                batch, verification_context, project_context
+                batch, verification_context, project_context,
+                modules_by_title, system_constraints,
             )
             all_verifications.update(batch_verifications)
 
@@ -87,8 +99,13 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
         test_cases: List[TestCase],
         verification_context: str,
         project_context: Optional[ProjectContext] = None,
+        modules_by_title: Optional[Dict[str, ParsedModule]] = None,
+        system_constraints: Optional[List[str]] = None,
     ) -> Dict[str, List[IdealVerification]]:
         """Generate ideal verifications for a batch of test cases"""
+
+        modules_by_title = modules_by_title or {}
+        system_constraints = system_constraints or []
 
         # Project context block (domain awareness)
         project_str = ""
@@ -97,6 +114,46 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
                 f"PROJECT: {project_context.project_name or 'Unknown'}\n"
                 f"OVERVIEW: {project_context.navigation_overview or 'Not provided'}\n"
                 "Use this context for vocabulary; the taxonomies below are domain-agnostic.\n\n"
+            )
+
+        # System-wide constraints block
+        constraints_str = ""
+        if system_constraints:
+            bullets = "\n".join(f"- {c}" for c in system_constraints)
+            constraints_str = (
+                "SYSTEM CONSTRAINTS (the system explicitly does NOT do these):\n"
+                f"{bullets}\n"
+                "Do NOT emit a verification whose expected_change contradicts a constraint.\n\n"
+            )
+
+        # Spec grounding per source module
+        grounding_blocks = []
+        seen_titles = set()
+        for tc in test_cases:
+            title = tc.module_title
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+            mod = modules_by_title.get(title)
+            if not mod:
+                continue
+            if not (mod.expected_behaviors or mod.business_rules):
+                continue
+            behaviors = "\n".join(f"    - {b}" for b in mod.expected_behaviors) or "    (none)"
+            rules = "\n".join(f"    - {r}" for r in mod.business_rules) or "    (none)"
+            grounding_blocks.append(
+                f"[{title}]\n"
+                f"  Expected behaviors:\n{behaviors}\n"
+                f"  Business rules:\n{rules}"
+            )
+        grounding_str = ""
+        if grounding_blocks:
+            grounding_str = (
+                "SPEC GROUNDING (source modules):\n"
+                + "\n\n".join(grounding_blocks)
+                + "\n\nEvery verification must have a textual basis in the SPEC GROUNDING.\n"
+                "If the spec doesn't say the system records X, do NOT emit a verification\n"
+                "for X — even if X seems like a reasonable side effect.\n\n"
             )
 
         # Format test cases for prompt
@@ -115,7 +172,7 @@ fixed taxonomies below. We later match these ideals to existing test cases."""
                 f"---\n"
             )
 
-        prompt = f"""{project_str}Generate IDEAL verification scenarios for each test below.
+        prompt = f"""{project_str}{constraints_str}{grounding_str}Generate IDEAL verification scenarios for each test below.
 
 {verification_context}
 
@@ -156,6 +213,24 @@ EMISSION RULES:
 - Do NOT invent modules — only use modules from the context above.
 - Use module names exactly as spelled in the context.
 - Use state_to_verify names from the module summaries (or "" if none fits).
+
+BEHAVIORAL VERIFICATION PREFERENCE:
+Prefer behavioral verifications (observable consequences of the state change)
+over UI-presence verifications (toasts, labels). Examples:
+- Password change: verify "user can no longer log in with old password" AND
+  "user can log in with new password" — NOT "password updated toast".
+- Deletion: verify "attempting to access the deleted record fails" — NOT
+  "deleted message appeared".
+- New account: verify "account appears in the account listing" or an action
+  that requires the new account succeeds — NOT "created successfully message".
+When the state change has a behavioral consequence grounded in the spec
+above, emit a verification for the behavior, not just the message.
+
+SPEC-GROUNDING RULE:
+Every emitted verification must trace back to an expected behavior or business
+rule in the SPEC GROUNDING block. If no spec text supports a verification,
+do not emit it. If a verification would contradict a SYSTEM CONSTRAINT,
+do not emit it.
 
 OUTPUT JSON SHAPE:
 {{
