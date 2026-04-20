@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 # ============================================================================
@@ -264,4 +264,77 @@ class TestSuiteOutput:
             module_summaries=module_summaries,
             summary=data.get("summary", {}),
             navigation_overview=data.get("navigation_overview", ""),
+        )
+
+
+# ============================================================================
+# Verification Pipeline Output
+# ============================================================================
+
+
+@dataclass
+class VerificationRecord:
+    """A single verification record per verification_structure_spec.md §2."""
+
+    test_case_id: str
+    verification_type: str
+    coverage: str
+    body: Dict[str, Any] = field(default_factory=dict)
+    coverage_note: Optional[str] = None
+
+    def to_dict(self) -> dict:
+        result: Dict[str, Any] = {
+            "test_case_id": self.test_case_id,
+            "verification_type": self.verification_type,
+            "coverage": self.coverage,
+        }
+        if self.coverage_note:
+            result["coverage_note"] = self.coverage_note
+        result["body"] = self.body
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VerificationRecord":
+        return cls(
+            test_case_id=data.get("test_case_id", ""),
+            verification_type=data.get("verification_type", ""),
+            coverage=data.get("coverage", ""),
+            coverage_note=data.get("coverage_note"),
+            body=data.get("body", {}),
+        )
+
+
+@dataclass
+class VerificationSuiteOutput:
+    """Top-level payload written to verifications.json."""
+
+    project_name: str
+    base_url: str
+    generated_at: str
+    source_test_cases_file: str
+    source_spec_files: List[str] = field(default_factory=list)
+    verifications: List[VerificationRecord] = field(default_factory=list)
+    coverage_summary: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "project_name": self.project_name,
+            "base_url": self.base_url,
+            "generated_at": self.generated_at,
+            "source_test_cases_file": self.source_test_cases_file,
+            "source_spec_files": self.source_spec_files,
+            "coverage_summary": self.coverage_summary,
+            "verifications": [v.to_dict() for v in self.verifications],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "VerificationSuiteOutput":
+        return cls(
+            project_name=data.get("project_name", ""),
+            base_url=data.get("base_url", ""),
+            generated_at=data.get("generated_at", ""),
+            source_test_cases_file=data.get("source_test_cases_file", ""),
+            source_spec_files=data.get("source_spec_files", []),
+            verifications=[VerificationRecord.from_dict(v) for v in data.get("verifications", [])],
+            coverage_summary=data.get("coverage_summary", {}),
         )

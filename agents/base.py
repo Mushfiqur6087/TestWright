@@ -185,6 +185,7 @@ class BaseAgent(ABC):
         """Call LLM and parse response as JSON with retry on parse errors"""
         # Add instruction to return JSON
         json_prompt = f"{user_prompt}\n\nIMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON."
+        use_json_response_format = True
 
         last_error = None
         for attempt in range(max_retries + 1):
@@ -192,7 +193,8 @@ class BaseAgent(ABC):
                 response = self.call_llm(
                     user_prompt=json_prompt,
                     temperature=temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"} if use_json_response_format else None,
                 )
 
                 # Clean up response - remove markdown code blocks if present
@@ -225,6 +227,15 @@ class BaseAgent(ABC):
                     if self.debug:
                         self._log_debug("JSON PARSE ERROR - FINAL", error_msg)
                     raise Exception(error_msg)
+
+            except Exception as e:
+                # Some providers/models may reject response_format; retry without it.
+                if use_json_response_format and "response_format" in str(e).lower():
+                    use_json_response_format = False
+                    if attempt < max_retries:
+                        print(f"    [{self._ts()}] ~~ {self.name} | response_format unsupported, retrying without it...")
+                        continue
+                raise
 
         # Should never reach here
         raise Exception(f"Failed to parse JSON after {max_retries + 1} attempts")

@@ -1,0 +1,174 @@
+{
+  "project_name": "Parabank",
+  "base_url": "",
+  "generated_at": "2026-04-20T16:59:07.899493",
+  "source_test_cases_file": "Output/Parabank/test-cases.json",
+  "source_spec_files": [
+    "Dataset/Parabank/Parabank.md"
+  ],
+  "coverage_summary": {
+    "total_records": 7,
+    "verifiable": 6,
+    "manual_only": 1,
+    "not_coverable": 0,
+    "by_type": {
+      "same_actor_navigation": 6,
+      "out_of_band": 1,
+      "cross_actor": 0,
+      "unobservable_by_design": 0
+    }
+  },
+  "verifications": [
+    {
+      "test_case_id": "10.INVEST-003",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Investments",
+          "observe": [
+            "presence of a recurring investment plan row matching the Fund Symbol entered in the test (if present)",
+            "total number of recurring investment plans listed"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Investments",
+          "observe": [
+            "presence of a recurring investment plan row matching the Fund Symbol entered in the test with Contribution Amount equal to the amount entered, Frequency 'Weekly', Start Date matching the selected Start Date, and Funding Account matching the selected Funding Account",
+            "total number of recurring investment plans listed"
+          ],
+          "expected_change": "A new recurring investment plan row appears matching the Fund Symbol, Contribution Amount, Frequency 'Weekly', Start Date, and Funding Account entered during creation; the total number of recurring investment plans increases by 1 compared to the pre-check."
+        }
+      }
+    },
+    {
+      "test_case_id": "13.SUPCEN-003",
+      "verification_type": "out_of_band",
+      "coverage": "manual_only",
+      "coverage_note": "Confirmation email delivery and content cannot be observed within the Support Center UI. Requires access to a test inbox (Mailtrap/Mailhog) or application email logs to confirm receipt and inspect email content.",
+      "body": {
+        "trigger_action": "Submit Request Callback form by filling Reason for Call, Preferred Date (at least next business day), Preferred Time Window, and Phone Number; click 'Request Callback'.",
+        "channel": "email",
+        "recipient": "user's email address on file (the account email or the email entered/used on the Request Callback form)",
+        "expected_content": [
+          "Email subject indicating callback request (e.g., contains 'Callback request' or 'Callback request submitted')",
+          "Unique request reference or ticket ID",
+          "Reason for Call as selected in the form",
+          "Preferred Date (matches the date submitted)",
+          "Preferred Time Window (matches the time window submitted)",
+          "Phone Number (matches the number submitted or confirmed)",
+          "Clear confirmation text stating the callback request was received and any next steps or expected contact timeframe"
+        ],
+        "in_app_partial_check": {
+          "navigate_to": "Support Center",
+          "observe": "Confirmation message 'Callback request submitted.' displayed on the page; if a reference/ticket ID is shown on the confirmation page, note it to correlate with the email."
+        },
+        "verification_method": "Check the test inbox (Mailtrap, Mailhog, or equivalent) for the recipient address within 2 minutes of submission and verify the expected_content items. If test inbox is unavailable, inspect application SMTP/email logs to confirm email delivery and contents; correlate any reference/ticket ID shown on the Support Center confirmation page with the email."
+      }
+    },
+    {
+      "test_case_id": "5.TRAFUN-001",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "balance of source account",
+            "balance of destination account"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "balance of source account",
+            "balance of destination account"
+          ],
+          "expected_change": "Source account balance decreased by transfer amount; destination account balance increased by the same amount; combined total unchanged."
+        }
+      }
+    },
+    {
+      "test_case_id": "5.TRAFUN-002",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "current balance of the source account selected for the transfer (Checking or Savings)"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "current balance of the source account selected for the transfer (Checking or Savings)"
+          ],
+          "expected_change": "Source account balance decreased by the transfer amount. Destination account is external and cannot be observed within the application."
+        }
+      }
+    },
+    {
+      "test_case_id": "6.PAYMEN-001",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "available balance of the source account that will be selected in the Payments form"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "available balance of the source account that was selected in the Payments form"
+          ],
+          "expected_change": "Source account available balance decreased by the Payment Amount submitted."
+        }
+      }
+    },
+    {
+      "test_case_id": "6.PAYMEN-002",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "available balance of source account (the account that will be selected in the Payments form)",
+            "total balance across all accounts"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Accounts Overview",
+          "observe": [
+            "available balance of source account (the account that was selected in the Payments form)",
+            "total balance across all accounts"
+          ],
+          "expected_change": "Source account available balance decreased by the Payment Amount entered in the test; total balance across all accounts decreased by the same Payment Amount."
+        }
+      }
+    },
+    {
+      "test_case_id": "9.MANCAR-006",
+      "verification_type": "same_actor_navigation",
+      "coverage": "verifiable",
+      "body": {
+        "pre_check": {
+          "navigate_to": "Manage Cards",
+          "observe": [
+            "current travel notice destinations for the selected card"
+          ]
+        },
+        "post_check": {
+          "navigate_to": "Manage Cards",
+          "observe": [
+            "current travel notice destinations for the selected card"
+          ],
+          "expected_change": "The travel notice destination entered in the test appears in the travel notice destinations list for the selected card. If the destination did not exist in the pre_check list, the list contains one additional entry matching the entered destination."
+        }
+      }
+    }
+  ]
+}

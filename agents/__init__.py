@@ -6,6 +6,7 @@ from testwright.agents.test_generator import TestGenerationAgent
 from testwright.agents.assembler import AssemblerAgent
 from testwright.agents.summary import SummaryAgent
 from testwright.agents.standard_patterns import StandardPatternsAgent
+from testwright.agents.verification_planner import VerificationPlannerAgent
 
 __all__ = [
     "BaseAgent",
@@ -16,4 +17,5 @@ __all__ = [
     "AssemblerAgent",
     "SummaryAgent",
     "StandardPatternsAgent",
+    "VerificationPlannerAgent",
 ]
