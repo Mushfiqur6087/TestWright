@@ -17,7 +17,6 @@ from testwright.agents import (
     ChunkerAgent,
     NavigationAgent,
     ParserAgent,
-    StandardPatternsAgent,
     SummaryAgent,
     TestGenerationAgent,
 )
@@ -61,7 +60,6 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
     agent = NavigationAgent(**_agent_kwargs(state))
     nav_graph = agent.run(state["parsed_desc"])
 
-    print(f"  - Login module ID: {nav_graph.login_module_id}")
     print(f"  - Page nodes: {len(nav_graph.nodes)}")
     print(f"  Done in {time.time() - t0:.1f}s")
 
@@ -152,25 +150,11 @@ def test_generation_node(state: PipelineState) -> Dict[str, Any]:
 
 
 def standard_patterns_node(state: PipelineState) -> Dict[str, Any]:
-    """Emit generic session and RBAC quality tests."""
+    """Skip standard pattern generation to keep outputs focused on spec-derived tests."""
     t0 = time.time()
-    print("\n[5b] Generating standard quality patterns (session + RBAC)...")
-
-    agent = StandardPatternsAgent(**_agent_kwargs(state))
-    parsed_desc = state["parsed_desc"]
-    project_context = ProjectContext(
-        project_name=parsed_desc.project_name or "",
-        navigation_overview=parsed_desc.navigation_overview or "",
-    )
-
-    tests = agent.run(
-        parsed_desc=parsed_desc,
-        nav_graph=state["nav_graph"],
-        project_context=project_context,
-    )
-
-    print(f"  - {len(tests)} standard pattern tests | Done in {time.time() - t0:.1f}s")
-    return {"standard_pattern_tests": tests}
+    print("\n[5b] Skipping standard quality patterns...")
+    print(f"  - 0 standard pattern tests | Done in {time.time() - t0:.1f}s")
+    return {"standard_pattern_tests": []}
 
 
 def assembler_node(state: PipelineState) -> Dict[str, Any]:

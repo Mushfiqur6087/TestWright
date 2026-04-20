@@ -18,7 +18,6 @@ class ParsedModule:
     workflows: List[str] = field(default_factory=list)
     business_rules: List[str] = field(default_factory=list)
     expected_behaviors: List[str] = field(default_factory=list)
-    requires_auth: bool = True
 
 
 @dataclass
@@ -110,7 +109,6 @@ class NavigationNode:
 
     module_id: int
     title: str
-    requires_auth: bool
     url_path: Optional[str] = None
     connected_to: List[int] = field(default_factory=list)
     test_case_ids: List[str] = field(default_factory=list)
@@ -121,18 +119,15 @@ class NavigationGraph:
     """Navigation graph of the website."""
 
     nodes: Dict[int, NavigationNode] = field(default_factory=dict)
-    login_module_id: Optional[int] = None
     graph_image_path: Optional[str] = None
 
     def to_dict(self) -> dict:
         return {
-            "login_module_id": self.login_module_id,
             "graph_image_path": self.graph_image_path,
             "nodes": [
                 {
                     "module_id": node.module_id,
                     "title": node.title,
-                    "requires_auth": node.requires_auth,
                     "url_path": node.url_path,
                     "connected_to": node.connected_to,
                     "test_case_ids": node.test_case_ids,
@@ -148,7 +143,6 @@ class NavigationGraph:
             node = NavigationNode(
                 module_id=node_data["module_id"],
                 title=node_data["title"],
-                requires_auth=node_data.get("requires_auth", True),
                 url_path=node_data.get("url_path"),
                 connected_to=node_data.get("connected_to", []),
                 test_case_ids=node_data.get("test_case_ids", []),
@@ -157,7 +151,6 @@ class NavigationGraph:
 
         return cls(
             nodes=nodes,
-            login_module_id=data.get("login_module_id"),
             graph_image_path=data.get("graph_image_path"),
         )
 

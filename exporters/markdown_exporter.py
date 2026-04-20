@@ -128,15 +128,14 @@ def generate_markdown(data: dict) -> str:
         if nodes:
             lines.append("### Pages")
             lines.append("")
-            lines.append("| Module | URL | Auth Required | Test Cases |")
-            lines.append("|--------|-----|---------------|------------|")
+            lines.append("| Module | URL | Test Cases |")
+            lines.append("|--------|-----|------------|")
 
             for node in nodes:
                 title = node.get("title", "N/A")
                 url = node.get("url_path", "N/A")
-                auth = "Yes" if node.get("requires_auth") else "No"
                 tc_count = len(node.get("test_case_ids", []))
-                lines.append(f"| {title} | {url} | {auth} | {tc_count} |")
+                lines.append(f"| {title} | {url} | {tc_count} |")
 
             lines.append("")
 

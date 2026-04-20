@@ -37,9 +37,6 @@ def _load_verification_spec() -> str:
     return spec_path.read_text(encoding="utf-8")
 
 
-_VERIFICATION_SPEC = _load_verification_spec()
-
-
 _EXCLUSION_AND_OUTPUT_DIRECTIVE = """
 
 --------------------------------------------------------------------------------
@@ -230,11 +227,19 @@ page-load observation, or any case already fully asserted on-screen):
 """
 
 
-_SYSTEM_PROMPT = (
-    _VERIFICATION_SPEC
-    + _EXCLUSION_AND_OUTPUT_DIRECTIVE
-    + _WORKED_EXAMPLES
-)
+_SYSTEM_PROMPT: Optional[str] = None
+
+
+def _get_system_prompt() -> str:
+    """Lazily build the system prompt so importing this module doesn't require the spec file."""
+    global _SYSTEM_PROMPT
+    if _SYSTEM_PROMPT is None:
+        _SYSTEM_PROMPT = (
+            _load_verification_spec()
+            + _EXCLUSION_AND_OUTPUT_DIRECTIVE
+            + _WORKED_EXAMPLES
+        )
+    return _SYSTEM_PROMPT
 
 
 def _body_is_valid_for_type(verification_type: str, body: dict) -> bool:
@@ -261,7 +266,7 @@ class VerificationPlannerAgent(BaseAgent):
 
     @property
     def system_prompt(self) -> str:
-        return _SYSTEM_PROMPT
+        return _get_system_prompt()
 
     def _build_user_prompt(
         self,

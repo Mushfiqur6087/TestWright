@@ -32,7 +32,6 @@ Your task is to analyze functional descriptions and extract:
    - Navigation links to OTHER pages are NOT workflows for this page
 3. Business Rules: Validation rules, constraints, and business logic stated
 4. Expected Behaviors: What happens on success or failure
-5. Authentication: Whether the page requires user to be logged in
 
 WORKFLOW GUIDANCE:
 - Focus on actions that complete on THIS page with a testable outcome
@@ -149,8 +148,7 @@ Return a JSON object with these fields:
     "mentioned_items": ["Item1", "Item2", ...],
     "workflows": ["Workflow1", ...],
     "business_rules": ["Rule1", "Rule2", ...],
-    "expected_behaviors": ["Behavior1", "Behavior2", ...],
-    "requires_auth": true/false
+    "expected_behaviors": ["Behavior1", "Behavior2", ...]
 }}
 
 Field Descriptions:
@@ -179,15 +177,12 @@ Field Descriptions:
   * Include error message behaviors
   * Include state changes (e.g., "Balance is deducted", "New account appears in list")
 
-- requires_auth: false for login/register/forgot password/public pages, otherwise true
-
 Example for a Registration page:
 {{
     "mentioned_items": ["First Name (required)", "Last Name (required)", "Address (required)", "City (required)", "State (required)", "Zip Code (required)", "Phone (required)", "SSN (required)", "Username (required)", "Password (required)", "Confirm Password (required)", "Register button"],
     "workflows": ["Register new account"],
     "business_rules": ["First Name is required", "Last Name is required", "Address is required", "City is required", "State is required", "Zip Code is required", "Phone is required", "SSN is required", "Username is required", "Password is required", "Confirm Password is required", "Password and Confirm Password must match", "Username must be unique"],
-    "expected_behaviors": ["Successful registration creates account and logs user in", "Validation errors shown for empty required fields", "Error shown if passwords do not match", "Error shown if username already exists"],
-    "requires_auth": false
+    "expected_behaviors": ["Successful registration creates account and logs user in", "Validation errors shown for empty required fields", "Error shown if passwords do not match", "Error shown if username already exists"]
 }}
 """
 
@@ -204,7 +199,6 @@ Example for a Registration page:
                 workflows=[],
                 business_rules=[],
                 expected_behaviors=[],
-                requires_auth=True
             )
 
         return ParsedModule(
@@ -215,5 +209,4 @@ Example for a Registration page:
             workflows=result.get("workflows", []),
             business_rules=result.get("business_rules", []),
             expected_behaviors=result.get("expected_behaviors", []),
-            requires_auth=result.get("requires_auth", True)
         )
