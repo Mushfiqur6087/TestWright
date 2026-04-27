@@ -12,12 +12,9 @@ fan-in from parallel branches (navigation, test_generation, summary
 from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
 from testwright.models.schemas import (
-    IdealExecutionPlan,
-    MatchedPlanStep,
     ModuleSummary,
     NavigationGraph,
     ParsedFunctionalDescription,
-    ParsedModule,
     TestCase,
     TestSuiteOutput,
     WorkflowChunk,
@@ -47,7 +44,6 @@ class PipelineState(TypedDict, total=False):
 
     # -- Inputs ---------------------------------------------------------------
     functional_desc: Annotated[Dict[str, Any], _last_value]
-    input_json_path: Annotated[str, _last_value]
 
     # -- Config ---------------------------------------------------------------
     api_key: Annotated[str, _last_value]
@@ -77,16 +73,3 @@ class PipelineState(TypedDict, total=False):
 
     # -- Step 6: Assembler ----------------------------------------------------
     output: Annotated[TestSuiteOutput, _last_value]
-
-    # -- Step 7: Verification Flag (Stage 1) ----------------------------------
-    flagged_tests: Annotated[List[TestCase], _last_value]
-
-    # -- Step 8: Plan Generator (Stage 2) -------------------------------------
-    ideal_plans: Annotated[Dict[str, IdealExecutionPlan], _last_value]
-
-    # -- Step 9: Verification Matcher (Stage 3) -------------------------------
-    matched_plans: Annotated[Dict[str, List[MatchedPlanStep]], _last_value]
-
-    # -- Step 10: Reporter (Stage 4) ------------------------------------------
-    execution_plans: Annotated[Dict[str, Any], _last_value]
-    plan_summary: Annotated[Dict[str, Any], _last_value]

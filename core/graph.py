@@ -1,33 +1,4 @@
-"""
-LangGraph Pipeline Definition
-
-Builds and compiles the StateGraph that orchestrates all agents.
-
-Graph topology - full mode (sequential)
-========================================
-
-  parse -> navigation -> chunker -> summary -> test_generation
-    -> standard_patterns -> assembler -> verification_flag
-    -> plan_generator -> verification_matcher -> reporter
-    -> finalize -> END
-
-Graph topology - basic mode (no post-verification)
-===================================================
-
-  parse -> navigation -> chunker -> summary -> test_generation
-    -> standard_patterns -> assembler -> finalize -> END
-
-Graph topology - post_verify mode (load saved + verify only)
-=============================================================
-
-  load_assembled -> verification_flag -> plan_generator
-    -> verification_matcher -> reporter -> finalize -> END
-
-All steps run sequentially to avoid LangGraph fan-in state-merge
-issues that cause duplicate node executions in parallel branches.
-``standard_patterns`` emits session/RBAC tests that are merged into
-the spec-derived list by ``assembler_node`` before dedup.
-"""
+"""LangGraph pipeline definition for test generation."""
 
 from langgraph.graph import END, StateGraph
 
@@ -35,31 +6,18 @@ from testwright.core.nodes import (
     assembler_node,
     chunker_node,
     finalize_node,
-    load_assembled_node,
     navigation_node,
     parse_node,
-    plan_generator_node,
-    reporter_node,
     standard_patterns_node,
     summary_node,
     test_generation_node,
-    verification_flag_node,
-    verification_matcher_node,
 )
 from testwright.core.state import PipelineState
 
 
-def build_graph(mode: str = "full") -> StateGraph:
+def build_graph() -> StateGraph:
     """
-    Construct and compile the LangGraph pipeline.
-
-    Args:
-        mode: ``"full"`` (default) runs all 11 nodes including post-verification
-              and execution planning. ``"basic"`` stops after the assembler —
-              no verification flagging, ideal verification, RAG matching, or
-              execution plan nodes are run. ``"post_verify"`` skips generation
-              entirely — loads a saved test-cases.json and runs only the
-              verification sub-pipeline (6 nodes).
+    Construct and compile the generation-only LangGraph pipeline.
 
     Returns a compiled graph that can be invoked with
     ``graph.invoke(initial_state)``.
@@ -67,25 +25,7 @@ def build_graph(mode: str = "full") -> StateGraph:
 
     graph = StateGraph(PipelineState)
 
-    if mode == "post_verify":
-        graph.add_node("load_assembled", load_assembled_node)
-        graph.add_node("verification_flag", verification_flag_node)
-        graph.add_node("plan_generator", plan_generator_node)
-        graph.add_node("verification_matcher", verification_matcher_node)
-        graph.add_node("reporter", reporter_node)
-        graph.add_node("finalize", finalize_node)
-
-        graph.set_entry_point("load_assembled")
-        graph.add_edge("load_assembled", "verification_flag")
-        graph.add_edge("verification_flag", "plan_generator")
-        graph.add_edge("plan_generator", "verification_matcher")
-        graph.add_edge("verification_matcher", "reporter")
-        graph.add_edge("reporter", "finalize")
-        graph.add_edge("finalize", END)
-
-        return graph.compile()
-
-    # -- Register core nodes (shared by both modes) ---------------------------
+    # -- Register core nodes --------------------------------------------------
     graph.add_node("parse", parse_node)
     graph.add_node("navigation", navigation_node)
     graph.add_node("chunker", chunker_node)
@@ -98,29 +38,14 @@ def build_graph(mode: str = "full") -> StateGraph:
     # -- Entry point ----------------------------------------------------------
     graph.set_entry_point("parse")
 
-    # -- Core sequential pipeline (both modes) --------------------------------
+    # -- Core sequential pipeline ---------------------------------------------
     graph.add_edge("parse", "navigation")
     graph.add_edge("navigation", "chunker")
     graph.add_edge("chunker", "summary")
     graph.add_edge("summary", "test_generation")
     graph.add_edge("test_generation", "standard_patterns")
     graph.add_edge("standard_patterns", "assembler")
-
-    if mode == "basic":
-        # Skip verification nodes -- go straight to finalize
-        graph.add_edge("assembler", "finalize")
-    else:
-        # -- Sequential verification pipeline (full mode only) ----------------
-        graph.add_node("verification_flag", verification_flag_node)
-        graph.add_node("plan_generator", plan_generator_node)
-        graph.add_node("verification_matcher", verification_matcher_node)
-        graph.add_node("reporter", reporter_node)
-
-        graph.add_edge("assembler", "verification_flag")
-        graph.add_edge("verification_flag", "plan_generator")
-        graph.add_edge("plan_generator", "verification_matcher")
-        graph.add_edge("verification_matcher", "reporter")
-        graph.add_edge("reporter", "finalize")
+    graph.add_edge("assembler", "finalize")
 
     # -- End ------------------------------------------------------------------
     graph.add_edge("finalize", END)

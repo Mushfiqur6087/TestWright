@@ -1,10 +1,4 @@
-"""
-TestCaseGenerator -- main orchestrator.
-
-Uses a compiled LangGraph StateGraph under the hood.
-The public API (``__init__`` / ``generate``) is unchanged so
-existing callers keep working.
-"""
+"""TestCaseGenerator main orchestrator."""
 
 import json
 import os
@@ -30,14 +24,12 @@ class TestCaseGenerator:
         provider: str = "openai",
         debug: bool = False,
         debug_file: str = "debug_log.txt",
-        mode: str = "full",
     ):
         self.api_key = api_key
         self.model = model
         self.provider = provider
         self.debug = debug
         self.debug_file = debug_file
-        self.mode = mode
 
         # Initialize debug session once
         if debug:
@@ -45,7 +37,7 @@ class TestCaseGenerator:
             BaseAgent.init_debug_session(debug_file, model)
 
         # Compile the LangGraph pipeline once
-        self.graph = build_graph(mode=mode)
+        self.graph = build_graph()
 
     # ------------------------------------------------------------------
     # Public API
@@ -69,8 +61,7 @@ class TestCaseGenerator:
         """
 
         print("=" * 60)
-        mode_label = "basic (no post-verification)" if self.mode == "basic" else "full"
-        print(f"TESTWRIGHT  (LangGraph Pipeline — {mode_label} mode)")
+        print("TESTWRIGHT  (LangGraph Pipeline)")
         print("=" * 60)
         if self.debug:
             print(f"Debug mode: ON (logging to {self.debug_file})")
@@ -142,30 +133,6 @@ class TestCaseGenerator:
         for m, count in summary.get("by_module", {}).items():
             print(f"  - {m}: {count}")
 
-        # Post-verification coverage
-        post_verif = summary.get("post_verification", {})
-        if post_verif:
-            print("\nPost-Verification Coverage:")
-            print(f"  - Tests needing verification: {post_verif.get('tests_needing_verification', 0)}")
-            print(f"  - Full coverage: {post_verif.get('full_coverage', 0)}")
-            print(f"  - Partial coverage: {post_verif.get('partial_coverage', 0)}")
-            print(f"  - No coverage: {post_verif.get('no_coverage', 0)}")
-            gaps = post_verif.get("coverage_gaps", [])
-            if gaps:
-                print(f"  - Coverage gaps ({len(gaps)}):")
-                for gap in gaps[:5]:
-                    gap_text = gap[:80] + "..." if len(gap) > 80 else gap
-                    print(f"    ! {gap_text}")
-
-        # Execution plans
-        exec_plans = summary.get("execution_plans", {})
-        if exec_plans:
-            print("\nExecution Plans:")
-            print(f"  - Total plans: {exec_plans.get('total_plans', 0)}")
-            print(f"  - Automated steps: {exec_plans.get('total_automated_steps', 0)}")
-            print(f"  - Manual steps: {exec_plans.get('total_manual_steps', 0)}")
-            print(f"  - Automation rate: {exec_plans.get('automation_rate', 0)}%")
-
         print(f"\nNavigation Graph:")
         print(f"  - Total nodes: {len(output.navigation_graph.nodes)}")
         if output.navigation_graph.graph_image_path:
@@ -173,102 +140,3 @@ class TestCaseGenerator:
         for node in output.navigation_graph.nodes.values():
             tc_count = len(node.test_case_ids)
             print(f"  - {node.title}: {tc_count} test cases, connects to {len(node.connected_to)} pages")
-
-
-class PostVerifyRunner:
-    """
-    Runs the post-verification pipeline against a previously saved test-cases.json.
-
-    This is the Phase 2 runner for the two-phase workflow:
-      Phase 1: ``TestCaseGenerator`` with ``mode="basic"`` → saves test-cases.json
-      Phase 2: ``PostVerifyRunner``                        → loads + runs verification
-    """
-
-    def __init__(
-        self,
-        api_key: str,
-        model: str = "gpt-4o",
-        provider: str = "openai",
-        debug: bool = False,
-        debug_file: str = "debug_log.txt",
-    ):
-        self.api_key = api_key
-        self.model = model
-        self.provider = provider
-        self.debug = debug
-        self.debug_file = debug_file
-
-        if debug:
-            BaseAgent.reset_debug_state()
-            BaseAgent.init_debug_session(debug_file, model)
-
-        self.graph = build_graph(mode="post_verify")
-
-    def run(self, input_json_path: str, output_dir: str = "output") -> TestSuiteOutput:
-        """
-        Load a saved test-cases.json and run the full verification pipeline on it.
-
-        Args:
-            input_json_path: Absolute path to the saved test-cases.json file.
-            output_dir: Directory to write the verified output files.
-
-        Returns:
-            TestSuiteOutput with post-verification data populated.
-        """
-        import os
-
-        print("=" * 60)
-        print("TESTWRIGHT  (Post-Verification Pipeline)")
-        print("=" * 60)
-        if self.debug:
-            print(f"Debug mode: ON (logging to {self.debug_file})")
-        print(f"Input:  {input_json_path}")
-        print(f"Output: {output_dir}")
-
-        os.makedirs(output_dir, exist_ok=True)
-
-        initial_state: PipelineState = {
-            "input_json_path": input_json_path,
-            "api_key": self.api_key,
-            "model": self.model,
-            "provider": self.provider,
-            "debug": self.debug,
-            "debug_file": self.debug_file,
-            "output_dir": output_dir,
-        }
-
-        final_state = self.graph.invoke(initial_state)
-        output: TestSuiteOutput = final_state["output"]
-        self._print_summary(output)
-        return output
-
-    @staticmethod
-    def _print_summary(output: TestSuiteOutput):
-        """Print post-verification summary statistics."""
-        print("\n" + "=" * 60)
-        print("POST-VERIFICATION SUMMARY")
-        print("=" * 60)
-
-        summary = output.summary
-        print(f"Total Test Cases: {summary.get('total_tests', 0)}")
-
-        post_verif = summary.get("post_verification", {})
-        if post_verif:
-            print("\nPost-Verification Coverage:")
-            print(f"  - Tests needing verification: {post_verif.get('tests_needing_verification', 0)}")
-            print(f"  - Full coverage:    {post_verif.get('full_coverage', 0)}")
-            print(f"  - Partial coverage: {post_verif.get('partial_coverage', 0)}")
-            print(f"  - No coverage:      {post_verif.get('no_coverage', 0)}")
-            gaps = post_verif.get("coverage_gaps", [])
-            if gaps:
-                print(f"  - Coverage gaps ({len(gaps)}):")
-                for gap in gaps[:5]:
-                    print(f"    ! {gap[:80]}{'...' if len(gap) > 80 else ''}")
-
-        exec_plans = summary.get("execution_plans", {})
-        if exec_plans:
-            print("\nExecution Plans:")
-            print(f"  - Total plans:      {exec_plans.get('total_plans', 0)}")
-            print(f"  - Automated steps:  {exec_plans.get('total_automated_steps', 0)}")
-            print(f"  - Manual steps:     {exec_plans.get('total_manual_steps', 0)}")
-            print(f"  - Automation rate:  {exec_plans.get('automation_rate', 0)}%")

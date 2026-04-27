@@ -13,7 +13,6 @@ from testwright.models.schemas import (
 try:
     import networkx as nx # type: ignore
     import matplotlib.pyplot as plt # type: ignore
-    import matplotlib.patches as mpatches # type: ignore
     GRAPH_LIBS_AVAILABLE = True
 except ImportError:
     GRAPH_LIBS_AVAILABLE = False
@@ -34,9 +33,7 @@ Your task is to analyze the navigation structure of a web application and build 
 
 You understand:
 - How sidebar menus typically work
-- Authentication flows and protected routes
 - Page relationships and navigation paths
-- Which pages are publicly accessible vs requiring login
 
 Provide accurate navigation information based on the description provided."""
 
@@ -44,10 +41,6 @@ Provide accurate navigation information based on the description provided."""
         """Build navigation graph from parsed functional description"""
 
         nav_graph = NavigationGraph()
-
-        # First, identify the login module
-        login_module_id = self._identify_login_module(parsed_desc.modules)
-        nav_graph.login_module_id = login_module_id
 
         # Use LLM to analyze navigation structure
         nav_structure = self._analyze_navigation(
@@ -62,7 +55,6 @@ Provide accurate navigation information based on the description provided."""
             node = NavigationNode(
                 module_id=module.id,
                 title=module.title,
-                requires_auth=module.requires_auth,
                 url_path=module_nav.get("url_path"),
                 connected_to=module_nav.get("connected_to", []),
                 test_case_ids=[]  # Will be populated by AssemblerAgent
@@ -70,18 +62,6 @@ Provide accurate navigation information based on the description provided."""
             nav_graph.nodes[module.id] = node
 
         return nav_graph
-
-    def _identify_login_module(self, modules: List[ParsedModule]) -> int:
-        """Identify which module is the login module"""
-        login_keywords = ["login", "sign in", "signin", "log in"]
-
-        for module in modules:
-            title_lower = module.title.lower()
-            if any(keyword in title_lower for keyword in login_keywords):
-                return module.id
-
-        # Default to first module if no login found
-        return modules[0].id if modules else 0
 
     def _analyze_navigation(
         self,
@@ -91,7 +71,7 @@ Provide accurate navigation information based on the description provided."""
         """Use LLM to analyze navigation structure"""
 
         modules_list = "\n".join([
-            f"- ID: {m.id}, Title: {m.title}, Requires Auth: {m.requires_auth}"
+            f"- ID: {m.id}, Title: {m.title}"
             for m in modules
         ])
 
@@ -120,8 +100,6 @@ Return a JSON object where keys are module IDs (as strings) and values contain:
 }}
 
 Navigation Rules:
-- Public pages (login, register, forgot password) typically connect to each other
-- Logout returns to login page
 - Use the navigation overview to understand the menu structure
 """
 
@@ -145,25 +123,15 @@ Navigation Rules:
             return parsed
         except Exception as e:
             print(f"Warning: Navigation analysis failed: {e}")
-            # Return default structure - all authenticated pages connect to each other
+            # Return default structure - all pages connect to each other.
             return self._default_navigation(modules)
 
     def _default_navigation(self, modules: List[ParsedModule]) -> dict:
         """Generate default navigation when LLM fails"""
         result = {}
 
-        # Get all module IDs
-        all_ids = [m.id for m in modules]
-        public_ids = [m.id for m in modules if not m.requires_auth]
-        auth_ids = [m.id for m in modules if m.requires_auth]
-
         for module in modules:
-            if module.requires_auth:
-                # Authenticated pages can reach other authenticated pages
-                connected = [mid for mid in auth_ids if mid != module.id]
-            else:
-                # Public pages connect to other public pages
-                connected = [mid for mid in public_ids if mid != module.id]
+            connected = [m.id for m in modules if m.id != module.id]
 
             result[module.id] = {
                 "connected_to": connected,
@@ -214,8 +182,6 @@ Navigation Rules:
             G.add_node(
                 module_id,
                 label=node.title,
-                requires_auth=node.requires_auth,
-                is_login=module_id == nav_graph.login_module_id,
                 test_count=len(node.test_case_ids)
             )
 
@@ -249,16 +215,8 @@ Navigation Rules:
                 print(f"Warning: kamada_kawai_layout failed ({e}). Falling back to spring layout.")
                 pos = nx.spring_layout(G, k=2.5, iterations=100, seed=42)
 
-        # Define colors based on node attributes
-        node_colors = []
-        for node_id in G.nodes():
-            node_data = G.nodes[node_id]
-            if node_data.get('is_login'):
-                node_colors.append('#4CAF50')  # Green for login
-            elif node_data.get('requires_auth'):
-                node_colors.append('#2196F3')  # Blue for authenticated pages
-            else:
-                node_colors.append('#FF9800')  # Orange for public pages
+        # Use a single visual style for all pages.
+        node_colors = ['#1E88E5' for _ in G.nodes()]
 
         # Node sizes based on test count
         node_sizes = []
@@ -309,14 +267,6 @@ Navigation Rules:
             ax=ax
         )
 
-        # Add legend
-        legend_handles = [
-            mpatches.Patch(color='#4CAF50', label='Login Module'),
-            mpatches.Patch(color='#2196F3', label='Authenticated Pages'),
-            mpatches.Patch(color='#FF9800', label='Public Pages'),
-        ]
-        ax.legend(handles=legend_handles, loc='upper left', fontsize=10)
-
         # Set title and styling
         ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
         ax.axis('off')
@@ -324,10 +274,8 @@ Navigation Rules:
         # Add subtitle with stats
         total_nodes = len(nav_graph.nodes)
         total_edges = sum(len(node.connected_to) for node in nav_graph.nodes.values())
-        auth_pages = sum(1 for node in nav_graph.nodes.values() if node.requires_auth)
-        public_pages = total_nodes - auth_pages
 
-        subtitle = f"Nodes: {total_nodes} | Connections: {total_edges} | Auth Pages: {auth_pages} | Public Pages: {public_pages}"
+        subtitle = f"Nodes: {total_nodes} | Connections: {total_edges}"
         fig.text(0.5, 0.02, subtitle, ha='center', fontsize=10, color='#666666')
 
         # Ensure output directory exists

@@ -3,19 +3,22 @@
 TestWright CLI - AI-powered test case generation from functional specifications.
 
 Usage:
-    testwright --generate --input spec.json --api-key "sk-..." --provider openai --output output/
+    testwright --generate --input spec.md --api-key "sk-..." --provider openai --output output/
     testwright export-md --input output/test-cases.json --output output/test-cases.md
 """
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 import testwright
-from testwright.core.generator import PostVerifyRunner, TestCaseGenerator
-from testwright.exporters.markdown_exporter import load_test_cases, generate_markdown
-from testwright.exporters.post_verification_markdown_exporter import generate_post_verification_markdown
+from testwright.core.generator import TestCaseGenerator
+from testwright.core.verification_pipeline import run_verification
+from testwright.exporters.markdown_exporter import generate_markdown, load_test_cases
+from testwright.exporters.verification_markdown_exporter import (
+    generate_verification_markdown,
+    load_verifications,
+)
 
 
 def main():
@@ -28,9 +31,7 @@ def main():
 
     # Generate command (also accessible via --generate flag for backward compat)
     parser.add_argument("--generate", action="store_true", help="Generate test cases")
-    parser.add_argument("--input", "-i", help="Path to functional description directory or JSON file")
-    parser.add_argument("--spec", help="Path to functional specification markdown file (manual override)")
-    parser.add_argument("--nav", help="Path to navigation markdown file (manual override)")
+    parser.add_argument("--input", "-i", help="Path to functional specification markdown file")
     parser.add_argument("--api-key", help="API key for LLM provider")
     parser.add_argument("--model", default="gpt-4o", help="Model to use (default: gpt-4o)")
     parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"],
@@ -38,47 +39,48 @@ def main():
     parser.add_argument("--output", "-o", default="output", help="Output directory (default: output)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
-    parser.add_argument(
-        "--mode",
-        default="full",
-        choices=["full", "basic"],
-        help=(
-            "Pipeline mode: 'full' (default) runs all nodes including post-verification "
-            "and execution planning; 'basic' stops after assembler — no verification "
-            "flagging, RAG matching, or execution plans are generated."
-        ),
-    )
-    parser.add_argument(
-        "--post-verify",
-        action="store_true",
-        help=(
-            "Run the post-verification pipeline on a previously saved test-cases.json. "
-            "Use --input to point at the output directory (or JSON file) from a prior "
-            "--mode basic run. Requires --api-key."
-        ),
-    )
-
     # Export markdown subcommand
     export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
     export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
     export_parser.add_argument("--output", "-o", help="Output Markdown file path")
 
-    # Export post-verification-only markdown subcommand
-    post_verify_export_parser = subparsers.add_parser(
-        "export-post-verify-md",
-        help="Export post-verification-only report to Markdown",
+    # Verify subcommand — generates verifications.json from an existing test-cases.json
+    verify_parser = subparsers.add_parser(
+        "verify",
+        help="Generate verification plans from an already-generated test-cases.json",
     )
-    post_verify_export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
-    post_verify_export_parser.add_argument("--output", "-o", help="Output Markdown file path")
+    verify_parser.add_argument("--input", "-i", required=True, help="Path to test-cases.json")
+    verify_parser.add_argument("--spec", required=True, help="Path to main functional spec markdown")
+    verify_parser.add_argument(
+        "--cross-role-specs",
+        nargs="+",
+        default=[],
+        help="Optional extra spec files for cross-role verification (e.g. MoodleStudent.md)",
+    )
+    verify_parser.add_argument("--api-key", required=True, help="API key for LLM provider")
+    verify_parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"])
+    verify_parser.add_argument("--model", default="gpt-4o")
+    verify_parser.add_argument("--output", "-o", help="Output path for verifications.json")
+    verify_parser.add_argument("--max-workers", type=int, default=8, help="Parallel LLM calls (default: 8)")
+    verify_parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    verify_parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
+
+    # Export verification markdown subcommand
+    export_verif_parser = subparsers.add_parser(
+        "export-verification-md",
+        help="Export verifications JSON to Markdown",
+    )
+    export_verif_parser.add_argument("--input", "-i", required=True, help="Input verifications.json path")
+    export_verif_parser.add_argument("--output", "-o", help="Output Markdown file path")
 
     args = parser.parse_args()
 
     if args.command == "export-md":
         return _export_markdown(args)
-    elif args.command == "export-post-verify-md":
-        return _export_post_verify_markdown(args)
-    elif getattr(args, "post_verify", False):
-        return _post_verify(args)
+    elif args.command == "verify":
+        return _verify(args)
+    elif args.command == "export-verification-md":
+        return _export_verification_markdown(args)
     elif args.generate:
         return _generate(args)
     else:
@@ -92,27 +94,19 @@ def _generate(args):
         print("Error: --api-key is required for generation")
         return 1
 
-    # Manual --spec / --nav takes priority over --input
-    if hasattr(args, 'spec') and args.spec:
-        functional_desc = _load_from_files(
-            spec_path=Path(args.spec),
-            nav_path=Path(args.nav) if args.nav else None,
-        )
-    elif args.input:
-        input_path = Path(args.input)
-        if not input_path.exists():
-            print(f"Error: Input path not found: {input_path}")
-            return 1
-        if input_path.is_dir():
-            functional_desc = _load_from_directory(input_path)
-        elif input_path.suffix.lower() == ".md":
-            functional_desc = _load_from_markdown_file(input_path)
-        else:
-            with open(input_path, 'r') as f:
-                functional_desc = json.load(f)
-    else:
-        print("Error: --input or --spec is required for generation")
+    if not args.input:
+        print("Error: --input is required for generation")
         return 1
+
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        return 1
+    if input_path.is_dir() or input_path.suffix.lower() != ".md":
+        print("Error: --input must be a markdown (.md) file")
+        return 1
+
+    functional_desc = _load_from_markdown_file(md_path=input_path)
 
     # Build output path: dataset/<website>/<website>-<model>
     # unless the user explicitly passed --output
@@ -121,12 +115,7 @@ def _generate(args):
     else:
         website_name = functional_desc.get("project_name", "output").replace(" ", "_")
         model_slug = args.model.replace("/", "-")
-        if hasattr(args, 'spec') and args.spec:
-            base_dir = str(Path(args.spec).parent)
-        elif args.input:
-            base_dir = str(Path(args.input) if Path(args.input).is_dir() else Path(args.input).parent)
-        else:
-            base_dir = "dataset"
+        base_dir = str(input_path.parent)
         output_dir = str(Path(base_dir) / f"{website_name}-{model_slug}")
 
     print(f"  Output directory: {output_dir}")
@@ -137,55 +126,11 @@ def _generate(args):
         provider=args.provider,
         debug=args.debug,
         debug_file=args.debug_file,
-        mode=args.mode,
     )
 
     output = generator.generate(functional_desc, output_dir=output_dir)
 
     print(f"\nGeneration complete!")
-    print(f"  Total tests: {output.summary.get('total_tests', 0)}")
-    print(f"  Output: {output_dir}/")
-    return 0
-
-
-def _post_verify(args):
-    """Run the post-verification pipeline on a previously saved test-cases.json."""
-    if not args.api_key:
-        print("Error: --api-key is required for --post-verify")
-        return 1
-
-    if not args.input:
-        print("Error: --input is required for --post-verify")
-        return 1
-
-    input_path = Path(args.input)
-    if input_path.is_dir():
-        json_path = input_path / "test-cases.json"
-    elif input_path.suffix.lower() == ".json":
-        json_path = input_path
-    else:
-        json_path = input_path / "test-cases.json"
-
-    if not json_path.exists():
-        print(
-            f"Error: No test-cases.json found at {json_path}. "
-            "Run --generate --mode basic first to produce the input file."
-        )
-        return 1
-
-    output_dir = args.output if args.output != "output" else str(json_path.parent)
-
-    runner = PostVerifyRunner(
-        api_key=args.api_key,
-        model=args.model,
-        provider=args.provider,
-        debug=args.debug,
-        debug_file=args.debug_file,
-    )
-
-    output = runner.run(str(json_path), output_dir=output_dir)
-
-    print(f"\nPost-verification complete!")
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
     print(f"  Output: {output_dir}/")
     return 0
@@ -232,88 +177,17 @@ def _parse_markdown(text: str) -> tuple:
     return navigation_overview.strip(), modules
 
 
-def _load_from_files(spec_path: Path, nav_path=None) -> dict:
-    """Load functional description from explicitly provided file paths."""
-    if not spec_path.exists():
-        print(f"Error: Spec file not found: {spec_path}")
-        sys.exit(1)
-
-    spec_text = spec_path.read_text(encoding='utf-8')
-    nav_from_spec, modules = _parse_markdown(spec_text)
-
-    # Explicit navigation file takes priority over the in-spec section
-    if nav_path and nav_path.exists():
-        navigation_overview = nav_path.read_text(encoding='utf-8')
-        print(f"  Using navigation file: {nav_path.name}")
-    else:
-        navigation_overview = nav_from_spec
-
-    project_name = spec_path.stem.replace('-', ' ').replace('_', ' ').title()
-    print(f"  Spec: {spec_path.name}  ({len(modules)} modules)")
-
-    return {
-        "project_name": project_name,
-        "website_url": "",
-        "navigation_overview": navigation_overview,
-        "mock_data": "",
-        "modules": modules,
-    }
-
-
-def _load_from_directory(dir_path: Path) -> dict:
-    """Load functional description from a directory of markdown files."""
-    spec_file = dir_path / "functional_specification.md"
-    nav_file = dir_path / "navigation.md"
-    mock_file = dir_path / "mock_data.md"
-
-    if not spec_file.exists():
-        # Fall back to any single .md file in the directory
-        md_files = list(dir_path.glob("*.md"))
-        if len(md_files) == 1:
-            spec_file = md_files[0]
-            print(f"  Using {spec_file.name} as functional specification")
-        else:
-            print(f"Error: functional_specification.md not found in {dir_path}")
-            sys.exit(1)
-
-    # Read the specification
-    spec_text = spec_file.read_text(encoding='utf-8')
-    nav_from_spec, modules = _parse_markdown(spec_text)
-
-    # Explicit navigation.md takes priority; fall back to in-spec Navigation section
-    if nav_file.exists():
-        navigation_overview = nav_file.read_text(encoding='utf-8')
-    else:
-        navigation_overview = nav_from_spec
-
-    # Read mock data
-    mock_data = ""
-    if mock_file.exists():
-        mock_data = mock_file.read_text(encoding='utf-8')
-
-    # Build the project name from directory name
-    project_name = dir_path.name.replace('-', ' ').replace('_', ' ').title()
-
-    return {
-        "project_name": project_name,
-        "website_url": "",
-        "navigation_overview": navigation_overview,
-        "mock_data": mock_data,
-        "modules": modules
-    }
-
-
 def _load_from_markdown_file(md_path: Path) -> dict:
-    """Load functional description from a single markdown file passed directly."""
+    """Load functional description from a markdown file."""
     spec_text = md_path.read_text(encoding='utf-8')
     navigation_overview, modules = _parse_markdown(spec_text)
+
     project_name = md_path.stem.replace('-', ' ').replace('_', ' ').title()
 
     return {
         "project_name": project_name,
         "website_url": "",
         "navigation_overview": navigation_overview,
-        "mock_data": "",
         "modules": modules,
     }
 
@@ -344,8 +218,39 @@ def _export_markdown(args):
     return 0
 
 
-def _export_post_verify_markdown(args):
-    """Export post-verification-only report from JSON to Markdown."""
+def _verify(args):
+    """Run the standalone verification pipeline."""
+    input_path = Path(args.input)
+    if not input_path.exists():
+        print(f"Error: Input file not found: {input_path}")
+        return 1
+
+    spec_path = Path(args.spec)
+    if not spec_path.exists():
+        print(f"Error: Spec file not found: {spec_path}")
+        return 1
+
+    try:
+        run_verification(
+            test_cases_json_path=str(input_path),
+            spec_path=str(spec_path),
+            api_key=args.api_key,
+            model=args.model,
+            provider=args.provider,
+            output_path=args.output,
+            cross_role_spec_paths=args.cross_role_specs,
+            max_workers=args.max_workers,
+            debug=args.debug,
+            debug_file=args.debug_file,
+        )
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        return 1
+    return 0
+
+
+def _export_verification_markdown(args):
+    """Export verifications.json to markdown."""
     input_path = Path(args.input)
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}")
@@ -353,20 +258,20 @@ def _export_post_verify_markdown(args):
 
     output_path = args.output
     if not output_path:
-        output_path = input_path.with_name(f"{input_path.stem}-post-verification.md")
+        output_path = input_path.with_suffix(".md")
 
-    print(f"Reading test cases from: {input_path}")
-    data = load_test_cases(str(input_path))
+    print(f"Reading verifications from: {input_path}")
+    data = load_verifications(str(input_path))
 
-    print("Generating post-verification-only Markdown...")
-    markdown = generate_post_verification_markdown(data)
+    print("Generating Markdown...")
+    markdown = generate_verification_markdown(data, verification_file_path=str(input_path))
 
     print(f"Writing to: {output_path}")
-    with open(output_path, 'w') as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         f.write(markdown)
 
-    source_tests = [tc for tc in data.get('test_cases', []) if tc.get('needs_post_verification')]
-    print(f"Done! Exported {len(source_tests)} post-verification source tests to Markdown.")
+    record_count = len(data.get("verifications", []))
+    print(f"Done! Exported {record_count} verification records to Markdown.")
     return 0
 
 

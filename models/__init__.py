@@ -6,20 +6,12 @@ from .schemas import (
     NavigationNode,
     NavigationGraph,
     TestCase,
-    IdealPlanStep,
-    IdealExecutionPlan,
-    MatchedPlanStep,
-    ExecutionStep,
-    ExecutionSequence,
-    VerificationMatch,
+    ProjectContext,
     TestSuiteOutput,
 )
 from .enums import (
     TestType,
     Priority,
-    VerificationStatus,
-    VerificationCoverage,
-    ExecutionStrategy,
 )
 
 __all__ = [
@@ -30,16 +22,8 @@ __all__ = [
     "NavigationNode",
     "NavigationGraph",
     "TestCase",
-    "IdealPlanStep",
-    "IdealExecutionPlan",
-    "MatchedPlanStep",
-    "ExecutionStep",
-    "ExecutionSequence",
-    "VerificationMatch",
+    "ProjectContext",
     "TestSuiteOutput",
     "TestType",
     "Priority",
-    "VerificationStatus",
-    "VerificationCoverage",
-    "ExecutionStrategy",
 ]

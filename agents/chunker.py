@@ -168,6 +168,8 @@ FIELD-LEVEL GRANULARITY:
                         project_context=project_context,
                     ))
 
+            chunks = self._consolidate_chunks(chunks, module.title)
+
             # Annotate each chunk with sibling workflow names for cross-chunk dedup
             if len(chunks) > 1:
                 all_names = [c.workflow_name for c in chunks]
@@ -201,6 +203,8 @@ FIELD-LEVEL GRANULARITY:
                 project_context=project_context,
             ))
 
+        chunks = self._consolidate_chunks(chunks, module.title)
+
         # Annotate each chunk with sibling workflow names for cross-chunk dedup
         if len(chunks) > 1:
             all_names = [c.workflow_name for c in chunks]
@@ -208,3 +212,146 @@ FIELD-LEVEL GRANULARITY:
                 chunk.sibling_workflows = [w for w in all_names if w != chunk.workflow_name]
 
         return chunks
+
+    # ------------------------------------------------------------------
+    # Deterministic consolidation safety net
+    # ------------------------------------------------------------------
+
+    _MAX_CHUNKS_PER_MODULE = 6
+
+    def _consolidate_chunks(
+        self,
+        chunks: List[WorkflowChunk],
+        module_title: str,
+    ) -> List[WorkflowChunk]:
+        """Merge chunks by shared colon-delimited prefix, then cap at 6.
+
+        Fires after LLM/workflow splitting so parser drift can't fan out
+        20 chunks for a single menu-heavy module. Pure Python — no LLM call.
+        """
+        if len(chunks) <= 1:
+            return chunks
+
+        merged = self._merge_by_shared_prefix(chunks, module_title)
+        capped = self._cap_chunk_count(merged, module_title)
+        return capped
+
+    def _merge_by_shared_prefix(
+        self,
+        chunks: List[WorkflowChunk],
+        module_title: str,
+    ) -> List[WorkflowChunk]:
+        """Group chunks whose workflow_name shares a common prefix up to the
+        first colon, then merge each group into a single chunk."""
+        groups: Dict[str, List[WorkflowChunk]] = {}
+        order: List[str] = []
+        for c in chunks:
+            name = c.workflow_name or ""
+            if ":" in name:
+                key = name.split(":", 1)[0].strip().lower()
+            else:
+                key = name.strip().lower()
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(c)
+
+        out: List[WorkflowChunk] = []
+        for key in order:
+            bucket = groups[key]
+            if len(bucket) == 1:
+                out.append(bucket[0])
+                continue
+
+            prefix = bucket[0].workflow_name.split(":", 1)[0].strip() if ":" in bucket[0].workflow_name else bucket[0].workflow_name.strip()
+            merged_name = f"{prefix} actions"
+            merged_chunk = self._merge_chunks(bucket, merged_name)
+            action_titles = [c.workflow_name for c in bucket]
+            print(
+                f"    [consolidate] {module_title}: merged {len(bucket)} chunks "
+                f"with prefix '{prefix}' -> '{merged_name}' "
+                f"(was: {', '.join(action_titles)})"
+            )
+            out.append(merged_chunk)
+
+        return out
+
+    def _cap_chunk_count(
+        self,
+        chunks: List[WorkflowChunk],
+        module_title: str,
+    ) -> List[WorkflowChunk]:
+        """If still > _MAX_CHUNKS_PER_MODULE, repeatedly merge the smallest
+        chunk into its nearest neighbor (by original order)."""
+        if len(chunks) <= self._MAX_CHUNKS_PER_MODULE:
+            return chunks
+
+        working = list(chunks)
+        while len(working) > self._MAX_CHUNKS_PER_MODULE:
+            sizes = [
+                len(c.related_items) + len(c.related_rules) + len(c.related_behaviors)
+                for c in working
+            ]
+            smallest_idx = min(range(len(working)), key=lambda i: sizes[i])
+
+            # Pick neighbor: prefer right neighbor, fall back to left.
+            if smallest_idx + 1 < len(working):
+                neighbor_idx = smallest_idx + 1
+            else:
+                neighbor_idx = smallest_idx - 1
+
+            left, right = sorted([smallest_idx, neighbor_idx])
+            a, b = working[left], working[right]
+            merged_name = f"{a.workflow_name} + {b.workflow_name}"
+            merged_chunk = self._merge_chunks([a, b], merged_name)
+            print(
+                f"    [consolidate] {module_title}: hit cap {self._MAX_CHUNKS_PER_MODULE}, "
+                f"merged '{a.workflow_name}' + '{b.workflow_name}'"
+            )
+            working = working[:left] + [merged_chunk] + working[right + 1:]
+
+        return working
+
+    def _merge_chunks(
+        self,
+        bucket: List[WorkflowChunk],
+        merged_name: str,
+    ) -> WorkflowChunk:
+        """Concatenate related_items/rules/behaviors, dedup by string equality,
+        preserving first-seen order."""
+        first = bucket[0]
+        items = self._dedup_preserve_order(
+            [x for c in bucket for x in c.related_items]
+        )
+        rules = self._dedup_preserve_order(
+            [x for c in bucket for x in c.related_rules]
+        )
+        behaviors = self._dedup_preserve_order(
+            [x for c in bucket for x in c.related_behaviors]
+        )
+        descriptions = [c.workflow_description for c in bucket if c.workflow_description]
+        description = " | ".join(self._dedup_preserve_order(descriptions))
+
+        return WorkflowChunk(
+            chunk_id=first.chunk_id,
+            module_id=first.module_id,
+            module_title=first.module_title,
+            workflow_name=merged_name,
+            workflow_description=description or first.workflow_description,
+            related_items=items,
+            related_rules=rules,
+            related_behaviors=behaviors,
+            project_context=first.project_context,
+        )
+
+    @staticmethod
+    def _dedup_preserve_order(seq: List[str]) -> List[str]:
+        seen = set()
+        out = []
+        for x in seq:
+            key = x.strip().lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            out.append(x)
+        return out

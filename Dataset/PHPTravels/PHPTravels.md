@@ -1,8 +1,7 @@
 # PHP Travels Functional Description
 
 ## Navigation
-
-PHP Travels is a comprehensive travel booking platform. The top navigation bar features links for Home, Hotels, Flights, Tours, Cars, Visa, Offers, Blog, and Account/Login, along with a currency selector and language selector on the right side. After successful authentication, the Login/Signup option is replaced by the user's name with a dropdown providing access to the dashboard and account management.
+PHP Travels is a comprehensive travel booking platform. When visitors arrive, they land on the home page with a top navigation bar featuring options for Home, Hotels, Flights, Tours, Cars, Visa, Offers, Blog, and Account/Login. The home page displays a prominent search widget that allows users to search for Hotels, Flights, Tours, or Cars through tabs. The right side of the navigation shows currency/language selectors and a Login/Signup option. After successful authentication, users can access their dashboard which displays booking history, profile settings, and account management options. The main navigation remains consistent across all pages, with additional contextual menus appearing based on the current section.
 
 ---
 
