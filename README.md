@@ -12,16 +12,17 @@ The project uses a LangGraph-based multi-agent pipeline and supports multiple LL
 
 ## Current Scope
 
-This repository is currently configured for **generation-only** flow:
+This repository supports both generation and verification workflows:
 
 - generate test cases from spec input,
 - export generated JSON to Markdown.
-
-Post-verification pipeline components are not part of the active architecture.
+- generate verification plans from existing test-cases.json using the main spec and optional cross-role specs.
+- export verification JSON to Markdown.
 
 ## Features
 
 - Multi-agent generation pipeline (parse, chunk, summarize, generate, assemble).
+- Multi-agent verification pipeline for creating verification steps from test cases and specifications.
 - Provider support: OpenAI, GitHub Models, OpenRouter.
 - Mixed test types: positive, negative, edge_case, standard.
 - Built-in standard quality patterns (session and RBAC) when applicable.
@@ -79,7 +80,26 @@ testwright export-md \
   --output Output/Parabank/test-cases.md
 ```
 
-### 3. Run as Module (Alternative)
+### 3. Verify Generated Test Cases
+
+```bash
+testwright verify \
+  --input Output/Parabank/test-cases.json \
+  --spec Dataset/Parabank/Parabank.md \
+  --api-key "$OPENAI_API_KEY" \
+  --provider openai \
+  --model gpt-4o
+```
+
+### 4. Export Verification JSON to Markdown
+
+```bash
+testwright export-verification-md \
+  --input Output/Parabank/verifications.json \
+  --output Output/Parabank/verifications.md
+```
+
+### 5. Run as Module (Alternative)
 
 ```bash
 python -m testwright --generate --input Dataset/Parabank/Parabank.md --api-key "$OPENAI_API_KEY"
@@ -107,6 +127,31 @@ Main options:
 
 ```bash
 testwright export-md --input <test-cases.json> [--output <output.md>]
+```
+
+If `--output` is omitted, exporter writes beside input using `.md` suffix.
+
+### Verify
+
+```bash
+testwright verify --input <test-cases.json> --spec <spec.md> --api-key <key> [options]
+```
+
+Main options:
+- `--input, -i`: path to generated test cases JSON file
+- `--spec`: path to the main functional spec markdown file
+- `--cross-role-specs`: optional extra specs for cross-role verification
+- `--api-key`: provider API key
+- `--model`: model id (default: `gpt-4o`)
+- `--provider`: `openai | github | openrouter`
+- `--output, -o`: output path for `verifications.json`
+- `--max-workers`: parallel LLM calls (default: `8`)
+- `--debug`: enable debug logging
+
+### Export Verification Markdown
+
+```bash
+testwright export-verification-md --input <verifications.json> [--output <output.md>]
 ```
 
 If `--output` is omitted, exporter writes beside input using `.md` suffix.
@@ -151,6 +196,14 @@ Rendered page/module graph. If graph libraries are unavailable, generation conti
 ### 3) `test-cases.md` (after export command)
 
 Human-readable report including summary tables and grouped test cases.
+
+### 4) `verifications.json` (after verify command)
+
+Provides generated verification plans linking test cases back to specification features. Includes cross-role steps if `--cross-role-specs` was provided.
+
+### 5) `verifications.md` (after export-verification-md)
+
+Human-readable markdown formatted version of the verification plans.
 
 ## Output Data Contracts
 
@@ -258,6 +311,8 @@ parse -> navigation -> chunker -> summary -> test_generation
   - emits conditional standard tests for session security and RBAC.
 - `assembler.py` (`AssemblerAgent`)
   - dedup, ordering, ID generation, summary creation, and final validation.
+- `verification_planner.py` (`VerificationPlannerAgent`)
+  - creates detailed test verification steps mapping to functional specs.
 - `__init__.py`
   - agent exports.
 
@@ -271,6 +326,8 @@ parse -> navigation -> chunker -> summary -> test_generation
   - node functions for each pipeline stage.
 - `state.py`
   - `PipelineState` typed schema with reducer annotations.
+- `verification_pipeline.py`
+  - orchestrates the generation of verification plans using `VerificationPlannerAgent`.
 - `__init__.py`
   - core exports.
 
@@ -294,6 +351,10 @@ parse -> navigation -> chunker -> summary -> test_generation
   - serializes `TestSuiteOutput` to JSON.
 - `markdown_exporter.py`
   - converts JSON output into grouped markdown report.
+- `verification_json_exporter.py`
+  - outputs verification plans to JSON.
+- `verification_markdown_exporter.py`
+  - formats verification JSON to a readable Markdown report.
 - `__init__.py`
   - exporter exports.
 

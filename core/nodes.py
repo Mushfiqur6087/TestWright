@@ -17,6 +17,7 @@ from testwright.agents import (
     ChunkerAgent,
     NavigationAgent,
     ParserAgent,
+    StandardPatternsAgent,
     SummaryAgent,
     TestGenerationAgent,
 )
@@ -38,7 +39,7 @@ def _agent_kwargs(state: PipelineState) -> dict:
 def parse_node(state: PipelineState) -> Dict[str, Any]:
     """Parse the raw functional description into structured data."""
     t0 = time.time()
-    print("\n[1/7] Parsing functional description...")
+    print("\n[1/8] Parsing functional description...")
 
     agent = ParserAgent(**_agent_kwargs(state))
     parsed_desc = agent.run(state["functional_desc"])
@@ -55,7 +56,7 @@ def parse_node(state: PipelineState) -> Dict[str, Any]:
 def navigation_node(state: PipelineState) -> Dict[str, Any]:
     """Build navigation graph from parsed description."""
     t0 = time.time()
-    print("\n[2/7] Building navigation graph...")
+    print("\n[2/8] Building navigation graph...")
 
     agent = NavigationAgent(**_agent_kwargs(state))
     nav_graph = agent.run(state["parsed_desc"])
@@ -69,7 +70,7 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
 def chunker_node(state: PipelineState) -> Dict[str, Any]:
     """Split modules into workflow chunks."""
     t0 = time.time()
-    print("\n[3/7] Splitting modules into workflow chunks...")
+    print("\n[3/8] Splitting modules into workflow chunks...")
 
     agent = ChunkerAgent(**_agent_kwargs(state))
     all_chunks = []
@@ -94,7 +95,7 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
 def summary_node(state: PipelineState) -> Dict[str, Any]:
     """Generate concise summaries for each module."""
     t0 = time.time()
-    print("\n[4/7] Generating module summaries...")
+    print("\n[4/8] Generating module summaries...")
 
     agent = SummaryAgent(**_agent_kwargs(state))
     module_summaries = agent.run(state["parsed_desc"].modules)
@@ -112,7 +113,7 @@ def test_generation_node(state: PipelineState) -> Dict[str, Any]:
     t0 = time.time()
     chunks = state["all_chunks"]
     max_workers = min(5, len(chunks))
-    print(f"\n[5/7] Generating test cases ({len(chunks)} chunks, {max_workers} parallel workers)...")
+    print(f"\n[5/8] Generating test cases ({len(chunks)} chunks, {max_workers} parallel workers)...")
 
     kwargs = _agent_kwargs(state)
 
@@ -150,11 +151,24 @@ def test_generation_node(state: PipelineState) -> Dict[str, Any]:
 
 
 def standard_patterns_node(state: PipelineState) -> Dict[str, Any]:
-    """Skip standard pattern generation to keep outputs focused on spec-derived tests."""
+    """Generate standard quality tests (session security + RBAC)."""
     t0 = time.time()
-    print("\n[5b] Skipping standard quality patterns...")
-    print(f"  - 0 standard pattern tests | Done in {time.time() - t0:.1f}s")
-    return {"standard_pattern_tests": []}
+    print("\n[6/8] Generating standard quality patterns...")
+
+    parsed_desc = state["parsed_desc"]
+    project_context = ProjectContext(
+        project_name=parsed_desc.project_name or "",
+        navigation_overview=parsed_desc.navigation_overview or "",
+    )
+
+    agent = StandardPatternsAgent(**_agent_kwargs(state))
+    std_tests = agent.run(
+        parsed_desc=parsed_desc,
+        nav_graph=state["nav_graph"],
+        project_context=project_context,
+    )
+    print(f"  - {len(std_tests)} standard pattern tests | Done in {time.time() - t0:.1f}s")
+    return {"standard_pattern_tests": std_tests}
 
 
 def assembler_node(state: PipelineState) -> Dict[str, Any]:
@@ -165,7 +179,7 @@ def assembler_node(state: PipelineState) -> Dict[str, Any]:
     combined = list(spec_tests) + list(std_tests)
     before = len(combined)
     print(
-        f"\n[6/7] Assembling test cases "
+        f"\n[7/8] Assembling test cases "
         f"({len(spec_tests)} spec + {len(std_tests)} standard = {before} raw)..."
     )
 
@@ -193,7 +207,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
     from testwright.exporters.json_exporter import export_json
 
     t0 = time.time()
-    print("\n[7/7] Finalizing output...")
+    print("\n[8/8] Finalizing output...")
 
     output = state["output"]
     output_dir = state["output_dir"]
@@ -234,7 +248,7 @@ def _generate_summary(test_cases) -> dict:
     """Generate summary for test case counts."""
     summary: Dict[str, Any] = {
         "total_tests": len(test_cases),
-        "by_type": {"positive": 0, "negative": 0, "edge_case": 0, "standard": 0},
+        "by_type": {"positive": 0, "negative": 0, "edge_case": 0},
         "by_priority": {"High": 0, "Medium": 0, "Low": 0},
         "by_module": {},
     }

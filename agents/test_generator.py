@@ -152,6 +152,23 @@ Similarly, if a workflow has actions that only differ by a document type or cate
 per distinct document type — but if the download mechanism is identical, a single
 consolidated test is preferred.
 
+MENU / CONTROL COMPOSITION TESTS:
+If you emit a test that asserts a menu, dropdown, or toolbar lists a specific
+set of options (e.g., "Three-dot menu lists edit, duplicate, hide, delete,
+move"), emit that test AT MOST ONCE per control — not once per action the menu
+contains. Do NOT re-verify the menu composition inside each action-specific
+test. Action-specific tests (e.g., "Edit section via three-dot menu") assume
+the menu composition is already covered by the single composition test.
+
+CROSS-WORKFLOW PRECONDITION RULE:
+Do NOT emit standalone tests that only verify a precondition of the workflow
+under test. If the workflow is "Rename section" and the spec says editing
+requires Edit mode to be enabled, the precondition "Enable Edit mode shows
+inline controls" belongs in the test's `preconditions` field, NOT as its own
+separate test case. Preconditions are stated, not retested. The one exception
+is when enabling/toggling that precondition IS the workflow itself (e.g., a
+dedicated "Toggle edit mode" workflow).
+
 FIELD / COLUMN VISIBILITY DEDUPLICATION:
 Do NOT generate multiple tests that verify the same page fields or table columns are
 displayed. If a detail page shows the same core fields (e.g., amount, date, status,

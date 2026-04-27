@@ -69,12 +69,11 @@ def generate_markdown(data: dict) -> str:
     lines.append("## Test Cases")
     lines.append("")
 
-    type_order = ["positive", "negative", "edge_case", "standard"]
+    type_order = ["positive", "negative", "edge_case"]
     type_labels = {
         "positive": "Functional Tests",
         "negative": "Negative Tests",
         "edge_case": "Edge Case Tests",
-        "standard": "Standard Quality Patterns",
     }
 
     for module_title, cases in modules.items():

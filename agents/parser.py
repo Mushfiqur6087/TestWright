@@ -164,6 +164,29 @@ Field Descriptions:
   * Navigation links to other pages are NOT workflows
   * Most pages have only 1-2 primary workflows
   * Example for login page: ["Login with credentials"] (NOT "Navigate to register")
+  * MENU / DROPDOWN / TOOLBAR CONSOLIDATION: If a single control
+    (three-dot menu, action dropdown, bulk-actions toolbar, context menu, kebab
+    menu) exposes multiple actions on the same entity kind, list it as ONE
+    workflow (e.g., "Section-level three-dot menu actions"), NOT one workflow
+    per action. The individual actions (edit, duplicate, hide, delete, move)
+    become items in `expected_behaviors` of that single workflow.
+  * HARD CEILING: Emit AT MOST 5 workflows per module. If you identify more
+    than 5, consolidate related ones by their UI surface (same menu / same
+    form / same toolbar / same modal) until you are at <= 5.
+
+  Worked example — Course Edit Mode page with three-dot menus on sections and activities:
+    WRONG (over-segmented, 10+ workflows):
+      ["Section menu: edit", "Section menu: duplicate", "Section menu: hide",
+       "Section menu: delete", "Section menu: move",
+       "Activity menu: edit settings", "Activity menu: move",
+       "Activity menu: hide", "Activity menu: delete", "Enable edit mode"]
+    CORRECT (consolidated, 3 workflows):
+      ["Toggle edit mode",
+       "Section-level three-dot menu actions",
+       "Activity-level three-dot menu actions"]
+    The individual menu actions live in expected_behaviors, e.g.:
+      "Section menu lists edit, duplicate, hide, delete, move",
+      "Clicking Edit on a section opens an inline rename field".
 
 - business_rules: Extract ALL validation rules and constraints.
   * Include required field rules (e.g., "First Name is required")

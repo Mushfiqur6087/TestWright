@@ -72,18 +72,12 @@ class ModuleSummary:
     module_id: int
     module_title: str
     summary: str
-    verification_keywords: List[str] = field(default_factory=list)
-    can_verify_states: List[str] = field(default_factory=list)
-    action_states: List[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
             "module_id": self.module_id,
             "module_title": self.module_title,
             "summary": self.summary,
-            "verification_keywords": self.verification_keywords,
-            "can_verify_states": self.can_verify_states,
-            "action_states": self.action_states,
         }
 
     @classmethod
@@ -92,9 +86,6 @@ class ModuleSummary:
             module_id=data["module_id"],
             module_title=data["module_title"],
             summary=data.get("summary", ""),
-            verification_keywords=data.get("verification_keywords", []),
-            can_verify_states=data.get("can_verify_states", []),
-            action_states=data.get("action_states", []),
         )
 
 

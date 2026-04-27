@@ -140,7 +140,7 @@ Your task is to:
         """Sort tests by module ID, priority, and test type"""
 
         priority_order = {"High": 0, "Medium": 1, "Low": 2}
-        type_order = {"positive": 0, "negative": 1, "edge_case": 2, "standard": 3}
+        type_order = {"positive": 0, "negative": 1, "edge_case": 2}
 
         return sorted(
             test_cases,
@@ -248,8 +248,7 @@ Your task is to:
             "by_type": {
                 "positive": 0,
                 "negative": 0,
-                "edge_case": 0,
-                "standard": 0
+                "edge_case": 0
             },
             "by_priority": {
                 "High": 0,
