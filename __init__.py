@@ -1,10 +1,11 @@
 """
-TestWright - AI-powered test case generation from functional specifications.
+AutoSpecTest - Automated test case generation from functional specifications
+using multi-agent orchestration.
 """
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 
-from testwright.core.generator import TestCaseGenerator
-from testwright.models.schemas import TestSuiteOutput, TestCase, NavigationGraph
+from autospectest.framework.orchestrator.generator import TestCaseGenerator
+from autospectest.framework.schemas.schemas import TestSuiteOutput, TestCase, NavigationGraph
 
 __all__ = ["TestCaseGenerator", "TestSuiteOutput", "TestCase", "NavigationGraph"]

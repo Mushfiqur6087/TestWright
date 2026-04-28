@@ -3,22 +3,26 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "testwright"
-version = "2.0.0"
+name = "autospectest"
+version = "3.0.0"
+description = "Automated test case generation from functional specifications using multi-agent orchestration."
 requires-python = ">=3.9"
 dependencies = ["langgraph", "httpx"]
 
 [project.scripts]
-testwright = "testwright.cli:main"
+autospectest = "autospectest.cli:main"
 
 [tool.setuptools]
 packages = [
-    "testwright",
-    "testwright.agents",
-    "testwright.core",
-    "testwright.models",
-    "testwright.exporters",
+    "autospectest",
+    "autospectest.framework",
+    "autospectest.framework.orchestrator",
+    "autospectest.framework.agents",
+    "autospectest.framework.extractors",
+    "autospectest.framework.schemas",
+    "autospectest.framework.verification",
+    "autospectest.exporters",
 ]
 
 [tool.setuptools.package-dir]
-testwright = "."
+autospectest = "."

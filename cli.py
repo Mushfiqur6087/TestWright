@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 """
-TestWright CLI - AI-powered test case generation from functional specifications.
+AutoSpecTest CLI - Automated test case generation from functional specifications.
 
 Usage:
-    testwright --generate --input spec.md --api-key "sk-..." --provider openai --output output/
-    testwright export-md --input output/test-cases.json --output output/test-cases.md
+    autospectest --generate --input spec.md --api-key "sk-..." --provider openai --output outputs/
+    autospectest export-md --input outputs/test-cases.json --output outputs/test-cases.md
 """
 
 import argparse
 import sys
 from pathlib import Path
 
-import testwright
-from testwright.core.generator import TestCaseGenerator
-from testwright.core.verification_pipeline import run_verification
-from testwright.exporters.markdown_exporter import generate_markdown, load_test_cases
-from testwright.exporters.verification_markdown_exporter import (
+import autospectest
+from autospectest.framework.orchestrator.generator import TestCaseGenerator
+from autospectest.framework.verification.pipeline import run_verification
+from autospectest.exporters.markdown_exporter import generate_markdown, load_test_cases
+from autospectest.exporters.verification_markdown_exporter import (
     generate_verification_markdown,
     load_verifications,
 )
@@ -23,9 +23,9 @@ from testwright.exporters.verification_markdown_exporter import (
 
 def main():
     parser = argparse.ArgumentParser(
-        description="TestWright - AI-powered test case generation from functional specifications"
+        description="AutoSpecTest - Automated test case generation from functional specifications"
     )
-    parser.add_argument("--version", action="version", version=f"testwright {testwright.__version__}")
+    parser.add_argument("--version", action="version", version=f"autospectest {autospectest.__version__}")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -108,15 +108,14 @@ def _generate(args):
 
     functional_desc = _load_from_markdown_file(md_path=input_path)
 
-    # Build output path: dataset/<website>/<website>-<model>
+    # Build output path: outputs/autospectest/<website>/<model>/
     # unless the user explicitly passed --output
     if args.output != "output":
         output_dir = args.output
     else:
         website_name = functional_desc.get("project_name", "output").replace(" ", "_")
         model_slug = args.model.replace("/", "-")
-        base_dir = str(input_path.parent)
-        output_dir = str(Path(base_dir) / f"{website_name}-{model_slug}")
+        output_dir = str(Path("outputs") / "autospectest" / website_name / model_slug)
 
     print(f"  Output directory: {output_dir}")
 

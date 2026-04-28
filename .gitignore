@@ -4,7 +4,7 @@ __pycache__/
 
 # Claude local config directory
 .claude/
-testwright.egg-info
+autospectest.egg-info
 
 # Claude instruction files
 claude.md
