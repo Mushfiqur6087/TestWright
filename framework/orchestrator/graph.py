@@ -2,7 +2,7 @@
 
 from langgraph.graph import END, StateGraph
 
-from testwright.core.nodes import (
+from autospectest.framework.orchestrator.nodes import (
     assembler_node,
     chunker_node,
     finalize_node,
@@ -12,7 +12,7 @@ from testwright.core.nodes import (
     summary_node,
     test_generation_node,
 )
-from testwright.core.state import PipelineState
+from autospectest.framework.orchestrator.state import PipelineState
 
 
 def build_graph() -> StateGraph:

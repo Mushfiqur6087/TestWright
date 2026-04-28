@@ -11,7 +11,7 @@ fan-in from parallel branches (navigation, test_generation, summary
 
 from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
-from testwright.models.schemas import (
+from autospectest.framework.schemas.schemas import (
     ModuleSummary,
     NavigationGraph,
     ParsedFunctionalDescription,

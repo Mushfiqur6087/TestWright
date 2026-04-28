@@ -4,10 +4,10 @@ import json
 import os
 from typing import Any, Dict
 
-from testwright.agents.base import BaseAgent
-from testwright.core.graph import build_graph
-from testwright.core.state import PipelineState
-from testwright.models.schemas import TestSuiteOutput
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.orchestrator.graph import build_graph
+from autospectest.framework.orchestrator.state import PipelineState
+from autospectest.framework.schemas.schemas import TestSuiteOutput
 
 
 class TestCaseGenerator:

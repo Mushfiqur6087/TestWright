@@ -12,17 +12,19 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
-from testwright.agents import (
+from autospectest.framework.agents import (
     AssemblerAgent,
-    ChunkerAgent,
     NavigationAgent,
-    ParserAgent,
     StandardPatternsAgent,
     SummaryAgent,
     TestGenerationAgent,
 )
-from testwright.core.state import PipelineState
-from testwright.models.schemas import ProjectContext
+from autospectest.framework.extractors import (
+    ChunkerAgent,
+    ParserAgent,
+)
+from autospectest.framework.orchestrator.state import PipelineState
+from autospectest.framework.schemas.schemas import ProjectContext
 
 
 def _agent_kwargs(state: PipelineState) -> dict:
@@ -204,7 +206,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
     """Generate summary, graph image, validate, and export JSON."""
     import os
 
-    from testwright.exporters.json_exporter import export_json
+    from autospectest.exporters.json_exporter import export_json
 
     t0 = time.time()
     print("\n[8/8] Finalizing output...")
