@@ -2,7 +2,7 @@
 
 import json
 
-from testwright.models.schemas import TestSuiteOutput
+from autospectest.framework.schemas.schemas import TestSuiteOutput
 
 
 def export_json(output: TestSuiteOutput, file_path: str) -> str:

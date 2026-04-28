@@ -2,7 +2,7 @@
 
 import json
 
-from testwright.models.schemas import VerificationSuiteOutput
+from autospectest.framework.schemas.schemas import VerificationSuiteOutput
 
 
 def export_verification_json(output: VerificationSuiteOutput, file_path: str) -> str:
