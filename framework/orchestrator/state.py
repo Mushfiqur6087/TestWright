@@ -30,6 +30,21 @@ def _last_value(old, new):
     return new if new is not None else old
 
 
+def _extend(old, new):
+    """Reducer: concatenate lists across parallel fan-in branches.
+
+    Used for ``all_tests``: each Send-API worker emits its per-chunk test list
+    and the reducer accumulates them into the final ordered list. Tolerates
+    None on either side so the field can stay unset until the first worker
+    writes to it.
+    """
+    if old is None:
+        old = []
+    if new is None:
+        return old
+    return list(old) + list(new)
+
+
 class PipelineState(TypedDict, total=False):
     """
     Shared state flowing through the LangGraph pipeline.
@@ -48,7 +63,6 @@ class PipelineState(TypedDict, total=False):
     # -- Config ---------------------------------------------------------------
     api_key: Annotated[str, _last_value]
     model: Annotated[str, _last_value]
-    provider: Annotated[str, _last_value]
     debug: Annotated[bool, _last_value]
     debug_file: Annotated[str, _last_value]
     output_dir: Annotated[str, _last_value]
@@ -66,7 +80,12 @@ class PipelineState(TypedDict, total=False):
     module_summaries: Annotated[Dict[int, ModuleSummary], _last_value]
 
     # -- Step 5: Test Generation ----------------------------------------------
-    all_tests: Annotated[List[TestCase], _last_value]
+    # Per-chunk payload for Send-API fan-out workers. Each worker reads exactly
+    # one chunk via this field; the reducer keeps the latest write because each
+    # branch sets it once with its own value.
+    current_chunk: Annotated[Optional[WorkflowChunk], _last_value]
+    # Workers concatenate their results here via the additive reducer.
+    all_tests: Annotated[List[TestCase], _extend]
 
     # -- Step 5b: Standard Patterns (session + RBAC) --------------------------
     standard_pattern_tests: Annotated[List[TestCase], _last_value]

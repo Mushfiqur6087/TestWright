@@ -3,16 +3,28 @@
 AutoSpecTest CLI - Automated test case generation from functional specifications.
 
 Usage:
-    autospectest --generate --input spec.md --api-key "sk-..." --provider openai --output outputs/
+    autospectest --generate --input spec.md --api-key "sk-..." --model openai/gpt-4o --output outputs/
     autospectest export-md --input outputs/test-cases.json --output outputs/test-cases.md
+
+Model strings follow LiteLLM convention (provider prefix is required):
+    openai/gpt-4o, openrouter/anthropic/claude-3.5-sonnet, github/gpt-4o, ...
 """
 
 import argparse
+import asyncio
 import sys
 from pathlib import Path
+from typing import Optional
 
 import autospectest
+from autospectest.framework.agents.base import set_max_concurrency
 from autospectest.framework.orchestrator.generator import TestCaseGenerator
+from autospectest.framework.orchestrator.runs import (
+    make_run_id,
+    make_run_metadata,
+    read_sidecar,
+    write_sidecar,
+)
 from autospectest.framework.verification.pipeline import run_verification
 from autospectest.exporters.markdown_exporter import generate_markdown, load_test_cases
 from autospectest.exporters.verification_markdown_exporter import (
@@ -33,10 +45,25 @@ def main():
     parser.add_argument("--generate", action="store_true", help="Generate test cases")
     parser.add_argument("--input", "-i", help="Path to functional specification markdown file")
     parser.add_argument("--api-key", help="API key for LLM provider")
-    parser.add_argument("--model", default="gpt-4o", help="Model to use (default: gpt-4o)")
-    parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"],
-                       help="LLM provider (default: openai)")
+    parser.add_argument(
+        "--model",
+        default="openai/gpt-4o",
+        help="LiteLLM model string with provider prefix (default: openai/gpt-4o). "
+             "Examples: openai/gpt-4o, openrouter/anthropic/claude-3.5-sonnet, github/gpt-4o.",
+    )
     parser.add_argument("--output", "-o", default="output", help="Output directory (default: output)")
+    parser.add_argument(
+        "--resume",
+        metavar="RUN_ID",
+        help="Resume a previous generation run by id. Reads --input/--model/--output "
+             "from the sidecar; --api-key is still required.",
+    )
+    parser.add_argument(
+        "--max-concurrency",
+        type=int,
+        default=10,
+        help="Max concurrent in-flight LLM calls during Send-API fan-out (default: 10).",
+    )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
     # Export markdown subcommand
@@ -58,8 +85,11 @@ def main():
         help="Optional extra spec files for cross-role verification (e.g. MoodleStudent.md)",
     )
     verify_parser.add_argument("--api-key", required=True, help="API key for LLM provider")
-    verify_parser.add_argument("--provider", default="openai", choices=["openai", "github", "openrouter"])
-    verify_parser.add_argument("--model", default="gpt-4o")
+    verify_parser.add_argument(
+        "--model",
+        default="openai/gpt-4o",
+        help="LiteLLM model string with provider prefix (default: openai/gpt-4o).",
+    )
     verify_parser.add_argument("--output", "-o", help="Output path for verifications.json")
     verify_parser.add_argument("--max-workers", type=int, default=8, help="Parallel LLM calls (default: 8)")
     verify_parser.add_argument("--debug", action="store_true", help="Enable debug logging")
@@ -81,24 +111,61 @@ def main():
         return _verify(args)
     elif args.command == "export-verification-md":
         return _export_verification_markdown(args)
-    elif args.generate:
+    elif args.generate or args.resume:
         return _generate(args)
     else:
         parser.print_help()
         return 1
 
 
+def _validate_model_string(model: str) -> Optional[str]:
+    """Return an error message if the model string is missing a provider prefix."""
+    if "/" in model:
+        return None
+    return (
+        f"Error: --model '{model}' is missing a provider prefix. "
+        f"AutoSpecTest uses LiteLLM model strings, e.g.:\n"
+        f"  --model openai/gpt-4o\n"
+        f"  --model openrouter/anthropic/claude-3.5-sonnet\n"
+        f"  --model github/gpt-4o"
+    )
+
+
 def _generate(args):
-    """Run the test case generation pipeline."""
+    """Run the test case generation pipeline (fresh or resumed)."""
     if not args.api_key:
         print("Error: --api-key is required for generation")
         return 1
 
-    if not args.input:
-        print("Error: --input is required for generation")
-        return 1
+    if args.resume:
+        try:
+            metadata = read_sidecar(args.resume)
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            return 1
+        input_path = Path(metadata.input_path)
+        model = metadata.model
+        output_dir = metadata.output_dir
+        run_id = metadata.run_id
+        resume = True
+        print(f"Resuming run {run_id}")
+        print(f"  Input:  {input_path}")
+        print(f"  Model:  {model}")
+        print(f"  Output: {output_dir}")
+    else:
+        if not args.input:
+            print("Error: --input is required for generation")
+            return 1
+        model_err = _validate_model_string(args.model)
+        if model_err:
+            print(model_err)
+            return 1
+        input_path = Path(args.input)
+        model = args.model
+        run_id = None  # filled after we have the parsed project name
+        resume = False
+        output_dir = None  # filled below
 
-    input_path = Path(args.input)
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}")
         return 1
@@ -108,26 +175,44 @@ def _generate(args):
 
     functional_desc = _load_from_markdown_file(md_path=input_path)
 
-    # Build output path: outputs/autospectest/<website>/<model>/
-    # unless the user explicitly passed --output
-    if args.output != "output":
-        output_dir = args.output
-    else:
-        website_name = functional_desc.get("project_name", "output").replace(" ", "_")
-        model_slug = args.model.replace("/", "-")
-        output_dir = str(Path("outputs") / "autospectest" / website_name / model_slug)
+    if not resume:
+        if args.output != "output":
+            output_dir = args.output
+        else:
+            website_name = functional_desc.get("project_name", "output").replace(" ", "_")
+            model_slug = model.replace("/", "-")
+            output_dir = str(Path("outputs") / "autospectest" / website_name / model_slug)
 
-    print(f"  Output directory: {output_dir}")
+        run_id = make_run_id(functional_desc.get("project_name", "run"))
+        sidecar = write_sidecar(make_run_metadata(
+            run_id=run_id,
+            input_path=str(input_path),
+            model=model,
+            output_dir=output_dir,
+        ))
+        print(f"run_id: {run_id}")
+        print(f"  Sidecar: {sidecar}")
+        print(f"  Output directory: {output_dir}")
+        print(f"  (use `--resume {run_id}` to continue this run if it is interrupted)")
+
+    set_max_concurrency(args.max_concurrency)
 
     generator = TestCaseGenerator(
         api_key=args.api_key,
-        model=args.model,
-        provider=args.provider,
+        model=model,
         debug=args.debug,
         debug_file=args.debug_file,
+        run_id=run_id,
     )
 
-    output = generator.generate(functional_desc, output_dir=output_dir)
+    try:
+        output = asyncio.run(generator.generate(
+            functional_desc,
+            output_dir=output_dir,
+            resume=resume,
+        ))
+    finally:
+        generator.close()
 
     print(f"\nGeneration complete!")
     print(f"  Total tests: {output.summary.get('total_tests', 0)}")
@@ -229,13 +314,17 @@ def _verify(args):
         print(f"Error: Spec file not found: {spec_path}")
         return 1
 
+    model_err = _validate_model_string(args.model)
+    if model_err:
+        print(model_err)
+        return 1
+
     try:
         run_verification(
             test_cases_json_path=str(input_path),
             spec_path=str(spec_path),
             api_key=args.api_key,
             model=args.model,
-            provider=args.provider,
             output_path=args.output,
             cross_role_spec_paths=args.cross_role_specs,
             max_workers=args.max_workers,

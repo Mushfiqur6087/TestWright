@@ -10,3 +10,6 @@ autospectest.egg-info
 claude.md
 CLAUDE.md
 .venv/
+
+# AutoSpecTest run checkpoints (sqlite + per-run sidecars)
+outputs/.checkpoints/

@@ -9,7 +9,6 @@ Each node:
 """
 
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
 from autospectest.framework.agents import (
@@ -32,7 +31,6 @@ def _agent_kwargs(state: PipelineState) -> dict:
     return dict(
         api_key=state["api_key"],
         model=state["model"],
-        provider=state["provider"],
         debug=state["debug"],
         debug_file=state["debug_file"],
     )
@@ -110,46 +108,44 @@ def summary_node(state: PipelineState) -> Dict[str, Any]:
     return {"module_summaries": module_summaries}
 
 
-def test_generation_node(state: PipelineState) -> Dict[str, Any]:
-    """Generate test cases for workflow chunks in parallel."""
-    t0 = time.time()
-    chunks = state["all_chunks"]
-    max_workers = min(5, len(chunks))
-    print(f"\n[5/8] Generating test cases ({len(chunks)} chunks, {max_workers} parallel workers)...")
+async def test_generation_worker_node(state: PipelineState) -> Dict[str, Any]:
+    """Generate test cases for a SINGLE workflow chunk.
 
-    kwargs = _agent_kwargs(state)
+    This node is the target of a Send-API conditional edge: one worker
+    instance is fanned out per chunk and they run concurrently in the
+    asyncio event loop. Each worker reads its assigned chunk from
+    ``state["current_chunk"]`` and returns its result list under
+    ``all_tests``, where the additive reducer concatenates across workers.
+    """
+    chunk = state["current_chunk"]
+    if chunk is None:
+        return {"all_tests": []}
 
-    def _generate(chunk, idx):
-        ct0 = time.time()
-        print(f"  - [{idx + 1}/{len(chunks)}] Starting: {chunk.module_title} / {chunk.workflow_name}")
-        agent = TestGenerationAgent(**kwargs)
-        tests = agent.run(chunk)
-        print(
-            f"  - [{idx + 1}/{len(chunks)}] Done: {chunk.module_title} / {chunk.workflow_name} "
-            f"-> {len(tests)} tests in {time.time() - ct0:.1f}s"
-        )
-        return tests
+    ct0 = time.time()
+    print(f"  - worker start: {chunk.module_title} / {chunk.workflow_name}")
+    agent = TestGenerationAgent(**_agent_kwargs(state))
+    try:
+        tests = await agent.arun(chunk)
+    except Exception as err:
+        print(f"  !! worker failed for {chunk.workflow_name}: {err}")
+        tests = []
+    print(
+        f"  - worker done:  {chunk.module_title} / {chunk.workflow_name} "
+        f"-> {len(tests)} tests in {time.time() - ct0:.1f}s"
+    )
+    return {"all_tests": tests}
 
-    results: Dict[int, List] = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_index = {
-            executor.submit(_generate, chunk, i): i
-            for i, chunk in enumerate(chunks)
-        }
-        for future in as_completed(future_to_index):
-            idx = future_to_index[future]
-            try:
-                results[idx] = future.result()
-            except Exception as err:
-                print(f"  !! Chunk [{idx + 1}/{len(chunks)}] failed: {err}")
-                results[idx] = []
 
-    all_tests = []
-    for idx in range(len(chunks)):
-        all_tests.extend(results.get(idx, []))
+def test_generation_announce_node(state: PipelineState) -> Dict[str, Any]:
+    """Trivial pass-through that prints a banner before the Send fan-out.
 
-    print(f"  Total: {len(all_tests)} test cases | Done in {time.time() - t0:.1f}s")
-    return {"all_tests": all_tests}
+    LangGraph requires a node from which a conditional edge originates;
+    putting the print here keeps the user-visible progress log intact
+    without coupling it to the summary node.
+    """
+    chunks = state.get("all_chunks") or []
+    print(f"\n[5/8] Generating test cases ({len(chunks)} chunks, fanned out via Send API)...")
+    return {}
 
 
 def standard_patterns_node(state: PipelineState) -> Dict[str, Any]:

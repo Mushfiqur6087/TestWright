@@ -28,8 +28,7 @@ def run_verification(
     test_cases_json_path: str,
     spec_path: str,
     api_key: str,
-    model: str = "gpt-4o",
-    provider: str = "openai",
+    model: str = "openai/gpt-4o",
     output_path: Optional[str] = None,
     cross_role_spec_paths: Optional[List[str]] = None,
     max_workers: int = 8,
@@ -80,7 +79,6 @@ def run_verification(
     agent = VerificationPlannerAgent(
         api_key=api_key,
         model=model,
-        provider=provider,
         debug=debug,
         debug_file=debug_file,
     )
