@@ -1,4 +1,6 @@
-from .schemas import (
+"""Typed dataclasses, TypedDicts, and enums shared across the framework."""
+
+from autospectest.framework.schemas.schemas import (
     ParsedModule,
     ParsedFunctionalDescription,
     WorkflowChunk,
@@ -9,7 +11,7 @@ from .schemas import (
     ProjectContext,
     TestSuiteOutput,
 )
-from .enums import (
+from autospectest.framework.schemas.enums import (
     TestType,
     Priority,
 )
