@@ -109,8 +109,8 @@ class BaseAgent(ABC):
 
         # Add OpenRouter-specific headers
         if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://testwright.dev"
-            headers["X-Title"] = "TestWright"
+            headers["HTTP-Referer"] = "https://github.com/AutoSpecTest"
+            headers["X-Title"] = "AutoSpecTest"
 
         # o-series and gpt-5 models use max_completion_tokens instead of max_tokens
         _uses_completion_tokens = (

@@ -13,8 +13,8 @@ All tests use test_type "positive" or "negative" — there is no "standard" type
 
 from typing import List, Optional
 
-from testwright.agents.base import BaseAgent
-from testwright.models.schemas import (
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.schemas.schemas import (
     NavigationGraph,
     ParsedFunctionalDescription,
     ProjectContext,

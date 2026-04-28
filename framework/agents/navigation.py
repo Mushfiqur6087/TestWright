@@ -1,8 +1,8 @@
 from typing import List, Optional
 import os
 
-from testwright.agents.base import BaseAgent
-from testwright.models.schemas import (
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.schemas.schemas import (
     ParsedFunctionalDescription,
     ParsedModule,
     NavigationGraph,

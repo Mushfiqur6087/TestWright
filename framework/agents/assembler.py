@@ -3,8 +3,8 @@ import re
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from testwright.agents.base import BaseAgent
-from testwright.models.schemas import (
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.schemas.schemas import (
     TestCase,
     TestSuiteOutput,
     NavigationGraph

@@ -1,7 +1,7 @@
 from typing import List
 
-from testwright.agents.base import BaseAgent
-from testwright.models.schemas import WorkflowChunk, TestCase
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.schemas.schemas import WorkflowChunk, TestCase
 
 
 class TestGenerationAgent(BaseAgent):

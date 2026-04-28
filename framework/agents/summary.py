@@ -1,7 +1,7 @@
 from typing import Dict, List
 
-from testwright.agents.base import BaseAgent
-from testwright.models.schemas import ParsedModule, ModuleSummary
+from autospectest.framework.agents.base import BaseAgent
+from autospectest.framework.schemas.schemas import ParsedModule, ModuleSummary
 
 
 class SummaryAgent(BaseAgent):
