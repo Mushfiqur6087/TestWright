@@ -1,13 +1,51 @@
+import asyncio
 import json
 import time
-import httpx # type: ignore
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional
 from datetime import datetime
 
+import litellm  # type: ignore
+
+
+# Strip provider-incompatible params silently (e.g. temperature on o-series,
+# unsupported response_format dialects). LiteLLM handles per-model normalisation.
+litellm.drop_params = True
+
+
+# Module-level concurrency throttle for async LLM calls. Sized by
+# ``set_max_concurrency`` (defaults to 10) so a 30-chunk Send fan-out doesn't
+# blow past provider rate limits. Built lazily so we don't bind to an event
+# loop at import time.
+_LLM_SEMAPHORE: Optional[asyncio.Semaphore] = None
+_LLM_SEMAPHORE_LIMIT: int = 10
+
+
+def set_max_concurrency(limit: int) -> None:
+    """Set the maximum number of concurrent in-flight async LLM calls."""
+    global _LLM_SEMAPHORE_LIMIT, _LLM_SEMAPHORE
+    if limit < 1:
+        raise ValueError("max concurrency must be >= 1")
+    _LLM_SEMAPHORE_LIMIT = limit
+    _LLM_SEMAPHORE = None  # re-create on next acquire
+
+
+def _get_llm_semaphore() -> asyncio.Semaphore:
+    global _LLM_SEMAPHORE
+    if _LLM_SEMAPHORE is None:
+        _LLM_SEMAPHORE = asyncio.Semaphore(_LLM_SEMAPHORE_LIMIT)
+    return _LLM_SEMAPHORE
+
 
 class BaseAgent(ABC):
-    """Base class for all agents with OpenAI/OpenRouter integration and debug logging"""
+    """Base class for all agents. Uses LiteLLM for unified provider routing.
+
+    Model strings follow LiteLLM convention:
+        - openai/gpt-4o
+        - openrouter/anthropic/claude-3.5-sonnet
+        - github/gpt-4o
+        - anthropic/claude-3-5-sonnet-20241022
+    """
 
     # Class-level tracking to avoid duplicate logging
     _debug_initialized = False
@@ -16,27 +54,15 @@ class BaseAgent(ABC):
     def __init__(
         self,
         api_key: str,
-        model: str = "gpt-4o",
-        provider: str = "openai",
+        model: str,
         debug: bool = False,
         debug_file: str = "debug_log.txt",
     ):
         self.api_key = api_key
         self.model = model
-        self.provider = provider.lower()
         self.debug = debug
         self.debug_file = debug_file
-
-        # Set base URL based on provider
-        if self.provider == "openai":
-            self.base_url = "https://api.openai.com/v1"
-        elif self.provider == "github":
-            self.base_url = "https://models.inference.ai.azure.com"
-        else:  # openrouter
-            self.base_url = "https://openrouter.ai/api/v1"
-
-        self.client = httpx.Client(timeout=120.0)
-        self._system_prompt_logged = False  # Track if this agent's system prompt was logged
+        self._system_prompt_logged = False
 
     @classmethod
     def reset_debug_state(cls):
@@ -84,6 +110,71 @@ class BaseAgent(ABC):
     def _ts() -> str:
         return datetime.now().strftime("%H:%M:%S")
 
+    def _extra_headers(self) -> Optional[Dict[str, str]]:
+        """OpenRouter is polite about attribution headers; pass them through."""
+        if self.model.startswith("openrouter/"):
+            return {
+                "HTTP-Referer": "https://github.com/AutoSpecTest",
+                "X-Title": "AutoSpecTest",
+            }
+        return None
+
+    def _build_completion_kwargs(
+        self,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+        response_format: Optional[Dict],
+    ) -> Dict[str, Any]:
+        """Assemble the kwargs dict shared by sync and async LiteLLM calls."""
+        kwargs: Dict[str, Any] = {
+            "model": self.model,
+            "api_key": self.api_key,
+            "messages": [
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "timeout": 120,
+            "num_retries": 2,
+        }
+        if response_format:
+            kwargs["response_format"] = response_format
+        extra_headers = self._extra_headers()
+        if extra_headers:
+            kwargs["extra_headers"] = extra_headers
+        return kwargs
+
+    def _log_response(self, response: Any, elapsed: float) -> str:
+        """Extract content + log token usage. Shared by sync and async paths."""
+        content = response.choices[0].message.content
+        usage = getattr(response, "usage", None) or {}
+        if hasattr(usage, "get"):
+            prompt_tokens = usage.get("prompt_tokens", "?")
+            completion_tokens = usage.get("completion_tokens", "?")
+            total_tokens = usage.get("total_tokens", "?")
+        else:
+            prompt_tokens = getattr(usage, "prompt_tokens", "?")
+            completion_tokens = getattr(usage, "completion_tokens", "?")
+            total_tokens = getattr(usage, "total_tokens", "?")
+        print(
+            f"    [{self._ts()}] << {self.name} | "
+            f"response in {elapsed:.1f}s | "
+            f"tokens: {prompt_tokens}+{completion_tokens}={total_tokens}"
+        )
+        if self.debug:
+            self._log_debug("LLM RESPONSE", content)
+        return content
+
+    def _log_request(self, user_prompt: str) -> None:
+        if self.debug:
+            if not self._system_prompt_logged:
+                self._log_debug("SYSTEM PROMPT", self.system_prompt)
+                self._system_prompt_logged = True
+            self._log_debug("USER PROMPT", user_prompt)
+        print(f"    [{self._ts()}] >> {self.name} | sending request (~{len(user_prompt)} chars)")
+
     def call_llm(
         self,
         user_prompt: str,
@@ -91,89 +182,43 @@ class BaseAgent(ABC):
         max_tokens: int = 4096,
         response_format: Optional[Dict] = None
     ) -> str:
-        """Call OpenAI or OpenRouter API with the given prompt"""
-
-        # Log input if debug enabled
-        if self.debug:
-            # Only log system prompt once per agent to avoid redundancy
-            if not self._system_prompt_logged:
-                self._log_debug("SYSTEM PROMPT", self.system_prompt)
-                self._system_prompt_logged = True
-            self._log_debug("USER PROMPT", user_prompt)
-
-        # Build headers based on provider
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
-
-        # Add OpenRouter-specific headers
-        if self.provider == "openrouter":
-            headers["HTTP-Referer"] = "https://github.com/AutoSpecTest"
-            headers["X-Title"] = "AutoSpecTest"
-
-        # o-series and gpt-5 models use max_completion_tokens instead of max_tokens
-        _uses_completion_tokens = (
-            self.model.startswith("o1") or
-            self.model.startswith("o3") or
-            self.model.startswith("o4") or
-            self.model.startswith("gpt-5")
-        )
-        _tokens_key = "max_completion_tokens" if _uses_completion_tokens else "max_tokens"
-
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            _tokens_key: max_tokens
-        }
-
-        # o-series and gpt-5 models only support default temperature (1)
-        if not _uses_completion_tokens:
-            payload["temperature"] = temperature
-
-        if response_format:
-            payload["response_format"] = response_format
-
-        print(f"    [{self._ts()}] >> {self.name} | sending request (~{len(user_prompt)} chars)")
+        """Call the LLM synchronously via LiteLLM and return response content."""
+        self._log_request(user_prompt)
         t0 = time.time()
-
-        response = self.client.post(
-            f"{self.base_url}/chat/completions",
-            headers=headers,
-            json=payload
-        )
-
-        elapsed = time.time() - t0
-
-        if response.status_code != 200:
-            provider_name = self.provider.upper()
-            error_msg = f"{provider_name} API error: {response.status_code} - {response.text}"
-            print(f"    [{self._ts()}] !! {self.name} | HTTP {response.status_code} error after {elapsed:.1f}s")
+        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format)
+        try:
+            response = litellm.completion(**kwargs)
+        except Exception as err:
+            elapsed = time.time() - t0
+            msg = f"LiteLLM error ({type(err).__name__}): {err}"
+            print(f"    [{self._ts()}] !! {self.name} | {msg} after {elapsed:.1f}s")
             if self.debug:
-                self._log_debug("ERROR", error_msg)
-            raise Exception(error_msg)
+                self._log_debug("ERROR", msg)
+            raise
+        return self._log_response(response, time.time() - t0)
 
-        result = response.json()
-        response_content = result["choices"][0]["message"]["content"]
-
-        usage = result.get("usage", {})
-        prompt_tokens = usage.get("prompt_tokens", "?")
-        completion_tokens = usage.get("completion_tokens", "?")
-        total_tokens = usage.get("total_tokens", "?")
-        print(
-            f"    [{self._ts()}] << {self.name} | "
-            f"response in {elapsed:.1f}s | "
-            f"tokens: {prompt_tokens}+{completion_tokens}={total_tokens}"
-        )
-
-        # Log output if debug enabled
-        if self.debug:
-            self._log_debug("LLM RESPONSE", response_content)
-
-        return response_content
+    async def acall_llm(
+        self,
+        user_prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        response_format: Optional[Dict] = None
+    ) -> str:
+        """Call the LLM asynchronously via LiteLLM, throttled by the module semaphore."""
+        self._log_request(user_prompt)
+        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format)
+        async with _get_llm_semaphore():
+            t0 = time.time()
+            try:
+                response = await litellm.acompletion(**kwargs)
+            except Exception as err:
+                elapsed = time.time() - t0
+                msg = f"LiteLLM error ({type(err).__name__}): {err}"
+                print(f"    [{self._ts()}] !! {self.name} | {msg} after {elapsed:.1f}s")
+                if self.debug:
+                    self._log_debug("ERROR", msg)
+                raise
+            return self._log_response(response, time.time() - t0)
 
     def call_llm_json(
         self,
@@ -183,7 +228,6 @@ class BaseAgent(ABC):
         max_retries: int = 2
     ) -> Dict[str, Any]:
         """Call LLM and parse response as JSON with retry on parse errors"""
-        # Add instruction to return JSON
         json_prompt = f"{user_prompt}\n\nIMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON."
         use_json_response_format = True
 
@@ -197,7 +241,6 @@ class BaseAgent(ABC):
                     response_format={"type": "json_object"} if use_json_response_format else None,
                 )
 
-                # Clean up response - remove markdown code blocks if present
                 response = response.strip()
                 if response.startswith("```json"):
                     response = response[7:]
@@ -222,7 +265,6 @@ class BaseAgent(ABC):
                     print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}), retrying...")
                     json_prompt = f"{user_prompt}\n\nIMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting."
                 else:
-                    # Last attempt failed
                     error_msg = f"Failed to parse LLM response as JSON after {max_retries + 1} attempts: {last_error}\nResponse: {response}"
                     if self.debug:
                         self._log_debug("JSON PARSE ERROR - FINAL", error_msg)
@@ -240,11 +282,64 @@ class BaseAgent(ABC):
         # Should never reach here
         raise Exception(f"Failed to parse JSON after {max_retries + 1} attempts")
 
+    async def acall_llm_json(
+        self,
+        user_prompt: str,
+        temperature: float = 0.3,
+        max_tokens: int = 1500,
+        max_retries: int = 2
+    ) -> Dict[str, Any]:
+        """Async counterpart of ``call_llm_json`` for use inside Send-API workers."""
+        json_prompt = f"{user_prompt}\n\nIMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON."
+        use_json_response_format = True
+
+        last_error = None
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self.acall_llm(
+                    user_prompt=json_prompt,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format={"type": "json_object"} if use_json_response_format else None,
+                )
+                response = response.strip()
+                if response.startswith("```json"):
+                    response = response[7:]
+                elif response.startswith("```"):
+                    response = response[3:]
+                if response.endswith("```"):
+                    response = response[:-3]
+                response = response.strip()
+                parsed = json.loads(response)
+                if self.debug:
+                    self._log_debug("PARSED JSON", json.dumps(parsed, indent=2))
+                return parsed
+
+            except json.JSONDecodeError as e:
+                last_error = e
+                error_msg = f"Failed to parse LLM response as JSON (attempt {attempt + 1}/{max_retries + 1}): {e}"
+                if self.debug:
+                    self._log_debug("JSON PARSE ERROR", f"{error_msg}\nResponse: {response[:500]}...")
+                if attempt < max_retries:
+                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                    json_prompt = f"{user_prompt}\n\nIMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting."
+                else:
+                    error_msg = f"Failed to parse LLM response as JSON after {max_retries + 1} attempts: {last_error}\nResponse: {response}"
+                    if self.debug:
+                        self._log_debug("JSON PARSE ERROR - FINAL", error_msg)
+                    raise Exception(error_msg)
+
+            except Exception as e:
+                if use_json_response_format and "response_format" in str(e).lower():
+                    use_json_response_format = False
+                    if attempt < max_retries:
+                        print(f"    [{self._ts()}] ~~ {self.name} | response_format unsupported, retrying without it...")
+                        continue
+                raise
+
+        raise Exception(f"Failed to parse JSON after {max_retries + 1} attempts")
+
     @abstractmethod
     def run(self, *args, **kwargs) -> Any:
         """Execute the agent's main task"""
         pass
-
-    def __del__(self):
-        if hasattr(self, 'client'):
-            self.client.close()

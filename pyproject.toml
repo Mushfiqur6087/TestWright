@@ -7,7 +7,7 @@ name = "autospectest"
 version = "3.0.0"
 description = "Automated test case generation from functional specifications using multi-agent orchestration."
 requires-python = ">=3.9"
-dependencies = ["langgraph", "httpx"]
+dependencies = ["langgraph", "langgraph-checkpoint-sqlite", "aiosqlite", "litellm>=1.50"]
 
 [project.scripts]
 autospectest = "autospectest.cli:main"
