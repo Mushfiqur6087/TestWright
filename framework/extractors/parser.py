@@ -20,24 +20,23 @@ class ParserAgent(BaseAgent):
         return """You are an expert software test analyst specializing in parsing functional descriptions for test case generation.
 
 CRITICAL RULES:
-1. Extract ONLY what is explicitly mentioned in the functional description
-2. DO NOT infer, assume, or add information not present in the text
-3. DO NOT specify UI element types (button/input/dropdown) - just extract names as written
-4. Use the EXACT wording from the description whenever possible
+1. Extract ONLY what is explicitly mentioned in the functional description.
+2. DO NOT infer, assume, or add information not present in the text.
+3. DO NOT specify UI element types (button/input/dropdown) - just extract names as written.
+4. Use the EXACT wording from the description whenever possible.
+5. EXPLICIT LINGUISTIC LINKING: Because you are outputting flat arrays, every business rule and behavior MUST explicitly include the exact name of the item it governs so downstream systems can map them together.
 
 Your task is to analyze functional descriptions and extract:
 
-1. Mentioned Items: Fields, buttons, links, and interactive elements mentioned
-2. Workflows: User actions that involve form submission or data processing on THIS page
-   - A workflow is an action that COMPLETES on this page (e.g., "Login with credentials")
-   - Navigation links to OTHER pages are NOT workflows for this page
-3. Business Rules: Validation rules, constraints, and business logic stated
-4. Expected Behaviors: What happens on success or failure
+1. Mentioned Items: Fields, buttons, links, and interactive elements mentioned.
+2. Workflows: User actions that involve form submission or data processing on THIS page.
+3. Business Rules: Validation rules, constraints, and business logic stated.
+4. Expected Behaviors: What happens on success or failure.
 
 WORKFLOW GUIDANCE:
-- Focus on actions that complete on THIS page with a testable outcome
-- Links to other pages (Register, Forgot Password) are navigation elements, not workflows
-- If a page has multiple forms, each form's submission is a separate workflow"""
+- Focus on actions that complete on THIS page with a testable outcome.
+- Links to other pages (Register, Forgot Password) are navigation elements, not workflows.
+- If a page has multiple forms, each form's submission is a separate workflow."""
 
     def run(self, functional_desc: Dict[str, Any]) -> ParsedFunctionalDescription:
         """Parse the functional description JSON and extract structured data"""
@@ -56,78 +55,12 @@ WORKFLOW GUIDANCE:
             parsed_module = self._parse_module(module)
             parsed_modules.append(parsed_module)
 
-        system_constraints = self._extract_system_constraints(
-            project_name, navigation_overview, raw_modules
-        )
-
         return ParsedFunctionalDescription(
             project_name=project_name,
             base_url=base_url,
             navigation_overview=navigation_overview,
             modules=parsed_modules,
-            system_constraints=system_constraints
         )
-
-    def _extract_system_constraints(
-        self,
-        project_name: str,
-        navigation_overview: str,
-        raw_modules: list
-    ) -> list:
-        """Extract sentences describing what the system explicitly does NOT do,
-        or mock/sandbox limitations. Returns [] if none found."""
-
-        module_blobs = []
-        for m in raw_modules:
-            title = m.get("title", "")
-            desc = m.get("description", "")
-            if desc:
-                module_blobs.append(f"[{title}]\n{desc}")
-
-        combined_text = "\n\n".join(filter(None, [
-            f"PROJECT: {project_name}",
-            f"NAVIGATION OVERVIEW:\n{navigation_overview}" if navigation_overview else "",
-            "MODULES:\n" + "\n\n".join(module_blobs) if module_blobs else "",
-        ]))
-
-        prompt = f"""Extract system constraints from the functional description below.
-
-A system constraint is a short standalone sentence describing something the
-system explicitly does NOT do, or a mock/sandbox limitation.
-
-Capture sentences like:
-- "no actual balance debits occur"
-- "emails are simulated, not sent"
-- "this is a demo system; data resets nightly"
-- "deletion is soft-delete only; records remain queryable"
-- "payments are not actually processed"
-
-Look both for explicit negations ("does not", "no actual", "never") and for
-clear sandbox/mock/demo disclaimers.
-
-IMPORTANT:
-- Return ONLY constraints that have a textual basis in the description below.
-- Do NOT invent constraints.
-- Return [] if the description only describes what the system DOES.
-
-Return a JSON object:
-{{
-    "system_constraints": ["constraint1", "constraint2", ...]
-}}
-
-FUNCTIONAL DESCRIPTION:
-{combined_text}
-"""
-
-        try:
-            result = self.call_llm_json(prompt, max_tokens=2000)
-            constraints = result.get("system_constraints", [])
-            if not isinstance(constraints, list):
-                return []
-            return [str(c).strip() for c in constraints if c and str(c).strip()]
-        except Exception as e:
-            print(f"Warning: system_constraints extraction failed: {e}")
-            return []
 
     def _parse_module(self, module: Dict[str, Any]) -> ParsedModule:
         """Parse a single module using LLM to extract details"""
@@ -155,16 +88,14 @@ Return a JSON object with these fields:
 Field Descriptions:
 
 - mentioned_items: Extract ALL individual form fields, buttons, and interactive elements as SEPARATE items.
-  * List EACH field separately (not grouped as "form fields")
-  * Mark required fields with "(required)" suffix
-  * Include buttons, links, dropdowns, and other interactive elements
-  * Example: ["First Name (required)", "Last Name (required)", "Email (required)", "Phone", "Submit button", "Cancel link"]
+  * List EACH field separately (not grouped as "form fields").
+  * Mark required fields with "(required)" suffix.
+  * Include buttons, links, dropdowns, and other interactive elements.
+  * Example: ["First Name (required)", "Last Name (required)", "Submit button", "Cancel link"]
 
 - workflows: PRIMARY actions that COMPLETE on this page with a testable outcome.
-  * A workflow involves form submission or data processing
-  * Navigation links to other pages are NOT workflows
-  * Most pages have only 1-2 primary workflows
-  * Example for login page: ["Login with credentials"] (NOT "Navigate to register")
+  * A workflow involves form submission or data processing.
+  * Navigation links to other pages are NOT workflows.
   * MENU / DROPDOWN / TOOLBAR CONSOLIDATION: If a single control
     (three-dot menu, action dropdown, bulk-actions toolbar, context menu, kebab
     menu) exposes multiple actions on the same entity kind, list it as ONE
@@ -189,24 +120,52 @@ Field Descriptions:
       "Section menu lists edit, duplicate, hide, delete, move",
       "Clicking Edit on a section opens an inline rename field".
 
-- business_rules: Extract ALL validation rules and constraints.
-  * Include required field rules (e.g., "First Name is required")
-  * Include format validations (e.g., "Email must be valid format")
-  * Include matching field rules (e.g., "Password and Confirm Password must match")
-  * Include business constraints (e.g., "Minimum balance $100 required")
-  * Include uniqueness rules (e.g., "Username must be unique")
+- business_rules: Extract ALL validation rules and constraints with STRICT PREFIXING.
+  * You MUST prefix every rule with the exact name of the item, action, or workflow it governs.
+  * Format: "<Prefix>: <rule text extracted from description>"
+  * Prefix priority:
+      1. Exact item name from mentioned_items (including "(required)" suffix if present)
+         e.g., "Username (required): must be unique"
+      2. For cross-field rules, use the dependent field: "Confirm Password (required): must match Password"
+      3. Action name visible in the description: "Close action: cannot close client with active accounts"
+      4. Exact workflow name from the workflows array: "Register new account: form validates on submit"
+      5. The literal token "Global" for module-wide invariants: "Global: total debits must equal total credits"
+  * DO NOT emit a bare rule without a prefix. If you cannot identify a governing item, action, or workflow, omit the rule entirely.
 
-- expected_behaviors: Success/failure outcomes explicitly mentioned
-  * Include success messages/redirects
-  * Include error message behaviors
-  * Include state changes (e.g., "Balance is deducted", "New account appears in list")
+- expected_behaviors: Success/failure outcomes explicitly mentioned with STRICT PREFIXING.
+  * You MUST prefix every behavior with the exact trigger item, action, or workflow.
+  * Format: "<Trigger>: <behavior extracted from description>"
+  * Use the same prefix priority as business_rules above.
+  * Example CORRECT: ["Login with credentials: Valid credentials redirect to the Dashboard",
+                      "Login with credentials: Invalid credentials show an error message",
+                      "Submit button: Validation errors shown for empty required fields"]
+  * Example WRONG: ["Redirects to Dashboard", "Shows error message"]
 
 Example for a Registration page:
 {{
     "mentioned_items": ["First Name (required)", "Last Name (required)", "Address (required)", "City (required)", "State (required)", "Zip Code (required)", "Phone (required)", "SSN (required)", "Username (required)", "Password (required)", "Confirm Password (required)", "Register button"],
     "workflows": ["Register new account"],
-    "business_rules": ["First Name is required", "Last Name is required", "Address is required", "City is required", "State is required", "Zip Code is required", "Phone is required", "SSN is required", "Username is required", "Password is required", "Confirm Password is required", "Password and Confirm Password must match", "Username must be unique"],
-    "expected_behaviors": ["Successful registration creates account and logs user in", "Validation errors shown for empty required fields", "Error shown if passwords do not match", "Error shown if username already exists"]
+    "business_rules": [
+        "First Name (required): is required",
+        "Last Name (required): is required",
+        "Address (required): is required",
+        "City (required): is required",
+        "State (required): is required",
+        "Zip Code (required): is required",
+        "Phone (required): is required",
+        "SSN (required): is required",
+        "Username (required): is required",
+        "Username (required): must be unique",
+        "Password (required): is required",
+        "Confirm Password (required): is required",
+        "Confirm Password (required): must match Password"
+    ],
+    "expected_behaviors": [
+        "Register new account: Successful registration creates account and logs user in",
+        "Register button: Validation errors shown for empty required fields",
+        "Confirm Password (required): Error shown if passwords do not match",
+        "Username (required): Error shown if username already exists"
+    ]
 }}
 """
 
@@ -214,7 +173,6 @@ Example for a Registration page:
             result = self.call_llm_json(extraction_prompt, max_tokens=16000)
         except Exception as e:
             print(f"Warning: LLM extraction failed for module {title}: {e}")
-            # Return module with empty extracted data
             return ParsedModule(
                 id=module_id,
                 title=title,
@@ -225,14 +183,20 @@ Example for a Registration page:
                 expected_behaviors=[],
             )
 
+        rules = result.get("business_rules", [])
+        behaviors = result.get("expected_behaviors", [])
+        unprefixed = [e for e in rules + behaviors if isinstance(e, str) and ": " not in e]
+        if unprefixed:
+            print(f"Warning: Parser found {len(unprefixed)} unprefixed rule(s) in '{title}': {unprefixed}")
+
         return ParsedModule(
             id=module_id,
             title=title,
             raw_description=description,
             mentioned_items=result.get("mentioned_items", []),
             workflows=result.get("workflows", []),
-            business_rules=result.get("business_rules", []),
-            expected_behaviors=result.get("expected_behaviors", []),
+            business_rules=rules,
+            expected_behaviors=behaviors,
         )
 
     async def _aparse_module(self, module: Dict[str, Any]) -> ParsedModule:
@@ -259,16 +223,14 @@ Return a JSON object with these fields:
 Field Descriptions:
 
 - mentioned_items: Extract ALL individual form fields, buttons, and interactive elements as SEPARATE items.
-  * List EACH field separately (not grouped as "form fields")
-  * Mark required fields with "(required)" suffix
-  * Include buttons, links, dropdowns, and other interactive elements
-  * Example: ["First Name (required)", "Last Name (required)", "Email (required)", "Phone", "Submit button", "Cancel link"]
+  * List EACH field separately (not grouped as "form fields").
+  * Mark required fields with "(required)" suffix.
+  * Include buttons, links, dropdowns, and other interactive elements.
+  * Example: ["First Name (required)", "Last Name (required)", "Submit button", "Cancel link"]
 
 - workflows: PRIMARY actions that COMPLETE on this page with a testable outcome.
-  * A workflow involves form submission or data processing
-  * Navigation links to other pages are NOT workflows
-  * Most pages have only 1-2 primary workflows
-  * Example for login page: ["Login with credentials"] (NOT "Navigate to register")
+  * A workflow involves form submission or data processing.
+  * Navigation links to other pages are NOT workflows.
   * MENU / DROPDOWN / TOOLBAR CONSOLIDATION: If a single control
     (three-dot menu, action dropdown, bulk-actions toolbar, context menu, kebab
     menu) exposes multiple actions on the same entity kind, list it as ONE
@@ -293,24 +255,52 @@ Field Descriptions:
       "Section menu lists edit, duplicate, hide, delete, move",
       "Clicking Edit on a section opens an inline rename field".
 
-- business_rules: Extract ALL validation rules and constraints.
-  * Include required field rules (e.g., "First Name is required")
-  * Include format validations (e.g., "Email must be valid format")
-  * Include matching field rules (e.g., "Password and Confirm Password must match")
-  * Include business constraints (e.g., "Minimum balance $100 required")
-  * Include uniqueness rules (e.g., "Username must be unique")
+- business_rules: Extract ALL validation rules and constraints with STRICT PREFIXING.
+  * You MUST prefix every rule with the exact name of the item, action, or workflow it governs.
+  * Format: "<Prefix>: <rule text extracted from description>"
+  * Prefix priority:
+      1. Exact item name from mentioned_items (including "(required)" suffix if present)
+         e.g., "Username (required): must be unique"
+      2. For cross-field rules, use the dependent field: "Confirm Password (required): must match Password"
+      3. Action name visible in the description: "Close action: cannot close client with active accounts"
+      4. Exact workflow name from the workflows array: "Register new account: form validates on submit"
+      5. The literal token "Global" for module-wide invariants: "Global: total debits must equal total credits"
+  * DO NOT emit a bare rule without a prefix. If you cannot identify a governing item, action, or workflow, omit the rule entirely.
 
-- expected_behaviors: Success/failure outcomes explicitly mentioned
-  * Include success messages/redirects
-  * Include error message behaviors
-  * Include state changes (e.g., "Balance is deducted", "New account appears in list")
+- expected_behaviors: Success/failure outcomes explicitly mentioned with STRICT PREFIXING.
+  * You MUST prefix every behavior with the exact trigger item, action, or workflow.
+  * Format: "<Trigger>: <behavior extracted from description>"
+  * Use the same prefix priority as business_rules above.
+  * Example CORRECT: ["Login with credentials: Valid credentials redirect to the Dashboard",
+                      "Login with credentials: Invalid credentials show an error message",
+                      "Submit button: Validation errors shown for empty required fields"]
+  * Example WRONG: ["Redirects to Dashboard", "Shows error message"]
 
 Example for a Registration page:
 {{
     "mentioned_items": ["First Name (required)", "Last Name (required)", "Address (required)", "City (required)", "State (required)", "Zip Code (required)", "Phone (required)", "SSN (required)", "Username (required)", "Password (required)", "Confirm Password (required)", "Register button"],
     "workflows": ["Register new account"],
-    "business_rules": ["First Name is required", "Last Name is required", "Address is required", "City is required", "State is required", "Zip Code is required", "Phone is required", "SSN is required", "Username is required", "Password is required", "Confirm Password is required", "Password and Confirm Password must match", "Username must be unique"],
-    "expected_behaviors": ["Successful registration creates account and logs user in", "Validation errors shown for empty required fields", "Error shown if passwords do not match", "Error shown if username already exists"]
+    "business_rules": [
+        "First Name (required): is required",
+        "Last Name (required): is required",
+        "Address (required): is required",
+        "City (required): is required",
+        "State (required): is required",
+        "Zip Code (required): is required",
+        "Phone (required): is required",
+        "SSN (required): is required",
+        "Username (required): is required",
+        "Username (required): must be unique",
+        "Password (required): is required",
+        "Confirm Password (required): is required",
+        "Confirm Password (required): must match Password"
+    ],
+    "expected_behaviors": [
+        "Register new account: Successful registration creates account and logs user in",
+        "Register button: Validation errors shown for empty required fields",
+        "Confirm Password (required): Error shown if passwords do not match",
+        "Username (required): Error shown if username already exists"
+    ]
 }}
 """
 
@@ -328,74 +318,21 @@ Example for a Registration page:
                 expected_behaviors=[],
             )
 
+        rules = result.get("business_rules", [])
+        behaviors = result.get("expected_behaviors", [])
+        unprefixed = [e for e in rules + behaviors if isinstance(e, str) and ": " not in e]
+        if unprefixed:
+            print(f"Warning: Parser found {len(unprefixed)} unprefixed rule(s) in '{title}': {unprefixed}")
+
         return ParsedModule(
             id=module_id,
             title=title,
             raw_description=description,
             mentioned_items=result.get("mentioned_items", []),
             workflows=result.get("workflows", []),
-            business_rules=result.get("business_rules", []),
-            expected_behaviors=result.get("expected_behaviors", []),
+            business_rules=rules,
+            expected_behaviors=behaviors,
         )
-
-    async def _aextract_system_constraints(
-        self,
-        project_name: str,
-        navigation_overview: str,
-        raw_modules: list,
-    ) -> list:
-        """Async version of _extract_system_constraints."""
-        module_blobs = []
-        for m in raw_modules:
-            title = m.get("title", "")
-            desc = m.get("description", "")
-            if desc:
-                module_blobs.append(f"[{title}]\n{desc}")
-
-        combined_text = "\n\n".join(filter(None, [
-            f"PROJECT: {project_name}",
-            f"NAVIGATION OVERVIEW:\n{navigation_overview}" if navigation_overview else "",
-            "MODULES:\n" + "\n\n".join(module_blobs) if module_blobs else "",
-        ]))
-
-        prompt = f"""Extract system constraints from the functional description below.
-
-A system constraint is a short standalone sentence describing something the
-system explicitly does NOT do, or a mock/sandbox limitation.
-
-Capture sentences like:
-- "no actual balance debits occur"
-- "emails are simulated, not sent"
-- "this is a demo system; data resets nightly"
-- "deletion is soft-delete only; records remain queryable"
-- "payments are not actually processed"
-
-Look both for explicit negations ("does not", "no actual", "never") and for
-clear sandbox/mock/demo disclaimers.
-
-IMPORTANT:
-- Return ONLY constraints that have a textual basis in the description below.
-- Do NOT invent constraints.
-- Return [] if the description only describes what the system DOES.
-
-Return a JSON object:
-{{
-    "system_constraints": ["constraint1", "constraint2", ...]
-}}
-
-FUNCTIONAL DESCRIPTION:
-{combined_text}
-"""
-
-        try:
-            result = await self.acall_llm_json(prompt, max_tokens=2000)
-            constraints = result.get("system_constraints", [])
-            if not isinstance(constraints, list):
-                return []
-            return [str(c).strip() for c in constraints if c and str(c).strip()]
-        except Exception as e:
-            print(f"Warning: system_constraints extraction failed: {e}")
-            return []
 
     async def arun(self, functional_desc: Dict[str, Any]) -> ParsedFunctionalDescription:
         """Async version of run: all per-module LLM calls execute concurrently."""
@@ -408,14 +345,10 @@ FUNCTIONAL DESCRIPTION:
         raw_modules = functional_desc.get("modules", [])
 
         tasks = [self._aparse_module(m) for m in raw_modules]
-        tasks.append(
-            self._aextract_system_constraints(project_name, navigation_overview, raw_modules)
-        )
-
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         parsed_modules = []
-        for i, result in enumerate(results[:-1]):
+        for i, result in enumerate(results):
             if isinstance(result, Exception):
                 module = raw_modules[i]
                 print(f"Warning: LLM extraction failed for module {module.get('title', 'Unknown')}: {result}")
@@ -431,13 +364,9 @@ FUNCTIONAL DESCRIPTION:
             else:
                 parsed_modules.append(result)
 
-        constraints_result = results[-1]
-        system_constraints = [] if isinstance(constraints_result, Exception) else constraints_result
-
         return ParsedFunctionalDescription(
             project_name=project_name,
             base_url=base_url,
             navigation_overview=navigation_overview,
             modules=parsed_modules,
-            system_constraints=system_constraints,
         )

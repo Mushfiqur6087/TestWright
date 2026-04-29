@@ -28,7 +28,6 @@ class ParsedFunctionalDescription:
     base_url: str
     navigation_overview: str
     modules: List[ParsedModule] = field(default_factory=list)
-    system_constraints: List[str] = field(default_factory=list)
 
 
 # ============================================================================
