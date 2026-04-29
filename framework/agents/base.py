@@ -48,7 +48,7 @@ class BaseAgent(ABC):
     """
 
     # Class-level tracking to avoid duplicate logging
-    _debug_initialized = False
+    _initialized_debug_files: set = set()
     _logged_system_prompts = set()
 
     def __init__(
@@ -67,15 +67,15 @@ class BaseAgent(ABC):
     @classmethod
     def reset_debug_state(cls):
         """Reset debug state for a new session. Call this before initializing agents."""
-        cls._debug_initialized = False
+        cls._initialized_debug_files = set()
         cls._logged_system_prompts = set()
 
     @classmethod
     def init_debug_session(cls, debug_file: str, model: str):
-        """Initialize debug session header. Should be called once at start."""
-        if cls._debug_initialized:
+        """Write a stage header to debug_file the first time it is referenced per run."""
+        if debug_file in cls._initialized_debug_files:
             return
-        cls._debug_initialized = True
+        cls._initialized_debug_files.add(debug_file)
         with open(debug_file, 'w', encoding='utf-8') as f:
             f.write(f"{'='*80}\n")
             f.write(f"DEBUG SESSION STARTED: {datetime.now().isoformat()}\n")

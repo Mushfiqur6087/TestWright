@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Any
 
 from autospectest.framework.agents.base import BaseAgent
@@ -232,4 +233,211 @@ Example for a Registration page:
             workflows=result.get("workflows", []),
             business_rules=result.get("business_rules", []),
             expected_behaviors=result.get("expected_behaviors", []),
+        )
+
+    async def _aparse_module(self, module: Dict[str, Any]) -> ParsedModule:
+        """Async version of _parse_module — calls acall_llm_json instead of call_llm_json."""
+        module_id = module.get("id", 0)
+        title = module.get("title", "Unknown Module")
+        description = module.get("description", "")
+
+        extraction_prompt = f"""Analyze this functional description and extract information for test case generation.
+
+Module Title: {title}
+Description: {description}
+
+IMPORTANT: Extract ONLY what is explicitly mentioned. Do NOT add assumptions or infer details not present.
+
+Return a JSON object with these fields:
+{{
+    "mentioned_items": ["Item1", "Item2", ...],
+    "workflows": ["Workflow1", ...],
+    "business_rules": ["Rule1", "Rule2", ...],
+    "expected_behaviors": ["Behavior1", "Behavior2", ...]
+}}
+
+Field Descriptions:
+
+- mentioned_items: Extract ALL individual form fields, buttons, and interactive elements as SEPARATE items.
+  * List EACH field separately (not grouped as "form fields")
+  * Mark required fields with "(required)" suffix
+  * Include buttons, links, dropdowns, and other interactive elements
+  * Example: ["First Name (required)", "Last Name (required)", "Email (required)", "Phone", "Submit button", "Cancel link"]
+
+- workflows: PRIMARY actions that COMPLETE on this page with a testable outcome.
+  * A workflow involves form submission or data processing
+  * Navigation links to other pages are NOT workflows
+  * Most pages have only 1-2 primary workflows
+  * Example for login page: ["Login with credentials"] (NOT "Navigate to register")
+  * MENU / DROPDOWN / TOOLBAR CONSOLIDATION: If a single control
+    (three-dot menu, action dropdown, bulk-actions toolbar, context menu, kebab
+    menu) exposes multiple actions on the same entity kind, list it as ONE
+    workflow (e.g., "Section-level three-dot menu actions"), NOT one workflow
+    per action. The individual actions (edit, duplicate, hide, delete, move)
+    become items in `expected_behaviors` of that single workflow.
+  * HARD CEILING: Emit AT MOST 5 workflows per module. If you identify more
+    than 5, consolidate related ones by their UI surface (same menu / same
+    form / same toolbar / same modal) until you are at <= 5.
+
+  Worked example — Course Edit Mode page with three-dot menus on sections and activities:
+    WRONG (over-segmented, 10+ workflows):
+      ["Section menu: edit", "Section menu: duplicate", "Section menu: hide",
+       "Section menu: delete", "Section menu: move",
+       "Activity menu: edit settings", "Activity menu: move",
+       "Activity menu: hide", "Activity menu: delete", "Enable edit mode"]
+    CORRECT (consolidated, 3 workflows):
+      ["Toggle edit mode",
+       "Section-level three-dot menu actions",
+       "Activity-level three-dot menu actions"]
+    The individual menu actions live in expected_behaviors, e.g.:
+      "Section menu lists edit, duplicate, hide, delete, move",
+      "Clicking Edit on a section opens an inline rename field".
+
+- business_rules: Extract ALL validation rules and constraints.
+  * Include required field rules (e.g., "First Name is required")
+  * Include format validations (e.g., "Email must be valid format")
+  * Include matching field rules (e.g., "Password and Confirm Password must match")
+  * Include business constraints (e.g., "Minimum balance $100 required")
+  * Include uniqueness rules (e.g., "Username must be unique")
+
+- expected_behaviors: Success/failure outcomes explicitly mentioned
+  * Include success messages/redirects
+  * Include error message behaviors
+  * Include state changes (e.g., "Balance is deducted", "New account appears in list")
+
+Example for a Registration page:
+{{
+    "mentioned_items": ["First Name (required)", "Last Name (required)", "Address (required)", "City (required)", "State (required)", "Zip Code (required)", "Phone (required)", "SSN (required)", "Username (required)", "Password (required)", "Confirm Password (required)", "Register button"],
+    "workflows": ["Register new account"],
+    "business_rules": ["First Name is required", "Last Name is required", "Address is required", "City is required", "State is required", "Zip Code is required", "Phone is required", "SSN is required", "Username is required", "Password is required", "Confirm Password is required", "Password and Confirm Password must match", "Username must be unique"],
+    "expected_behaviors": ["Successful registration creates account and logs user in", "Validation errors shown for empty required fields", "Error shown if passwords do not match", "Error shown if username already exists"]
+}}
+"""
+
+        try:
+            result = await self.acall_llm_json(extraction_prompt, max_tokens=16000)
+        except Exception as e:
+            print(f"Warning: LLM extraction failed for module {title}: {e}")
+            return ParsedModule(
+                id=module_id,
+                title=title,
+                raw_description=description,
+                mentioned_items=[],
+                workflows=[],
+                business_rules=[],
+                expected_behaviors=[],
+            )
+
+        return ParsedModule(
+            id=module_id,
+            title=title,
+            raw_description=description,
+            mentioned_items=result.get("mentioned_items", []),
+            workflows=result.get("workflows", []),
+            business_rules=result.get("business_rules", []),
+            expected_behaviors=result.get("expected_behaviors", []),
+        )
+
+    async def _aextract_system_constraints(
+        self,
+        project_name: str,
+        navigation_overview: str,
+        raw_modules: list,
+    ) -> list:
+        """Async version of _extract_system_constraints."""
+        module_blobs = []
+        for m in raw_modules:
+            title = m.get("title", "")
+            desc = m.get("description", "")
+            if desc:
+                module_blobs.append(f"[{title}]\n{desc}")
+
+        combined_text = "\n\n".join(filter(None, [
+            f"PROJECT: {project_name}",
+            f"NAVIGATION OVERVIEW:\n{navigation_overview}" if navigation_overview else "",
+            "MODULES:\n" + "\n\n".join(module_blobs) if module_blobs else "",
+        ]))
+
+        prompt = f"""Extract system constraints from the functional description below.
+
+A system constraint is a short standalone sentence describing something the
+system explicitly does NOT do, or a mock/sandbox limitation.
+
+Capture sentences like:
+- "no actual balance debits occur"
+- "emails are simulated, not sent"
+- "this is a demo system; data resets nightly"
+- "deletion is soft-delete only; records remain queryable"
+- "payments are not actually processed"
+
+Look both for explicit negations ("does not", "no actual", "never") and for
+clear sandbox/mock/demo disclaimers.
+
+IMPORTANT:
+- Return ONLY constraints that have a textual basis in the description below.
+- Do NOT invent constraints.
+- Return [] if the description only describes what the system DOES.
+
+Return a JSON object:
+{{
+    "system_constraints": ["constraint1", "constraint2", ...]
+}}
+
+FUNCTIONAL DESCRIPTION:
+{combined_text}
+"""
+
+        try:
+            result = await self.acall_llm_json(prompt, max_tokens=2000)
+            constraints = result.get("system_constraints", [])
+            if not isinstance(constraints, list):
+                return []
+            return [str(c).strip() for c in constraints if c and str(c).strip()]
+        except Exception as e:
+            print(f"Warning: system_constraints extraction failed: {e}")
+            return []
+
+    async def arun(self, functional_desc: Dict[str, Any]) -> ParsedFunctionalDescription:
+        """Async version of run: all per-module LLM calls execute concurrently."""
+        if not isinstance(functional_desc, dict):
+            raise ValueError("Functional description must be a dictionary")
+
+        project_name = functional_desc.get("project_name", "Unknown Project")
+        base_url = functional_desc.get("website_url", "")
+        navigation_overview = functional_desc.get("navigation_overview", "")
+        raw_modules = functional_desc.get("modules", [])
+
+        tasks = [self._aparse_module(m) for m in raw_modules]
+        tasks.append(
+            self._aextract_system_constraints(project_name, navigation_overview, raw_modules)
+        )
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        parsed_modules = []
+        for i, result in enumerate(results[:-1]):
+            if isinstance(result, Exception):
+                module = raw_modules[i]
+                print(f"Warning: LLM extraction failed for module {module.get('title', 'Unknown')}: {result}")
+                parsed_modules.append(ParsedModule(
+                    id=module.get("id", 0),
+                    title=module.get("title", "Unknown Module"),
+                    raw_description=module.get("description", ""),
+                    mentioned_items=[],
+                    workflows=[],
+                    business_rules=[],
+                    expected_behaviors=[],
+                ))
+            else:
+                parsed_modules.append(result)
+
+        constraints_result = results[-1]
+        system_constraints = [] if isinstance(constraints_result, Exception) else constraints_result
+
+        return ParsedFunctionalDescription(
+            project_name=project_name,
+            base_url=base_url,
+            navigation_overview=navigation_overview,
+            modules=parsed_modules,
+            system_constraints=system_constraints,
         )

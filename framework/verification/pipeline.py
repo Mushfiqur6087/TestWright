@@ -24,6 +24,15 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _resolve_debug_file(debug_file: str, output_path: Path) -> str:
+    debug_path = Path(debug_file)
+    if debug_path.is_absolute():
+        debug_path = Path(debug_path.name)
+    resolved = output_path.parent / debug_path
+    resolved.parent.mkdir(parents=True, exist_ok=True)
+    return str(resolved)
+
+
 def run_verification(
     test_cases_json_path: str,
     spec_path: str,
@@ -73,6 +82,7 @@ def run_verification(
           f"{len(positive_cases)} positive (verification candidates)")
 
     if debug:
+        debug_file = _resolve_debug_file(debug_file, out_path)
         BaseAgent.reset_debug_state()
         BaseAgent.init_debug_session(debug_file=debug_file, model=model)
 

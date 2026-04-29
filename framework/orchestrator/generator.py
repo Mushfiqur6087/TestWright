@@ -35,11 +35,8 @@ class TestCaseGenerator:
         self.model = model
         self.debug = debug
         self.debug_file = debug_file
+        self.debug_dir = ""
         self.run_id = run_id
-
-        if debug:
-            BaseAgent.reset_debug_state()
-            BaseAgent.init_debug_session(debug_file, model)
 
     # ------------------------------------------------------------------
     # Public API
@@ -69,8 +66,6 @@ class TestCaseGenerator:
         print("=" * 60)
         print("TESTWRIGHT  (LangGraph Pipeline)")
         print("=" * 60)
-        if self.debug:
-            print(f"Debug mode: ON (logging to {self.debug_file})")
         if self.run_id:
             print(f"run_id: {self.run_id}"
                   f"{'  (resuming)' if resume else ''}")
@@ -79,6 +74,11 @@ class TestCaseGenerator:
             raise ValueError("resume=True requires a run_id on the generator")
 
         os.makedirs(output_dir, exist_ok=True)
+        if self.debug:
+            self.debug_dir = os.path.join(output_dir, "debug")
+            os.makedirs(self.debug_dir, exist_ok=True)
+            BaseAgent.reset_debug_state()
+            print(f"Debug mode: ON  (per-stage logs → {self.debug_dir}/)")
 
         if self.run_id:
             CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
@@ -118,6 +118,7 @@ class TestCaseGenerator:
                 "model": self.model,
                 "debug": self.debug,
                 "debug_file": self.debug_file,
+                "debug_dir": self.debug_dir,
                 "output_dir": output_dir,
             }
 
@@ -162,3 +163,4 @@ class TestCaseGenerator:
         for node in output.navigation_graph.nodes.values():
             tc_count = len(node.test_case_ids)
             print(f"  - {node.title}: {tc_count} test cases, connects to {len(node.connected_to)} pages")
+

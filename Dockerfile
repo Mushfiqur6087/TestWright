@@ -2,39 +2,35 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# 1. System dependencies (Caches perfectly)
+# gcc needed for some litellm/tokenizer native extensions
 RUN apt-get update && apt-get install -y --no-install-recommends gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Setup user (Caches perfectly)
+# Run as a non-root user to avoid root-owned output files on bind mounts
 ARG UID=1000
 ARG GID=1000
 RUN groupadd -g $GID app && useradd -m -u $UID -g $GID app
 
-# 3. Install heavy external libraries FIRST
-# Moving this up means it will only ever rebuild if you change this specific line
-RUN pip install --no-cache-dir networkx matplotlib scipy
+# ── Dependency layer ────────────────────────────────────────────────────────
+# Copy only pyproject.toml so this layer is invalidated when deps change
+# but NOT when source code changes.
+COPY pyproject.toml .
 
-# 4. Copy ONLY the files needed to determine dependencies
-# Adjust these filenames if you use requirements.txt instead of pyproject.toml/setup.py
-COPY pyproject.toml setup.py* setup.cfg* ./
+# Extract [project.dependencies] from pyproject.toml and install them.
+# tomllib is in the Python 3.11 stdlib — no extra install needed.
+RUN python3 -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); open('/tmp/req.txt','w').write('\n'.join(d['project']['dependencies']))" \
+    && pip install --no-cache-dir -r /tmp/req.txt
 
-# 5. Install the project's dependencies
-# (If your setup.py requires the source code to just run, skip this and use a requirements.txt instead:
-# COPY requirements.txt . -> RUN pip install -r requirements.txt)
-RUN pip install --no-cache-dir . || true 
-
-# 6. NOW copy the rest of the source code
+# ── Source layer ────────────────────────────────────────────────────────────
+# Changing source code only re-runs this fast --no-deps install, not the pip above.
 COPY . .
-
-# 7. Install the actual package (this will be fast because dependencies are already cached)
 RUN pip install --no-cache-dir --no-deps .
 
-# 8. Final setup
 RUN mkdir -p /app/outputs && chown -R app:app /app
 
 USER app
 
+# Outputs land here; mount a host directory to persist them
 VOLUME ["/app/outputs"]
 
 ENTRYPOINT ["autospectest"]

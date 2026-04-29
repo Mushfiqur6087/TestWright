@@ -65,6 +65,7 @@ class PipelineState(TypedDict, total=False):
     model: Annotated[str, _last_value]
     debug: Annotated[bool, _last_value]
     debug_file: Annotated[str, _last_value]
+    debug_dir: Annotated[str, _last_value]
     output_dir: Annotated[str, _last_value]
 
     # -- Step 1: Parser -------------------------------------------------------

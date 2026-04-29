@@ -8,6 +8,8 @@ Each node:
   4. Returns fields it produced
 """
 
+import asyncio
+import os
 import time
 from typing import Any, Dict, List
 
@@ -18,31 +20,44 @@ from autospectest.framework.agents import (
     SummaryAgent,
     TestGenerationAgent,
 )
+from autospectest.framework.agents.base import BaseAgent
 from autospectest.framework.extractors import (
     ChunkerAgent,
     ParserAgent,
 )
 from autospectest.framework.orchestrator.state import PipelineState
-from autospectest.framework.schemas.schemas import ProjectContext
+from autospectest.framework.schemas.schemas import ProjectContext, WorkflowChunk
 
 
-def _agent_kwargs(state: PipelineState) -> dict:
-    """Extract constructor kwargs shared by all agents."""
+def _agent_kwargs(state: PipelineState, stage_file: str) -> dict:
+    """Return constructor kwargs for an agent, routing debug output to stage_file.
+
+    When debug_dir is set (--debug mode), each pipeline stage writes to its own
+    log file inside <output_dir>/debug/. The header is written once per file via
+    init_debug_session (subsequent calls for the same path are no-ops).
+    """
+    debug: bool = state.get("debug", False)
+    debug_dir: str = state.get("debug_dir", "")
+    if debug and debug_dir:
+        debug_file = os.path.join(debug_dir, stage_file)
+        BaseAgent.init_debug_session(debug_file, state["model"])
+    else:
+        debug_file = state.get("debug_file", "debug_log.txt")
     return dict(
         api_key=state["api_key"],
         model=state["model"],
-        debug=state["debug"],
-        debug_file=state["debug_file"],
+        debug=debug,
+        debug_file=debug_file,
     )
 
 
-def parse_node(state: PipelineState) -> Dict[str, Any]:
-    """Parse the raw functional description into structured data."""
+async def parse_node(state: PipelineState) -> Dict[str, Any]:
+    """Parse the raw functional description into structured data (parallel per module)."""
     t0 = time.time()
-    print("\n[1/8] Parsing functional description...")
+    print("\n[1/8] Parsing functional description (parallel)...")
 
-    agent = ParserAgent(**_agent_kwargs(state))
-    parsed_desc = agent.run(state["functional_desc"])
+    agent = ParserAgent(**_agent_kwargs(state, "01_parse.log"))
+    parsed_desc = await agent.arun(state["functional_desc"])
 
     print(f"  - Project: {parsed_desc.project_name}")
     print(f"  - Modules found: {len(parsed_desc.modules)}")
@@ -58,7 +73,7 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
     t0 = time.time()
     print("\n[2/8] Building navigation graph...")
 
-    agent = NavigationAgent(**_agent_kwargs(state))
+    agent = NavigationAgent(**_agent_kwargs(state, "02_navigation.log"))
     nav_graph = agent.run(state["parsed_desc"])
 
     print(f"  - Page nodes: {len(nav_graph.nodes)}")
@@ -67,13 +82,12 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
     return {"nav_graph": nav_graph}
 
 
-def chunker_node(state: PipelineState) -> Dict[str, Any]:
-    """Split modules into workflow chunks."""
+async def chunker_node(state: PipelineState) -> Dict[str, Any]:
+    """Split modules into workflow chunks (parallel per module)."""
     t0 = time.time()
-    print("\n[3/8] Splitting modules into workflow chunks...")
+    print("\n[3/8] Splitting modules into workflow chunks (parallel)...")
 
-    agent = ChunkerAgent(**_agent_kwargs(state))
-    all_chunks = []
+    agent = ChunkerAgent(**_agent_kwargs(state, "03_chunker.log"))
 
     parsed_desc = state["parsed_desc"]
     project_context = ProjectContext(
@@ -81,12 +95,31 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
         navigation_overview=parsed_desc.navigation_overview or "",
     )
 
-    for module in parsed_desc.modules:
-        chunks = agent.run(module, project_context=project_context)
-        all_chunks.extend(chunks)
-        print(f"  - {module.title}: {len(chunks)} chunk(s)")
-        for chunk in chunks:
-            print(f"    * {chunk.workflow_name}")
+    results = await asyncio.gather(
+        *[agent.arun(m, project_context=project_context) for m in parsed_desc.modules],
+        return_exceptions=True,
+    )
+
+    all_chunks = []
+    for module, result in zip(parsed_desc.modules, results):
+        if isinstance(result, Exception):
+            print(f"  !! chunker failed for {module.title}: {result}, using fallback")
+            all_chunks.append(WorkflowChunk(
+                chunk_id=f"{module.id}_full",
+                module_id=module.id,
+                module_title=module.title,
+                workflow_name="Main workflow",
+                workflow_description=module.raw_description[:200] if module.raw_description else "",
+                related_items=module.mentioned_items,
+                related_rules=module.business_rules,
+                related_behaviors=module.expected_behaviors,
+                project_context=project_context,
+            ))
+        else:
+            all_chunks.extend(result)
+            print(f"  - {module.title}: {len(result)} chunk(s)")
+            for chunk in result:
+                print(f"    * {chunk.workflow_name}")
 
     print(f"  Total: {len(all_chunks)} chunks | Done in {time.time() - t0:.1f}s")
     return {"all_chunks": all_chunks}
@@ -97,7 +130,7 @@ def summary_node(state: PipelineState) -> Dict[str, Any]:
     t0 = time.time()
     print("\n[4/8] Generating module summaries...")
 
-    agent = SummaryAgent(**_agent_kwargs(state))
+    agent = SummaryAgent(**_agent_kwargs(state, "04_summary.log"))
     module_summaries = agent.run(state["parsed_desc"].modules)
 
     print(f"  - Generated summaries for {len(module_summaries)} modules")
@@ -123,7 +156,7 @@ async def test_generation_worker_node(state: PipelineState) -> Dict[str, Any]:
 
     ct0 = time.time()
     print(f"  - worker start: {chunk.module_title} / {chunk.workflow_name}")
-    agent = TestGenerationAgent(**_agent_kwargs(state))
+    agent = TestGenerationAgent(**_agent_kwargs(state, "05_test_generation.log"))
     try:
         tests = await agent.arun(chunk)
     except Exception as err:
@@ -159,7 +192,7 @@ def standard_patterns_node(state: PipelineState) -> Dict[str, Any]:
         navigation_overview=parsed_desc.navigation_overview or "",
     )
 
-    agent = StandardPatternsAgent(**_agent_kwargs(state))
+    agent = StandardPatternsAgent(**_agent_kwargs(state, "06_standard_patterns.log"))
     std_tests = agent.run(
         parsed_desc=parsed_desc,
         nav_graph=state["nav_graph"],
@@ -181,7 +214,7 @@ def assembler_node(state: PipelineState) -> Dict[str, Any]:
         f"({len(spec_tests)} spec + {len(std_tests)} standard = {before} raw)..."
     )
 
-    agent = AssemblerAgent(**_agent_kwargs(state))
+    agent = AssemblerAgent(**_agent_kwargs(state, "07_assembler.log"))
     output = agent.run(
         test_cases=combined,
         nav_graph=state["nav_graph"],
@@ -200,8 +233,6 @@ def assembler_node(state: PipelineState) -> Dict[str, Any]:
 
 def finalize_node(state: PipelineState) -> Dict[str, Any]:
     """Generate summary, graph image, validate, and export JSON."""
-    import os
-
     from autospectest.exporters.json_exporter import export_json
 
     t0 = time.time()
@@ -214,7 +245,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
     output.summary = summary
 
     print("  Generating navigation graph image...")
-    nav_agent = NavigationAgent(**_agent_kwargs(state))
+    nav_agent = NavigationAgent(**_agent_kwargs(state, "08_finalize.log"))
     graph_image_path = os.path.join(output_dir, "navigation_graph.png")
     generated_path = nav_agent.generate_graph_image(
         nav_graph=output.navigation_graph,
@@ -227,7 +258,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
     else:
         print("  - Graph image generation skipped")
 
-    assembler = AssemblerAgent(**_agent_kwargs(state))
+    assembler = AssemblerAgent(**_agent_kwargs(state, "08_finalize.log"))
     issues = assembler.validate(output.test_cases)
     if issues:
         print(f"  - Validation issues: {len(issues)}")
