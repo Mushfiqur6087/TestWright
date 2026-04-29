@@ -35,13 +35,24 @@ FIELD-LEVEL GRANULARITY:
         self,
         module: ParsedModule,
         project_context: Optional[ProjectContext] = None,
+        revision_hint: Optional[str] = None,
     ) -> List[WorkflowChunk]:
         """Split a module into workflow-based chunks.
 
         ``project_context`` is attached to every emitted chunk so that
         downstream agents (test generator, verifier) have awareness of the
         application domain without needing pipeline-wide wiring.
+
+        ``revision_hint`` carries guidance from the workflow auditor on a
+        retry — when set, the chunker always goes through the LLM mapping
+        path so the hint can influence both workflow selection and item
+        assignment, even when only 0 or 1 workflows were originally detected.
         """
+
+        # On a hinted retry, force the LLM path so the hint can add or remove
+        # workflows that the parser/short-circuits would otherwise miss.
+        if revision_hint:
+            return self._split_by_workflows(module, project_context, revision_hint=revision_hint)
 
         # If no workflows detected, create a single "full" chunk
         if not module.workflows:
@@ -78,15 +89,25 @@ FIELD-LEVEL GRANULARITY:
         self,
         module: ParsedModule,
         project_context: Optional[ProjectContext] = None,
+        revision_hint: Optional[str] = None,
     ) -> List[WorkflowChunk]:
         """Use LLM to intelligently map items/rules/behaviors to workflows"""
 
-        workflows_list = "\n".join([f"  {i+1}. {w}" for i, w in enumerate(module.workflows)])
+        workflows_list = "\n".join([f"  {i+1}. {w}" for i, w in enumerate(module.workflows)]) or "  (none detected — infer the primary workflow from the description)"
         items_list = ", ".join(module.mentioned_items) if module.mentioned_items else "None"
         rules_list = "\n".join([f"  - {r}" for r in module.business_rules]) if module.business_rules else "None"
         behaviors_list = "\n".join([f"  - {b}" for b in module.expected_behaviors]) if module.expected_behaviors else "None"
 
-        prompt = f"""Analyze this module and map its elements to the appropriate workflows.
+        hint_block = ""
+        if revision_hint:
+            hint_block = (
+                "\n\nAUDITOR REVISION HINT (from a prior pass) — apply faithfully:\n"
+                f"  {revision_hint}\n"
+                "Use this to add missing workflows, drop out-of-scope ones, "
+                "or correct ungrounded names.\n"
+            )
+
+        prompt = f"""Analyze this module and map its elements to the appropriate workflows.{hint_block}
 
 Module: {module.title}
 Description: {module.raw_description}

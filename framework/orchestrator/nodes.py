@@ -16,7 +16,9 @@ from autospectest.framework.agents import (
     NavigationAgent,
     StandardPatternsAgent,
     SummaryAgent,
+    TestCaseAuditorAgent,
     TestGenerationAgent,
+    WorkflowAuditorAgent,
 )
 from autospectest.framework.extractors import (
     ChunkerAgent,
@@ -68,11 +70,20 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
 
 
 def chunker_node(state: PipelineState) -> Dict[str, Any]:
-    """Split modules into workflow chunks."""
-    t0 = time.time()
-    print("\n[3/8] Splitting modules into workflow chunks...")
+    """Split modules into workflow chunks, then audit and (once) revise.
 
-    agent = ChunkerAgent(**_agent_kwargs(state))
+    The chunker produces an initial chunk set per module; the workflow auditor
+    reviews those chunks against the module's spec text and reports coverage
+    gaps, ungrounded chunks, and scope leaks. When any are flagged, we drop
+    the bad chunks and re-run the chunker once with the auditor's revision
+    hint plus any missing workflows folded into ``module.workflows``. Capped
+    at one retry per module.
+    """
+    t0 = time.time()
+    print("\n[3/8] Splitting modules into workflow chunks (with auditor)...")
+
+    chunker = ChunkerAgent(**_agent_kwargs(state))
+    auditor = WorkflowAuditorAgent(**_agent_kwargs(state))
     all_chunks = []
 
     parsed_desc = state["parsed_desc"]
@@ -82,7 +93,40 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
     )
 
     for module in parsed_desc.modules:
-        chunks = agent.run(module, project_context=project_context)
+        chunks = chunker.run(module, project_context=project_context)
+        report = auditor.run(module, chunks)
+
+        if not report.is_clean():
+            kept = [
+                c for i, c in enumerate(chunks)
+                if i not in report.ungrounded_chunk_indices
+                and i not in report.scope_violations
+            ]
+            dropped = len(chunks) - len(kept)
+            print(
+                f"  - {module.title}: auditor flagged "
+                f"{len(report.missing_workflows)} missing, "
+                f"{len(report.ungrounded_chunk_indices)} ungrounded, "
+                f"{len(report.scope_violations)} scope-leak; "
+                f"dropping {dropped}, retrying chunker"
+            )
+
+            # Retry: fold missing workflows into the module's workflow list so
+            # the chunker can map items to them, and pass the revision hint.
+            if report.missing_workflows:
+                existing = {w.lower() for w in module.workflows}
+                for w in report.missing_workflows:
+                    if w.lower() not in existing:
+                        module.workflows.append(w)
+                        existing.add(w.lower())
+
+            retry_chunks = chunker.run(
+                module,
+                project_context=project_context,
+                revision_hint=report.revision_hint or None,
+            )
+            chunks = retry_chunks if retry_chunks else kept
+
         all_chunks.extend(chunks)
         print(f"  - {module.title}: {len(chunks)} chunk(s)")
         for chunk in chunks:
@@ -109,13 +153,21 @@ def summary_node(state: PipelineState) -> Dict[str, Any]:
 
 
 async def test_generation_worker_node(state: PipelineState) -> Dict[str, Any]:
-    """Generate test cases for a SINGLE workflow chunk.
+    """Generate test cases for a SINGLE workflow chunk, then audit them.
 
     This node is the target of a Send-API conditional edge: one worker
     instance is fanned out per chunk and they run concurrently in the
-    asyncio event loop. Each worker reads its assigned chunk from
-    ``state["current_chunk"]`` and returns its result list under
-    ``all_tests``, where the additive reducer concatenates across workers.
+    asyncio event loop. Each worker:
+
+        1. Generates an initial test list for the chunk.
+        2. Runs the test-case auditor over that list.
+        3. Keeps "accept" tests, drops "drop" tests, and — if any "revise"
+           verdicts came back — re-runs the generator once with the combined
+           redaction hints, audits the retry, and unions the retry's
+           accepted tests with the originals.
+
+    Cap is one retry per worker. Downstream assembler dedup absorbs any
+    overlap between original-accepted and retry-accepted tests.
     """
     chunk = state["current_chunk"]
     if chunk is None:
@@ -123,17 +175,61 @@ async def test_generation_worker_node(state: PipelineState) -> Dict[str, Any]:
 
     ct0 = time.time()
     print(f"  - worker start: {chunk.module_title} / {chunk.workflow_name}")
-    agent = TestGenerationAgent(**_agent_kwargs(state))
+    agent_kwargs = _agent_kwargs(state)
+    gen_agent = TestGenerationAgent(**agent_kwargs)
+    auditor = TestCaseAuditorAgent(**agent_kwargs)
+
     try:
-        tests = await agent.arun(chunk)
+        tests = await gen_agent.arun(chunk)
     except Exception as err:
         print(f"  !! worker failed for {chunk.workflow_name}: {err}")
-        tests = []
+        return {"all_tests": []}
+
+    if not tests:
+        print(
+            f"  - worker done:  {chunk.module_title} / {chunk.workflow_name} "
+            f"-> 0 tests in {time.time() - ct0:.1f}s"
+        )
+        return {"all_tests": []}
+
+    verdicts = await auditor.arun(chunk, tests)
+    accepted = [t for t, v in zip(tests, verdicts) if v.verdict == "accept"]
+    revise_hints = [
+        v.redaction_hint for v in verdicts
+        if v.verdict == "revise" and v.redaction_hint
+    ]
+    dropped = sum(1 for v in verdicts if v.verdict == "drop")
+    initial_count = len(tests)
+
+    # Warn if the auditor was unusually aggressive — likely a prompt regression.
+    if initial_count and (initial_count - len(accepted)) / initial_count > 0.5:
+        print(
+            f"  !! auditor dropped/revised >50% for '{chunk.workflow_name}' "
+            f"({initial_count - len(accepted)}/{initial_count}); review prompts"
+        )
+
+    if revise_hints:
+        combined_hint = "; ".join(revise_hints)
+        try:
+            retry_tests = await gen_agent.arun(chunk, revision_hint=combined_hint)
+        except Exception as err:
+            print(f"  !! worker retry failed for {chunk.workflow_name}: {err}")
+            retry_tests = []
+
+        if retry_tests:
+            retry_verdicts = await auditor.arun(chunk, retry_tests)
+            retry_accepted = [
+                t for t, v in zip(retry_tests, retry_verdicts) if v.verdict == "accept"
+            ]
+            accepted = accepted + retry_accepted
+
     print(
         f"  - worker done:  {chunk.module_title} / {chunk.workflow_name} "
-        f"-> {len(tests)} tests in {time.time() - ct0:.1f}s"
+        f"-> {len(accepted)} kept (initial {initial_count}, "
+        f"dropped {dropped}, revised {len(revise_hints)}) "
+        f"in {time.time() - ct0:.1f}s"
     )
-    return {"all_tests": tests}
+    return {"all_tests": accepted}
 
 
 def test_generation_announce_node(state: PipelineState) -> Dict[str, Any]:

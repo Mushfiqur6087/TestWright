@@ -65,7 +65,7 @@ def main():
         help="Max concurrent in-flight LLM calls during Send-API fan-out (default: 10).",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
+    parser.add_argument("--debug-file", default=None, help="Debug log path (default: <output-dir>/debug_log.txt)")
     # Export markdown subcommand
     export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
     export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
@@ -93,7 +93,7 @@ def main():
     verify_parser.add_argument("--output", "-o", help="Output path for verifications.json")
     verify_parser.add_argument("--max-workers", type=int, default=8, help="Parallel LLM calls (default: 8)")
     verify_parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    verify_parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
+    verify_parser.add_argument("--debug-file", default=None, help="Debug log path (default: same dir as --input)")
 
     # Export verification markdown subcommand
     export_verif_parser = subparsers.add_parser(
@@ -197,11 +197,15 @@ def _generate(args):
 
     set_max_concurrency(args.max_concurrency)
 
+    debug_file = args.debug_file or str(Path(output_dir) / "debug_log.txt")
+    if args.debug:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+
     generator = TestCaseGenerator(
         api_key=args.api_key,
         model=model,
         debug=args.debug,
-        debug_file=args.debug_file,
+        debug_file=debug_file,
         run_id=run_id,
     )
 
@@ -319,6 +323,8 @@ def _verify(args):
         print(model_err)
         return 1
 
+    debug_file = args.debug_file or str(Path(args.output).parent / "debug_log.txt" if args.output else input_path.parent / "debug_log.txt")
+
     try:
         run_verification(
             test_cases_json_path=str(input_path),
@@ -329,7 +335,7 @@ def _verify(args):
             cross_role_spec_paths=args.cross_role_specs,
             max_workers=args.max_workers,
             debug=args.debug,
-            debug_file=args.debug_file,
+            debug_file=debug_file,
         )
     except FileNotFoundError as e:
         print(f"Error: {e}")

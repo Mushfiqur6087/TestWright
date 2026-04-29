@@ -7,7 +7,14 @@ name = "autospectest"
 version = "3.0.0"
 description = "Automated test case generation from functional specifications using multi-agent orchestration."
 requires-python = ">=3.9"
-dependencies = ["langgraph", "langgraph-checkpoint-sqlite", "aiosqlite", "litellm>=1.50"]
+dependencies = [
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "aiosqlite",
+    "litellm>=1.50",
+    "sentence-transformers>=2.7",
+    "numpy",
+]
 
 [project.scripts]
 autospectest = "autospectest.cli:main"
@@ -20,6 +27,7 @@ packages = [
     "autospectest.framework.agents",
     "autospectest.framework.extractors",
     "autospectest.framework.schemas",
+    "autospectest.framework.utils",
     "autospectest.framework.verification",
     "autospectest.exporters",
 ]

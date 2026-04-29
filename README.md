@@ -89,8 +89,21 @@ Optional flags:
 |---|---|---|
 | `--output, -o` | auto | Override output directory |
 | `--max-concurrency` | `10` | Max parallel LLM calls |
-| `--debug` | off | Write verbose debug log |
-| `--debug-file` | `debug_log.txt` | Debug log path (inside container) |
+| `--debug` | off | Write verbose debug log alongside the other outputs |
+| `--debug-file` | `<output-dir>/debug_log.txt` | Override debug log path |
+
+To run with debug logging (log lands in the same output directory as `test-cases.json`):
+
+```bash
+docker run --rm \
+  -v "$(pwd)/outputs:/app/outputs" \
+  autospectest \
+  --generate \
+  --input dataset/raw_specifications/Parabank/Parabank.md \
+  --api-key "$OPENAI_API_KEY" \
+  --model openai/gpt-4o \
+  --debug
+```
 
 ### Export test cases to Markdown
 
@@ -153,7 +166,8 @@ outputs/
             ├── test-cases.md         # human-readable report (after export-md)
             ├── navigation_graph.png  # page-connectivity graph
             ├── verifications.json    # verification plans (after verify)
-            └── verifications.md      # verification report (after export-verification-md)
+            ├── verifications.md      # verification report (after export-verification-md)
+            └── debug_log.txt         # verbose LLM log (only with --debug; gitignored)
 ```
 
 Interrupted run checkpoints are stored under `outputs/.checkpoints/` and can

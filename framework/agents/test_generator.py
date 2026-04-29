@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from autospectest.framework.agents.base import BaseAgent
 from autospectest.framework.schemas.schemas import WorkflowChunk, TestCase
@@ -218,8 +218,13 @@ For each test case, provide:
 - Single expected result
 - Priority (High for core functionality, Medium for validations, Low for edge cases)"""
 
-    def _build_prompt(self, chunk: WorkflowChunk) -> str:
-        """Build the user prompt for a workflow chunk. Shared by sync and async paths."""
+    def _build_prompt(self, chunk: WorkflowChunk, revision_hint: Optional[str] = None) -> str:
+        """Build the user prompt for a workflow chunk. Shared by sync and async paths.
+
+        ``revision_hint`` is appended when the test-case auditor flagged the
+        previous output and we are re-running with corrective guidance. The
+        hint is appended verbatim so the model sees exactly what to fix.
+        """
         items_str = ", ".join(chunk.related_items) if chunk.related_items else "Not specified"
         rules_str = "\n".join([f"  - {r}" for r in chunk.related_rules]) if chunk.related_rules else "None"
         behaviors_str = "\n".join([f"  - {b}" for b in chunk.related_behaviors]) if chunk.related_behaviors else "None"
@@ -470,11 +475,18 @@ COVERAGE CHECKLIST (verify all applicable items are covered):
 [ ] Boundary values ONLY for explicitly specified limits
 [ ] State-change verification (when the action modifies persistent data)
 """
+        if revision_hint:
+            prompt += (
+                "\n\nAUDITOR REVISION HINT (from a prior generation pass) — apply faithfully:\n"
+                f"{revision_hint}\n"
+                "Drop or rewrite any test that violates this hint. Do not invent tests "
+                "outside the workflow's scope to compensate.\n"
+            )
         return prompt
 
-    def run(self, chunk: WorkflowChunk) -> List[TestCase]:
+    def run(self, chunk: WorkflowChunk, revision_hint: Optional[str] = None) -> List[TestCase]:
         """Generate test cases for a workflow chunk (synchronous)."""
-        prompt = self._build_prompt(chunk)
+        prompt = self._build_prompt(chunk, revision_hint=revision_hint)
         try:
             result = self.call_llm_json(prompt, max_tokens=16000)
             return self._parse_test_results(result, chunk)
@@ -482,9 +494,9 @@ COVERAGE CHECKLIST (verify all applicable items are covered):
             print(f"Warning: Test generation failed for {chunk.workflow_name}: {e}")
             return []
 
-    async def arun(self, chunk: WorkflowChunk) -> List[TestCase]:
+    async def arun(self, chunk: WorkflowChunk, revision_hint: Optional[str] = None) -> List[TestCase]:
         """Generate test cases for a workflow chunk (async, used by Send-API workers)."""
-        prompt = self._build_prompt(chunk)
+        prompt = self._build_prompt(chunk, revision_hint=revision_hint)
         try:
             result = await self.acall_llm_json(prompt, max_tokens=16000)
             return self._parse_test_results(result, chunk)

@@ -67,7 +67,7 @@ class TestCaseGenerator:
         """
 
         print("=" * 60)
-        print("TESTWRIGHT  (LangGraph Pipeline)")
+        print("AUTOSPECTEST  (LangGraph Pipeline)")
         print("=" * 60)
         if self.debug:
             print(f"Debug mode: ON (logging to {self.debug_file})")

@@ -11,6 +11,12 @@ from autospectest.framework.schemas.schemas import (
 )
 
 
+# Cosine-similarity cutoff for the semantic-dedup pass. Tests whose
+# (title :: first-3-steps) signatures sit above this threshold within the same
+# module are treated as paraphrases and collapsed.
+SEMANTIC_DEDUP_THRESHOLD = 0.85
+
+
 class AssemblerAgent(BaseAgent):
     """Agent responsible for assembling and organizing all test cases into final output"""
 
@@ -62,7 +68,7 @@ Your task is to:
         )
 
     def _remove_duplicates(self, test_cases: List[TestCase]) -> List[TestCase]:
-        """Remove duplicate test cases in two passes:
+        """Remove duplicate test cases in three passes:
 
         Pass 1 — Exact dedup on (module_id, title, first-3-steps).
         Pass 2 — Regex-normalized dedup across ALL test_types, keyed on
@@ -71,7 +77,10 @@ Your task is to:
                  "Amount empty (external)" AND cross-test_type duplicates like
                  a "Redirect to login" functional test that also appears as a
                  negative test with identical opening steps.
-        This keeps dedup deterministic and dependency-free.
+        Pass 3 — Embedding-based semantic dedup within each module. Catches
+                 paraphrases that the regex normalization can't (e.g.,
+                 "Verify error when amount field is blank" vs "Submit transfer
+                 with empty amount"). Threshold is ``SEMANTIC_DEDUP_THRESHOLD``.
         """
 
         start = len(test_cases)
@@ -113,13 +122,99 @@ Your task is to:
 
         after_pass2 = len(after_normalized)
 
-        if start != after_pass2:
+        # --- Pass 3: Semantic dedup via embedding cosine similarity ---------
+        after_semantic = self._semantic_dedup(after_normalized)
+        after_pass3 = len(after_semantic)
+
+        if start != after_pass3:
             print(
                 f"  - Dedup: {start} → {after_pass1} (exact) "
-                f"→ {after_pass2} (normalized)"
+                f"→ {after_pass2} (normalized) "
+                f"→ {after_pass3} (semantic, threshold {SEMANTIC_DEDUP_THRESHOLD})"
             )
 
-        return after_normalized
+        return after_semantic
+
+    def _semantic_dedup(self, test_cases: List[TestCase]) -> List[TestCase]:
+        """Pass 3: drop semantic paraphrases per module via embedding similarity.
+
+        Within each module, embed ``"<title> :: <step1 | step2 | step3>"`` for
+        every test, compute pairwise cosine similarity, and greedily keep the
+        most-preferred test from each cluster. Preference is (1) higher priority
+        first (High > Medium > Low), then (2) shorter title (more canonical),
+        then (3) lexical title order to make output deterministic. Tests below
+        the similarity threshold are independent and all survive.
+
+        Falls back to a no-op if the embeddings dependency is unavailable so
+        the pipeline degrades gracefully on systems without sentence-transformers.
+        """
+
+        if len(test_cases) < 2:
+            return list(test_cases)
+
+        try:
+            from autospectest.framework.utils.embeddings import (
+                cosine_sim_matrix,
+                encode,
+            )
+        except ImportError:
+            print("  - Semantic dedup skipped: sentence-transformers not installed")
+            return list(test_cases)
+
+        priority_rank = {"High": 0, "Medium": 1, "Low": 2}
+
+        by_module: Dict[int, List[TestCase]] = {}
+        for tc in test_cases:
+            by_module.setdefault(tc.module_id, []).append(tc)
+
+        survivors: List[TestCase] = []
+
+        for module_id in sorted(by_module.keys()):
+            group = by_module[module_id]
+            if len(group) < 2:
+                survivors.extend(group)
+                continue
+
+            ordered = sorted(
+                group,
+                key=lambda t: (
+                    priority_rank.get(t.priority, 1),
+                    len(t.title or ""),
+                    t.title or "",
+                ),
+            )
+
+            signatures = []
+            for t in ordered:
+                steps_part = " | ".join(t.steps[:3]) if t.steps else ""
+                signatures.append(f"{t.title} :: {steps_part}")
+
+            try:
+                vecs = encode(signatures)
+                sim = cosine_sim_matrix(vecs)
+            except Exception as err:
+                print(f"  - Semantic dedup skipped for module {module_id}: {err}")
+                survivors.extend(ordered)
+                continue
+
+            if sim.size == 0:
+                survivors.extend(ordered)
+                continue
+
+            kept_mask = [False] * len(ordered)
+            for i in range(len(ordered)):
+                drop = False
+                for j in range(i):
+                    if kept_mask[j] and float(sim[i, j]) >= SEMANTIC_DEDUP_THRESHOLD:
+                        drop = True
+                        break
+                kept_mask[i] = not drop
+
+            for i, t in enumerate(ordered):
+                if kept_mask[i]:
+                    survivors.append(t)
+
+        return survivors
 
     def _normalize_title(self, title: str) -> str:
         """Normalize a test title for semantic dedup by stripping workflow qualifiers."""

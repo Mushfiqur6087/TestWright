@@ -13,3 +13,6 @@ CLAUDE.md
 
 # AutoSpecTest run checkpoints (sqlite + per-run sidecars)
 outputs/.checkpoints/
+
+# Debug logs written by --debug flag (never commit these)
+**/debug_log.txt
