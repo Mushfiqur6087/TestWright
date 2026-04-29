@@ -66,6 +66,23 @@ GENERATE PER-FIELD EMPTY TESTS (one test per field) ONLY WHEN the spec explicitl
 Do NOT generate N empty-field tests by default just because there are N required
 fields. The spec must justify the split.
 
+MAXIMUM TESTS PER WORKFLOW: Generate at most 10 test cases total per workflow chunk.
+If you would generate more, apply this priority order and omit lower-priority ones:
+  1. Primary happy path (positive, High priority)
+  2. One consolidated negative test covering all required fields empty
+  3. Critical constraint violations explicitly named in the spec (wrong format,
+     mismatched values, insufficient balance, overlapping dates, etc.)
+  4. Boundary values only when the spec states an explicit numeric or length limit
+  5. State-change verification when the spec describes a before/after state transition
+
+CONSOLIDATION CHECK: Before emitting each test, ask — is this scenario DISTINCT from
+every test already in your list? "Distinct" means a different user decision point or a
+different outcome, not the same failure mode expressed through a different field or a
+slightly different button label. Collapse tests that differ only in:
+  - Which optional field is left blank when the same validation rule applies to all
+  - Minor re-wording of the same error condition
+  - Sub-steps of one complete flow that can be exercised in a single test
+
 Other negative-test rules (always apply):
 - One test per invalid-format field (one "Invalid email format" — NOT sub-variants
   like "missing @", "multiple @", "missing domain")

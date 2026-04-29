@@ -14,7 +14,7 @@ from autospectest.framework.schemas.schemas import (
 # Cosine-similarity cutoff for the semantic-dedup pass. Tests whose
 # (title :: first-3-steps) signatures sit above this threshold within the same
 # module are treated as paraphrases and collapsed.
-SEMANTIC_DEDUP_THRESHOLD = 0.85
+SEMANTIC_DEDUP_THRESHOLD = 0.80
 
 
 class AssemblerAgent(BaseAgent):

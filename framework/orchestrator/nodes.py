@@ -38,13 +38,18 @@ def _agent_kwargs(state: PipelineState) -> dict:
     )
 
 
-def parse_node(state: PipelineState) -> Dict[str, Any]:
-    """Parse the raw functional description into structured data."""
+async def parse_node(state: PipelineState) -> Dict[str, Any]:
+    """Parse the raw functional description into structured data.
+
+    All modules are parsed in parallel via ParserAgent.arun / asyncio.gather,
+    cutting step-1 wall-clock time from O(N modules) to O(1) bounded by the
+    LLM semaphore.
+    """
     t0 = time.time()
-    print("\n[1/8] Parsing functional description...")
+    print("\n[1/8] Parsing functional description (parallelized)...")
 
     agent = ParserAgent(**_agent_kwargs(state))
-    parsed_desc = agent.run(state["functional_desc"])
+    parsed_desc = await agent.arun(state["functional_desc"])
 
     print(f"  - Project: {parsed_desc.project_name}")
     print(f"  - Modules found: {len(parsed_desc.modules)}")
@@ -69,22 +74,24 @@ def navigation_node(state: PipelineState) -> Dict[str, Any]:
     return {"nav_graph": nav_graph}
 
 
-def chunker_node(state: PipelineState) -> Dict[str, Any]:
+async def chunker_node(state: PipelineState) -> Dict[str, Any]:
     """Split modules into workflow chunks, then audit and (once) revise.
 
-    The chunker produces an initial chunk set per module; the workflow auditor
-    reviews those chunks against the module's spec text and reports coverage
-    gaps, ungrounded chunks, and scope leaks. When any are flagged, we drop
-    the bad chunks and re-run the chunker once with the auditor's revision
-    hint plus any missing workflows folded into ``module.workflows``. Capped
-    at one retry per module.
+    All modules are processed in parallel via asyncio.gather. For each module:
+      1. ChunkerAgent.arun produces an initial chunk set.
+      2. WorkflowAuditorAgent.arun reviews for coverage gaps, ungrounded chunks,
+         and scope leaks.
+      3. On a non-clean audit, bad chunks are dropped, missing workflows are folded
+         into module.workflows, and the chunker retries once with the revision hint.
+    Capped at one retry per module. Concurrency is bounded by the shared LLM semaphore.
     """
+    import asyncio
+
     t0 = time.time()
-    print("\n[3/8] Splitting modules into workflow chunks (with auditor)...")
+    print("\n[3/8] Splitting modules into workflow chunks (with auditor, parallelized)...")
 
     chunker = ChunkerAgent(**_agent_kwargs(state))
     auditor = WorkflowAuditorAgent(**_agent_kwargs(state))
-    all_chunks = []
 
     parsed_desc = state["parsed_desc"]
     project_context = ProjectContext(
@@ -92,9 +99,9 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
         navigation_overview=parsed_desc.navigation_overview or "",
     )
 
-    for module in parsed_desc.modules:
-        chunks = chunker.run(module, project_context=project_context)
-        report = auditor.run(module, chunks)
+    async def process_module(module) -> List[Any]:
+        chunks = await chunker.arun(module, project_context=project_context)
+        report = await auditor.arun(module, chunks)
 
         if not report.is_clean():
             kept = [
@@ -111,8 +118,6 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
                 f"dropping {dropped}, retrying chunker"
             )
 
-            # Retry: fold missing workflows into the module's workflow list so
-            # the chunker can map items to them, and pass the revision hint.
             if report.missing_workflows:
                 existing = {w.lower() for w in module.workflows}
                 for w in report.missing_workflows:
@@ -120,17 +125,21 @@ def chunker_node(state: PipelineState) -> Dict[str, Any]:
                         module.workflows.append(w)
                         existing.add(w.lower())
 
-            retry_chunks = chunker.run(
+            retry_chunks = await chunker.arun(
                 module,
                 project_context=project_context,
                 revision_hint=report.revision_hint or None,
             )
             chunks = retry_chunks if retry_chunks else kept
 
-        all_chunks.extend(chunks)
         print(f"  - {module.title}: {len(chunks)} chunk(s)")
         for chunk in chunks:
             print(f"    * {chunk.workflow_name}")
+
+        return chunks
+
+    results = await asyncio.gather(*[process_module(m) for m in parsed_desc.modules])
+    all_chunks = [c for module_chunks in results for c in module_chunks]
 
     print(f"  Total: {len(all_chunks)} chunks | Done in {time.time() - t0:.1f}s")
     return {"all_chunks": all_chunks}

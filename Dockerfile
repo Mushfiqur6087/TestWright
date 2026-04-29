@@ -33,7 +33,10 @@ subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-cache-dir'] + deps
 RUN python3 -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
 
 # --- Source layer (only re-runs when source files change) ---
-# Deps are already installed above; --no-deps makes this step take ~2s.
+# Pass --build-arg CACHE_BUST=$(date +%s) to force this layer to rebuild
+# without touching the expensive dep/model layers above.
+ARG CACHE_BUST=1
+RUN echo "cache bust: $CACHE_BUST"
 COPY . .
 RUN pip install --no-cache-dir . --no-deps
 
