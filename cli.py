@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """
-AutoSpecTest CLI - Automated test case generation from functional specifications.
+AutoSpecTest CLI — UI-AST generation from functional specifications.
 
 Usage:
-    autospectest --generate --input spec.md --api-key "sk-..." --model openai/gpt-4o --output outputs/
-    autospectest export-md --input outputs/test-cases.json --output outputs/test-cases.md
-
-Model strings follow LiteLLM convention (provider prefix is required):
-    openai/gpt-4o, openrouter/anthropic/claude-3.5-sonnet, github/gpt-4o, ...
+    autospectest --generate --input spec.md --api-key "sk-..." --model openai/gpt-4o-mini
 """
 
 import argparse
@@ -18,123 +14,64 @@ from typing import Optional
 
 import autospectest
 from autospectest.framework.agents.base import set_max_concurrency
-from autospectest.framework.orchestrator.generator import TestCaseGenerator
+from autospectest.framework.orchestrator.generator import UIASTGenerator
 from autospectest.framework.orchestrator.runs import (
     make_run_id,
     make_run_metadata,
     read_sidecar,
     write_sidecar,
 )
-from autospectest.framework.verification.pipeline import run_verification
-from autospectest.exporters.markdown_exporter import generate_markdown, load_test_cases
-from autospectest.exporters.verification_markdown_exporter import (
-    generate_verification_markdown,
-    load_verifications,
-)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="AutoSpecTest - Automated test case generation from functional specifications"
+        description="AutoSpecTest — UI-AST generation from functional specifications"
     )
     parser.add_argument("--version", action="version", version=f"autospectest {autospectest.__version__}")
-
-    subparsers = parser.add_subparsers(dest="command")
-
-    # Generate command (also accessible via --generate flag for backward compat)
-    parser.add_argument("--generate", action="store_true", help="Generate test cases")
+    parser.add_argument("--generate", action="store_true", help="Generate UI-AST from spec")
     parser.add_argument("--input", "-i", help="Path to functional specification markdown file")
     parser.add_argument("--api-key", help="API key for LLM provider")
     parser.add_argument(
         "--model",
         default="openai/gpt-4o",
-        help="LiteLLM model string with provider prefix (default: openai/gpt-4o). "
-             "Examples: openai/gpt-4o, openrouter/anthropic/claude-3.5-sonnet, github/gpt-4o.",
+        help="LiteLLM model string with provider prefix (default: openai/gpt-4o)",
     )
     parser.add_argument("--output", "-o", default="output", help="Output directory (default: output)")
     parser.add_argument(
         "--resume",
         metavar="RUN_ID",
-        help="Resume a previous generation run by id. Reads --input/--model/--output "
-             "from the sidecar; --api-key is still required.",
+        help="Resume a previous run by id.",
     )
     parser.add_argument(
         "--max-concurrency",
         type=int,
         default=10,
-        help="Max concurrent in-flight LLM calls during Send-API fan-out (default: 10).",
+        help="Max concurrent LLM calls (default: 10)",
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
-    # Export markdown subcommand
-    export_parser = subparsers.add_parser("export-md", help="Export test cases JSON to Markdown")
-    export_parser.add_argument("--input", "-i", required=True, help="Input JSON file path")
-    export_parser.add_argument("--output", "-o", help="Output Markdown file path")
-
-    # Verify subcommand — generates verifications.json from an existing test-cases.json
-    verify_parser = subparsers.add_parser(
-        "verify",
-        help="Generate verification plans from an already-generated test-cases.json",
-    )
-    verify_parser.add_argument("--input", "-i", required=True, help="Path to test-cases.json")
-    verify_parser.add_argument("--spec", required=True, help="Path to main functional spec markdown")
-    verify_parser.add_argument(
-        "--cross-role-specs",
-        nargs="+",
-        default=[],
-        help="Optional extra spec files for cross-role verification (e.g. MoodleStudent.md)",
-    )
-    verify_parser.add_argument("--api-key", required=True, help="API key for LLM provider")
-    verify_parser.add_argument(
-        "--model",
-        default="openai/gpt-4o",
-        help="LiteLLM model string with provider prefix (default: openai/gpt-4o).",
-    )
-    verify_parser.add_argument("--output", "-o", help="Output path for verifications.json")
-    verify_parser.add_argument("--max-workers", type=int, default=8, help="Parallel LLM calls (default: 8)")
-    verify_parser.add_argument("--debug", action="store_true", help="Enable debug logging")
-    verify_parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
-
-    # Export verification markdown subcommand
-    export_verif_parser = subparsers.add_parser(
-        "export-verification-md",
-        help="Export verifications JSON to Markdown",
-    )
-    export_verif_parser.add_argument("--input", "-i", required=True, help="Input verifications.json path")
-    export_verif_parser.add_argument("--output", "-o", help="Output Markdown file path")
 
     args = parser.parse_args()
 
-    if args.command == "export-md":
-        return _export_markdown(args)
-    elif args.command == "verify":
-        return _verify(args)
-    elif args.command == "export-verification-md":
-        return _export_verification_markdown(args)
-    elif args.generate or args.resume:
+    if args.generate or args.resume:
         return _generate(args)
-    else:
-        parser.print_help()
-        return 1
+
+    parser.print_help()
+    return 1
 
 
 def _validate_model_string(model: str) -> Optional[str]:
-    """Return an error message if the model string is missing a provider prefix."""
     if "/" in model:
         return None
     return (
         f"Error: --model '{model}' is missing a provider prefix. "
-        f"AutoSpecTest uses LiteLLM model strings, e.g.:\n"
-        f"  --model openai/gpt-4o\n"
-        f"  --model openrouter/anthropic/claude-3.5-sonnet\n"
-        f"  --model github/gpt-4o"
+        f"Use LiteLLM format, e.g. openai/gpt-4o or openrouter/anthropic/claude-3.5-sonnet"
     )
 
 
 def _generate(args):
-    """Run the test case generation pipeline (fresh or resumed)."""
     if not args.api_key:
-        print("Error: --api-key is required for generation")
+        print("Error: --api-key is required")
         return 1
 
     if args.resume:
@@ -149,12 +86,9 @@ def _generate(args):
         run_id = metadata.run_id
         resume = True
         print(f"Resuming run {run_id}")
-        print(f"  Input:  {input_path}")
-        print(f"  Model:  {model}")
-        print(f"  Output: {output_dir}")
     else:
         if not args.input:
-            print("Error: --input is required for generation")
+            print("Error: --input is required")
             return 1
         model_err = _validate_model_string(args.model)
         if model_err:
@@ -162,9 +96,9 @@ def _generate(args):
             return 1
         input_path = Path(args.input)
         model = args.model
-        run_id = None  # filled after we have the parsed project name
+        run_id = None
         resume = False
-        output_dir = None  # filled below
+        output_dir = None
 
     if not input_path.exists():
         print(f"Error: Input file not found: {input_path}")
@@ -179,9 +113,9 @@ def _generate(args):
         if args.output != "output":
             output_dir = args.output
         else:
-            website_name = functional_desc.get("project_name", "output").replace(" ", "_")
+            project_slug = functional_desc.get("project_name", "output").replace(" ", "_")
             model_slug = model.replace("/", "-")
-            output_dir = str(Path("outputs") / "autospectest" / website_name / model_slug)
+            output_dir = str(Path("outputs") / "autospectest" / project_slug / model_slug)
 
         run_id = make_run_id(functional_desc.get("project_name", "run"))
         sidecar = write_sidecar(make_run_metadata(
@@ -193,11 +127,11 @@ def _generate(args):
         print(f"run_id: {run_id}")
         print(f"  Sidecar: {sidecar}")
         print(f"  Output directory: {output_dir}")
-        print(f"  (use `--resume {run_id}` to continue this run if it is interrupted)")
+        print(f"  (use `--resume {run_id}` to continue if interrupted)")
 
     set_max_concurrency(args.max_concurrency)
 
-    generator = TestCaseGenerator(
+    generator = UIASTGenerator(
         api_key=args.api_key,
         model=model,
         debug=args.debug,
@@ -214,29 +148,23 @@ def _generate(args):
     finally:
         generator.close()
 
-    print(f"\nGeneration complete!")
-    print(f"  Total tests: {output.summary.get('total_tests', 0)}")
-    print(f"  Output: {output_dir}/")
+    if output:
+        n_modules = len(output.get("modules", []))
+        print(f"\nDone! UI-AST generated for {n_modules} module(s).")
+        print(f"  Output:   {output_dir}/ui-ast.json")
+        print(f"  Critique: {output_dir}/semantic-critique.json")
     return 0
 
 
 def _parse_markdown(text: str) -> tuple:
-    """Parse a functional spec markdown into (navigation_overview, modules).
-
-    Any ``## Navigation`` section (case-insensitive) is extracted as the
-    navigation overview and excluded from the modules list, so it doesn't
-    get processed as a page with testable workflows.
-    """
     modules = []
     navigation_overview = ""
     module_id = 0
-
-    current_module = None       # {"id", "title", "description"}
-    collecting_nav = False      # True while inside the Navigation section
+    current_module = None
+    collecting_nav = False
 
     for line in text.split('\n'):
         if line.startswith('## '):
-            # Close whatever section we were building
             if current_module:
                 modules.append(current_module)
                 current_module = None
@@ -254,7 +182,6 @@ def _parse_markdown(text: str) -> tuple:
         elif current_module:
             current_module["description"] += line + "\n"
 
-    # Flush trailing section
     if current_module:
         modules.append(current_module)
 
@@ -262,105 +189,14 @@ def _parse_markdown(text: str) -> tuple:
 
 
 def _load_from_markdown_file(md_path: Path) -> dict:
-    """Load functional description from a markdown file."""
     spec_text = md_path.read_text(encoding='utf-8')
     navigation_overview, modules = _parse_markdown(spec_text)
-
     project_name = md_path.stem.replace('-', ' ').replace('_', ' ').title()
-
     return {
         "project_name": project_name,
-        "website_url": "",
         "navigation_overview": navigation_overview,
         "modules": modules,
     }
-
-
-def _export_markdown(args):
-    """Export test cases from JSON to Markdown."""
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input file not found: {input_path}")
-        return 1
-
-    output_path = args.output
-    if not output_path:
-        output_path = input_path.with_suffix('.md')
-
-    print(f"Reading test cases from: {input_path}")
-    data = load_test_cases(str(input_path))
-
-    print("Generating Markdown...")
-    markdown = generate_markdown(data)
-
-    print(f"Writing to: {output_path}")
-    with open(output_path, 'w') as f:
-        f.write(markdown)
-
-    test_count = len(data.get('test_cases', []))
-    print(f"Done! Exported {test_count} test cases to Markdown.")
-    return 0
-
-
-def _verify(args):
-    """Run the standalone verification pipeline."""
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input file not found: {input_path}")
-        return 1
-
-    spec_path = Path(args.spec)
-    if not spec_path.exists():
-        print(f"Error: Spec file not found: {spec_path}")
-        return 1
-
-    model_err = _validate_model_string(args.model)
-    if model_err:
-        print(model_err)
-        return 1
-
-    try:
-        run_verification(
-            test_cases_json_path=str(input_path),
-            spec_path=str(spec_path),
-            api_key=args.api_key,
-            model=args.model,
-            output_path=args.output,
-            cross_role_spec_paths=args.cross_role_specs,
-            max_workers=args.max_workers,
-            debug=args.debug,
-            debug_file=args.debug_file,
-        )
-    except FileNotFoundError as e:
-        print(f"Error: {e}")
-        return 1
-    return 0
-
-
-def _export_verification_markdown(args):
-    """Export verifications.json to markdown."""
-    input_path = Path(args.input)
-    if not input_path.exists():
-        print(f"Error: Input file not found: {input_path}")
-        return 1
-
-    output_path = args.output
-    if not output_path:
-        output_path = input_path.with_suffix(".md")
-
-    print(f"Reading verifications from: {input_path}")
-    data = load_verifications(str(input_path))
-
-    print("Generating Markdown...")
-    markdown = generate_verification_markdown(data, verification_file_path=str(input_path))
-
-    print(f"Writing to: {output_path}")
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(markdown)
-
-    record_count = len(data.get("verifications", []))
-    print(f"Done! Exported {record_count} verification records to Markdown.")
-    return 0
 
 
 if __name__ == "__main__":

@@ -1,1 +1,1 @@
-"""AutoSpecTest framework: orchestrator, agents, extractors, schemas, verification."""
+"""AutoSpecTest framework: orchestrator and agents."""

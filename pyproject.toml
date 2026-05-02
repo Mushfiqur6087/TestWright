@@ -12,9 +12,10 @@ dependencies = [
     "langgraph-checkpoint-sqlite",
     "aiosqlite",
     "litellm>=1.50",
-    "networkx",
-    "matplotlib",
-    "scipy",
+    "langgraph",
+    "langgraph-checkpoint-sqlite",
+    "aiosqlite",
+    "litellm>=1.50",
 ]
 
 [project.scripts]
@@ -23,14 +24,14 @@ autospectest = "autospectest.cli:main"
 [tool.setuptools]
 packages = [
     "autospectest",
+    "autospectest.prompts",
     "autospectest.framework",
     "autospectest.framework.orchestrator",
     "autospectest.framework.agents",
-    "autospectest.framework.extractors",
-    "autospectest.framework.schemas",
-    "autospectest.framework.verification",
-    "autospectest.exporters",
 ]
 
 [tool.setuptools.package-dir]
 autospectest = "."
+
+[tool.setuptools.package-data]
+"autospectest.prompts" = ["*.md"]

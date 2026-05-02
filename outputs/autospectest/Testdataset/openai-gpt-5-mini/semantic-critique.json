@@ -1,0 +1,69 @@
+{
+  "project_name": "Testdataset",
+  "generated_at": "2026-05-02T21:09:58.815138Z",
+  "modules": [
+    {
+      "module_id": 1,
+      "module_title": "Client Management",
+      "critique": {
+        "score": 1.0,
+        "verdict": "pass",
+        "category_scores": {
+          "coverage": 1.0,
+          "structure": 0.99,
+          "hallucination_penalty": 0.0
+        },
+        "audit": {
+          "components": {
+            "expected": 7,
+            "found": 7,
+            "missing": []
+          },
+          "fields": {
+            "expected": 44,
+            "found": 44,
+            "missing": []
+          },
+          "states": {
+            "expected": 5,
+            "found": 5,
+            "missing": []
+          },
+          "actions": {
+            "expected": 18,
+            "found": 18,
+            "missing": []
+          },
+          "constraints": {
+            "expected": 6,
+            "found": 6,
+            "missing": []
+          },
+          "conditionals": {
+            "expected": 4,
+            "found": 4,
+            "missing": []
+          },
+          "dropdown_options": {
+            "expected": 5,
+            "found": 5,
+            "missing": []
+          },
+          "repeating_groups": {
+            "expected": 3,
+            "found": 3,
+            "missing": []
+          },
+          "recursive_nesting": {
+            "expected": 1,
+            "found": 1,
+            "missing": []
+          }
+        },
+        "hallucinations": [],
+        "regeneration_hints": []
+      },
+      "error": null
+    }
+  ]
+}
