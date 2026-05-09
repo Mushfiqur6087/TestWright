@@ -31,5 +31,8 @@ class PipelineState(TypedDict, total=False):
     # Stage 2 — semantic audit results (one entry per module)
     semantic_critique_results: Annotated[List[Dict[str, Any]], _last_value]
 
+    # Stage 3 — merged test cases (one entry per module)
+    test_results: Annotated[List[Dict[str, Any]], _last_value]
+
     # Final assembled output dict
     output: Annotated[Dict[str, Any], _last_value]

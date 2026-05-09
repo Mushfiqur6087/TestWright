@@ -150,9 +150,10 @@ def _generate(args):
 
     if output:
         n_modules = len(output.get("modules", []))
-        print(f"\nDone! UI-AST generated for {n_modules} module(s).")
-        print(f"  Output:   {output_dir}/ui-ast.json")
-        print(f"  Critique: {output_dir}/semantic-critique.json")
+        print(f"\nDone! Generated for {n_modules} module(s).")
+        print(f"  UI-AST:     {output_dir}/ui-ast.json")
+        print(f"  Critique:   {output_dir}/semantic-critique.json")
+        print(f"  Tests:      {output_dir}/test-cases.json")
     return 0
 
 

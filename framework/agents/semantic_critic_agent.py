@@ -20,10 +20,20 @@ class SemanticCriticAgent(BaseAgent):
         return _PROMPT
 
     def run(self, description: str, ast: Dict[str, Any]) -> Dict[str, Any]:
-        return self.call_llm_json(self._build_prompt(description, ast), temperature=0.1, mmax_tokens=8192)
+        return self.call_llm_json(
+            self._build_prompt(description, ast),
+            temperature=0.1,
+            max_tokens=6144,
+            reasoning_effort="medium",
+        )
 
     async def arun(self, description: str, ast: Dict[str, Any]) -> Dict[str, Any]:
-        return await self.acall_llm_json(self._build_prompt(description, ast), temperature=0.1,max_tokens=8192)
+        return await self.acall_llm_json(
+            self._build_prompt(description, ast),
+            temperature=0.1,
+            max_tokens=6144,
+            reasoning_effort="medium",
+        )
 
     @staticmethod
     def _build_prompt(description: str, ast: Dict[str, Any]) -> str:

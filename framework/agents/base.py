@@ -125,6 +125,7 @@ class BaseAgent(ABC):
         temperature: float,
         max_tokens: int,
         response_format: Optional[Dict],
+        reasoning_effort: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Assemble the kwargs dict shared by sync and async LiteLLM calls."""
         kwargs: Dict[str, Any] = {
@@ -136,11 +137,13 @@ class BaseAgent(ABC):
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "timeout": 120,
+            "timeout": 300,
             "num_retries": 2,
         }
         if response_format:
             kwargs["response_format"] = response_format
+        if reasoning_effort:
+            kwargs["reasoning_effort"] = reasoning_effort
         extra_headers = self._extra_headers()
         if extra_headers:
             kwargs["extra_headers"] = extra_headers
@@ -180,12 +183,13 @@ class BaseAgent(ABC):
         user_prompt: str,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        response_format: Optional[Dict] = None
+        response_format: Optional[Dict] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> str:
         """Call the LLM synchronously via LiteLLM and return response content."""
         self._log_request(user_prompt)
         t0 = time.time()
-        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format)
+        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format, reasoning_effort)
         try:
             response = litellm.completion(**kwargs)
         except Exception as err:
@@ -202,11 +206,12 @@ class BaseAgent(ABC):
         user_prompt: str,
         temperature: float = 0.7,
         max_tokens: int = 4096,
-        response_format: Optional[Dict] = None
+        response_format: Optional[Dict] = None,
+        reasoning_effort: Optional[str] = None,
     ) -> str:
         """Call the LLM asynchronously via LiteLLM, throttled by the module semaphore."""
         self._log_request(user_prompt)
-        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format)
+        kwargs = self._build_completion_kwargs(user_prompt, temperature, max_tokens, response_format, reasoning_effort)
         async with _get_llm_semaphore():
             t0 = time.time()
             try:
@@ -225,7 +230,8 @@ class BaseAgent(ABC):
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 1500,
-        max_retries: int = 2
+        max_retries: int = 2,
+        reasoning_effort: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Call LLM and parse response as JSON with retry on parse errors"""
         json_prompt = f"{user_prompt}\n\nIMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON."
@@ -239,6 +245,7 @@ class BaseAgent(ABC):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format={"type": "json_object"} if use_json_response_format else None,
+                    reasoning_effort=reasoning_effort,
                 )
 
                 response = response.strip()
@@ -262,7 +269,7 @@ class BaseAgent(ABC):
                     self._log_debug("JSON PARSE ERROR", f"{error_msg}\nResponse: {response[:500]}...")
 
                 if attempt < max_retries:
-                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}): {e} | retrying...")
                     json_prompt = f"{user_prompt}\n\nIMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting."
                 else:
                     error_msg = f"Failed to parse LLM response as JSON after {max_retries + 1} attempts: {last_error}\nResponse: {response}"
@@ -287,7 +294,8 @@ class BaseAgent(ABC):
         user_prompt: str,
         temperature: float = 0.3,
         max_tokens: int = 1500,
-        max_retries: int = 2
+        max_retries: int = 2,
+        reasoning_effort: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Async counterpart of ``call_llm_json`` for use inside Send-API workers."""
         json_prompt = f"{user_prompt}\n\nIMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON."
@@ -301,6 +309,7 @@ class BaseAgent(ABC):
                     temperature=temperature,
                     max_tokens=max_tokens,
                     response_format={"type": "json_object"} if use_json_response_format else None,
+                    reasoning_effort=reasoning_effort,
                 )
                 response = response.strip()
                 if response.startswith("```json"):
@@ -321,7 +330,7 @@ class BaseAgent(ABC):
                 if self.debug:
                     self._log_debug("JSON PARSE ERROR", f"{error_msg}\nResponse: {response[:500]}...")
                 if attempt < max_retries:
-                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}), retrying...")
+                    print(f"    [{self._ts()}] ~~ {self.name} | JSON parse failed (attempt {attempt+1}/{max_retries+1}): {e} | retrying...")
                     json_prompt = f"{user_prompt}\n\nIMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting."
                 else:
                     error_msg = f"Failed to parse LLM response as JSON after {max_retries + 1} attempts: {last_error}\nResponse: {response}"
