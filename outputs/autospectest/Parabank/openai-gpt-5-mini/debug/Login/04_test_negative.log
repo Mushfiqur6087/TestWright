@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.571935
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.554465
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Login</module_name>
 
@@ -308,17 +309,17 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
       "type": "form",
       "fields": {
         "Email_Username": {
-          "type": "email",
+          "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be valid email format"
+            "must be a valid email format"
           ]
         },
         "Password": {
           "type": "password",
           "required": true,
           "constraints": [
-            "minimum length 8",
+            "minimum length 8 characters",
             "must include at least one uppercase letter",
             "must include at least one lowercase letter",
             "must include at least one number",
@@ -329,37 +330,25 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
       "submit_actions": [
         {
           "element_name": "Sign In",
-          "type": "button",
-          "server_side_validation": "securely validates credentials against registered-user database",
-          "on_success": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
-          "on_failure": {
-            "message": "Incorrect email or password. Please try again",
-            "effects": [
-              "clears Password field",
-              "allows another attempt"
-            ]
-          }
+          "on_submit": "securely validates provided credentials against the registered-user database",
+          "on_success": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
+          "on_failure": "shows 'Incorrect email or password. Please try again', clears Password field, allows another attempt"
         }
       ]
     },
     "Forgot_Password_Link": {
       "type": "link",
-      "element_name": "Forgot Password?"
+      "element_name": "Forgot Password?",
+      "on_click": "navigates to password reset flow"
     }
   }
 }
 </ast>
 
-<description>
-The login page contains a login form with two required input fields—Email/Username and Password—along with a "Sign In" button and a "Forgot Password?" link. Email must be a valid email format and password must be at least 8 characters with uppercase, lowercase, number, and special character. When the user submits the form, the system securely validates the provided credentials against the registered-user database. If authentication succeeds, the system flashes "Signed in successfully." and redirects the user to the Accounts Overview page; if it fails, it shows "Incorrect email or password. Please try again," clears the password field, and allows another attempt.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:58:02] Test-Negative - LLM RESPONSE
+[23:11:45] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Login",
@@ -367,98 +356,86 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Email/Username required - empty email field",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "test_case": "Email_Username left blank (required field)",
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Leave Email/Username field empty",
-        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Leave Email_Username field blank",
+        "Enter a valid Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Email/Username field indicating it is required",
+      "expected_result": "Validation error displayed for Email_Username indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Password required - empty password field",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "test_case": "Password left blank (required field)",
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
-        "Leave Password field empty",
-        "Click 'Sign In'"
+        "Enter a valid Email_Username (e.g., 'user@example.com')",
+        "Leave Password field blank",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Password field indicating it is required",
+      "expected_result": "Validation error displayed for Password indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
       "test_case": "Submit with all required fields empty",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Ensure both Email/Username and Password fields are empty",
-        "Click 'Sign In'"
+        "Leave Email_Username and Password fields blank",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation errors displayed for required fields: Email/Username field indicating it is required and Password field indicating it is required",
+      "expected_result": "Validation errors displayed for Email_Username (required) and Password (required)",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Invalid email format prevents submission",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "test_case": "Email_Username in invalid email format",
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Enter 'notanemail' into Email/Username field",
-        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Enter Email_Username with invalid format 'notanemail'",
+        "Enter a valid Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Email/Username field indicating it must be a valid email format",
+      "expected_result": "Validation error displayed for Email_Username: must be a valid email format",
       "priority": "medium"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Password fails minimum length policy",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "test_case": "Password violates minimum length constraint",
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
-        "Enter a password shorter than 8 characters, e.g. 'Aa1!'",
-        "Click 'Sign In'"
+        "Enter a valid Email_Username (e.g., 'user@example.com')",
+        "Enter Password shorter than 8 characters (e.g., 'Aa1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Password field indicating minimum length 8",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Password: minimum length 8 characters",
+      "priority": "medium"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Authentication failure with incorrect credentials",
-      "preconditions": [
-        "User is on the Login page and not authenticated"
-      ],
+      "test_case": "Incorrect credentials — server rejects login (on_failure message and password cleared)",
+      "preconditions": ["User is on the Login page"],
       "steps": [
-        "Enter a syntactically valid email not registered in the system, e.g. 'unknown.user@example.com'",
-        "Enter a password that meets the password policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Enter a syntactically valid but unregistered Email_Username (e.g., 'unknown@example.com')",
+        "Enter a Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Error 'Incorrect email or password. Please try again' displayed, and Password field cleared",
+      "expected_result": "Error 'Incorrect email or password. Please try again' displayed and Password field cleared",
       "priority": "high"
     }
   ],
   "summary": {
     "total": 6,
-    "high_priority": 5,
-    "medium_priority": 1,
+    "high_priority": 4,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[21:58:02] Test-Negative - PARSED JSON
+[23:11:45] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Login",
@@ -466,92 +443,92 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Email/Username required - empty email field",
+      "test_case": "Email_Username left blank (required field)",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Leave Email/Username field empty",
-        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Leave Email_Username field blank",
+        "Enter a valid Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Email/Username field indicating it is required",
+      "expected_result": "Validation error displayed for Email_Username indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Password required - empty password field",
+      "test_case": "Password left blank (required field)",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
-        "Leave Password field empty",
-        "Click 'Sign In'"
+        "Enter a valid Email_Username (e.g., 'user@example.com')",
+        "Leave Password field blank",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Password field indicating it is required",
+      "expected_result": "Validation error displayed for Password indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
       "test_case": "Submit with all required fields empty",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Ensure both Email/Username and Password fields are empty",
-        "Click 'Sign In'"
+        "Leave Email_Username and Password fields blank",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation errors displayed for required fields: Email/Username field indicating it is required and Password field indicating it is required",
+      "expected_result": "Validation errors displayed for Email_Username (required) and Password (required)",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Invalid email format prevents submission",
+      "test_case": "Email_Username in invalid email format",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Enter 'notanemail' into Email/Username field",
-        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Enter Email_Username with invalid format 'notanemail'",
+        "Enter a valid Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Email/Username field indicating it must be a valid email format",
+      "expected_result": "Validation error displayed for Email_Username: must be a valid email format",
       "priority": "medium"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Password fails minimum length policy",
+      "test_case": "Password violates minimum length constraint",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
-        "Enter a password shorter than 8 characters, e.g. 'Aa1!'",
-        "Click 'Sign In'"
+        "Enter a valid Email_Username (e.g., 'user@example.com')",
+        "Enter Password shorter than 8 characters (e.g., 'Aa1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Validation error displayed for Password field indicating minimum length 8",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Password: minimum length 8 characters",
+      "priority": "medium"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Authentication failure with incorrect credentials",
+      "test_case": "Incorrect credentials \u2014 server rejects login (on_failure message and password cleared)",
       "preconditions": [
-        "User is on the Login page and not authenticated"
+        "User is on the Login page"
       ],
       "steps": [
-        "Enter a syntactically valid email not registered in the system, e.g. 'unknown.user@example.com'",
-        "Enter a password that meets the password policy, e.g. 'ValidPwd1!'",
-        "Click 'Sign In'"
+        "Enter a syntactically valid but unregistered Email_Username (e.g., 'unknown@example.com')",
+        "Enter a Password that satisfies password constraints (e.g., 'ValidPass1!')",
+        "Click the 'Sign In' button"
       ],
-      "expected_result": "Error 'Incorrect email or password. Please try again' displayed, and Password field cleared",
+      "expected_result": "Error 'Incorrect email or password. Please try again' displayed and Password field cleared",
       "priority": "high"
     }
   ],
   "summary": {
     "total": 6,
-    "high_priority": 5,
-    "medium_priority": 1,
+    "high_priority": 4,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }

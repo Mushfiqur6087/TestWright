@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572527
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.555898
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Payments</module_name>
 
@@ -337,7 +338,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
         },
         "Confirm_Account_Number": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": [
+            "must match Payee_Account_Number"
+          ]
         },
         "Payment_Amount": {
           "type": "number",
@@ -352,21 +356,21 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
         }
       },
       "constraints": [
-        "Payee_Account_Number must equal Confirm_Account_Number (error: Account numbers do not match)",
-        "all fields are validated on submit"
+        "Account numbers must match: Payee_Account_Number == Confirm_Account_Number",
+        "all required fields must be present and pass field-level validation on submit"
       ],
       "submit_actions": [
         {
           "element_name": "Pay",
-          "type": "button",
           "preconditions": [
-            "available_funds in Source_Account >= Payment_Amount"
+            "sufficient funds available in selected Source_Account to cover Payment_Amount",
+            "Account numbers must match: Payee_Account_Number == Confirm_Account_Number"
           ],
           "constraints": [
-            "if available_funds < Payment_Amount then error: Insufficient funds"
+            "validates all entries before executing payment"
           ],
-          "on_success": "Payment submitted successfully. Returns reference code and updates balances.",
-          "on_failure": "Displays inline error(s) (e.g., 'Account numbers do not match', 'Insufficient funds'); form remains editable."
+          "on_success": "executes payment; returns \"Payment submitted successfully.\" with a reference code; updates balances",
+          "on_failure": "displays inline errors (e.g., \"Account numbers do not match\", \"Insufficient funds\"); form remains editable"
         }
       ]
     }
@@ -374,16 +378,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:58:53] Test-Negative - LLM RESPONSE
+[23:12:29] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Payments",
@@ -393,142 +391,112 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "tc_id": "N-001",
       "test_case": "Submit form with all required fields empty",
       "preconditions": [
-        "User is on the Bill Payment page (Bill_Payment_Form visible)"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Leave Payee Name empty",
-        "Leave Street Address empty",
-        "Leave City empty",
-        "Leave State empty",
-        "Leave ZIP Code empty",
-        "Leave Phone Number empty",
-        "Leave Payee Account Number empty",
-        "Leave Confirm Account Number empty",
-        "Leave Payment Amount empty",
-        "Do not select a Source Account",
-        "Click the 'Pay' button"
+        "Leave all fields empty: Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number, Confirm_Account_Number, Payment_Amount, Source_Account",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation errors displayed for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account indicating they are required (all fields are validated on submit)",
+      "expected_result": "Validation errors displayed for all required fields (Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number, Confirm_Account_Number, Payment_Amount, Source_Account) indicating they are required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Required text field missing (representative: Payee Name)",
+      "test_case": "Required text field (Payee_Name) left empty",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Clear Payee Name field (leave empty)",
-        "Ensure Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account are filled with valid values",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Payee_Name: Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', Payment_Amount='50', select a valid Source_Account",
+        "Clear or leave Payee_Name empty",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payee Name indicating it is required",
+      "expected_result": "Validation error displayed for Payee_Name indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Required dropdown not selected (Source Account)",
+      "test_case": "Required dropdown (Source_Account) not selected",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, and Payment Amount with valid values",
-        "Do not select any option in the Source Account dropdown",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Source_Account: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', Payment_Amount='50'",
+        "Do not select any option in Source_Account dropdown",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Source Account indicating it is required",
+      "expected_result": "Validation error displayed for Source_Account indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Required number field missing (Payment Amount empty)",
+      "test_case": "Required number field (Payment_Amount) left empty",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values, Source Account selected"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Leave Payment Amount empty",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Payment_Amount: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', select a valid Source_Account",
+        "Leave Payment_Amount empty",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating it is required",
+      "expected_result": "Validation error displayed for Payment_Amount indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Payment Amount format invalid (non-numeric input)",
+      "test_case": "Payment_Amount violates constraint 'must be greater than 0'",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Enter 'abc' into Payment Amount",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all other required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', select a valid Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating a numeric value is required",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Payment_Amount: 'must be greater than 0'; form remains editable",
+      "priority": "high"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Payment Amount violates 'must be greater than 0' constraint (zero value)",
+      "test_case": "Cross-field constraint violation: Payee_Account_Number and Confirm_Account_Number do not match",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open",
+        "Constraint present: 'Account numbers must match: Payee_Account_Number == Confirm_Account_Number'"
       ],
       "steps": [
-        "Enter '0' into Payment Amount",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all other required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payment_Amount='50', select a valid Source_Account",
+        "Enter Payee_Account_Number='111222333' and Confirm_Account_Number='999888777' (mismatch)",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating it must be greater than 0",
+      "expected_result": "Inline error displayed with text 'Account numbers do not match' (per submit action on_failure); form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Payee account numbers do not match (Account numbers mismatch)",
+      "test_case": "Submit when precondition 'sufficient funds' is not met (Insufficient funds)",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open",
+        "Submit action 'Pay' has precondition: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
       ],
       "steps": [
-        "Enter a Payee Account Number (e.g., '12345678')",
-        "Enter a different Confirm Account Number (e.g., '87654321')",
-        "Fill Payment Amount with a valid positive number and other required fields",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333'",
+        "Enter Payment_Amount='1000' and select a Source_Account that does not have sufficient funds to cover 1000",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Inline error 'Account numbers do not match' displayed and form remains editable",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-008",
-      "test_case": "Insufficient funds in selected Source Account (precondition violation)",
-      "preconditions": [
-        "User is on the Bill Payment page",
-        "A Source Account exists with available_funds less than the intended Payment Amount (AST: available_funds in Source_Account < Payment_Amount)"
-      ],
-      "steps": [
-        "Select the Source Account with insufficient available_funds",
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number with valid matching values",
-        "Enter a Payment Amount greater than the Source Account's available_funds",
-        "Click the 'Pay' button"
-      ],
-      "expected_result": "Inline error 'Insufficient funds' displayed (per submit_actions constraint) and the form remains editable",
+      "expected_result": "Inline error displayed with text 'Insufficient funds' (per submit action on_failure); form remains editable",
       "priority": "high"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 7,
     "high_priority": 7,
-    "medium_priority": 1,
+    "medium_priority": 0,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[21:58:53] Test-Negative - PARSED JSON
+[23:12:29] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Payments",
@@ -538,136 +506,106 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "tc_id": "N-001",
       "test_case": "Submit form with all required fields empty",
       "preconditions": [
-        "User is on the Bill Payment page (Bill_Payment_Form visible)"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Leave Payee Name empty",
-        "Leave Street Address empty",
-        "Leave City empty",
-        "Leave State empty",
-        "Leave ZIP Code empty",
-        "Leave Phone Number empty",
-        "Leave Payee Account Number empty",
-        "Leave Confirm Account Number empty",
-        "Leave Payment Amount empty",
-        "Do not select a Source Account",
-        "Click the 'Pay' button"
+        "Leave all fields empty: Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number, Confirm_Account_Number, Payment_Amount, Source_Account",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation errors displayed for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account indicating they are required (all fields are validated on submit)",
+      "expected_result": "Validation errors displayed for all required fields (Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number, Confirm_Account_Number, Payment_Amount, Source_Account) indicating they are required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Required text field missing (representative: Payee Name)",
+      "test_case": "Required text field (Payee_Name) left empty",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Clear Payee Name field (leave empty)",
-        "Ensure Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account are filled with valid values",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Payee_Name: Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', Payment_Amount='50', select a valid Source_Account",
+        "Clear or leave Payee_Name empty",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payee Name indicating it is required",
+      "expected_result": "Validation error displayed for Payee_Name indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Required dropdown not selected (Source Account)",
+      "test_case": "Required dropdown (Source_Account) not selected",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, and Payment Amount with valid values",
-        "Do not select any option in the Source Account dropdown",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Source_Account: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', Payment_Amount='50'",
+        "Do not select any option in Source_Account dropdown",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Source Account indicating it is required",
+      "expected_result": "Validation error displayed for Source_Account indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Required number field missing (Payment Amount empty)",
+      "test_case": "Required number field (Payment_Amount) left empty",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values, Source Account selected"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Leave Payment Amount empty",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields except Payment_Amount: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', select a valid Source_Account",
+        "Leave Payment_Amount empty",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating it is required",
+      "expected_result": "Validation error displayed for Payment_Amount indicating it is required; form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Payment Amount format invalid (non-numeric input)",
+      "test_case": "Payment_Amount violates constraint 'must be greater than 0'",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open"
       ],
       "steps": [
-        "Enter 'abc' into Payment Amount",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all other required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333', select a valid Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating a numeric value is required",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Payment_Amount: 'must be greater than 0'; form remains editable",
+      "priority": "high"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Payment Amount violates 'must be greater than 0' constraint (zero value)",
+      "test_case": "Cross-field constraint violation: Payee_Account_Number and Confirm_Account_Number do not match",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open",
+        "Constraint present: 'Account numbers must match: Payee_Account_Number == Confirm_Account_Number'"
       ],
       "steps": [
-        "Enter '0' into Payment Amount",
-        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
-        "Click the 'Pay' button"
+        "Fill valid values for all other required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payment_Amount='50', select a valid Source_Account",
+        "Enter Payee_Account_Number='111222333' and Confirm_Account_Number='999888777' (mismatch)",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Validation error displayed for Payment Amount indicating it must be greater than 0",
+      "expected_result": "Inline error displayed with text 'Account numbers do not match' (per submit action on_failure); form remains editable",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Payee account numbers do not match (Account numbers mismatch)",
+      "test_case": "Submit when precondition 'sufficient funds' is not met (Insufficient funds)",
       "preconditions": [
-        "User is on the Bill Payment page",
-        "All other required fields are filled with valid values and Source Account selected"
+        "Bill_Payment_Form is open",
+        "Submit action 'Pay' has precondition: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
       ],
       "steps": [
-        "Enter a Payee Account Number (e.g., '12345678')",
-        "Enter a different Confirm Account Number (e.g., '87654321')",
-        "Fill Payment Amount with a valid positive number and other required fields",
-        "Click the 'Pay' button"
+        "Fill valid values for all required fields: Payee_Name='Utility Co', Street_Address='123 Main', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='555-0100', Payee_Account_Number='111222333', Confirm_Account_Number='111222333'",
+        "Enter Payment_Amount='1000' and select a Source_Account that does not have sufficient funds to cover 1000",
+        "Click the 'Pay' submit action"
       ],
-      "expected_result": "Inline error 'Account numbers do not match' displayed and form remains editable",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-008",
-      "test_case": "Insufficient funds in selected Source Account (precondition violation)",
-      "preconditions": [
-        "User is on the Bill Payment page",
-        "A Source Account exists with available_funds less than the intended Payment Amount (AST: available_funds in Source_Account < Payment_Amount)"
-      ],
-      "steps": [
-        "Select the Source Account with insufficient available_funds",
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number with valid matching values",
-        "Enter a Payment Amount greater than the Source Account's available_funds",
-        "Click the 'Pay' button"
-      ],
-      "expected_result": "Inline error 'Insufficient funds' displayed (per submit_actions constraint) and the form remains editable",
+      "expected_result": "Inline error displayed with text 'Insufficient funds' (per submit action on_failure); form remains editable",
       "priority": "high"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 7,
     "high_priority": 7,
-    "medium_priority": 1,
+    "medium_priority": 0,
     "low_priority": 0
   }
 }

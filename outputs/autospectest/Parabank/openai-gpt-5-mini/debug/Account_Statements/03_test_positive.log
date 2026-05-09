@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573098
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556979
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Positive - SYSTEM PROMPT
+[23:11:21] Test-Positive - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+You are a Positive Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact success text → use it verbatim.
+- When the AST's `on_success` field provides exact success text → use it verbatim.
 - When generic → write specific assertions describing the visible outcome.
 - Always use `on_success` from the AST when available.
 
@@ -35,29 +31,25 @@ You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one mo
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - An `on_success` value
+  - A step in a wizard
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -117,6 +109,20 @@ Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
   - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
   - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
 
+**PATH vs DATA VARIATION — CRITICAL DISTINCTION:**
+
+A new PATH exercises a different code branch (different conditional, different
+action, different state sequence, different navigation route).
+
+A DATA VARIATION exercises the SAME code branch with different input values:
+  ✗ Different email addresses (same authentication code path)
+  ✗ Different names or phone number formats (same text field handling)
+  ✗ Different account numbers (same numeric field code path)
+
+Path A + Path B + Path C exhaust all meaningful code paths for a single-action
+form. If you are about to generate TC-004+, ask: "Does this exercise a code
+branch not exercised by Path A/B/C?" If no, stop.
+
 **2. State transition tests:**
 
 For EACH state in a `state_bound_action_bar`:
@@ -138,7 +144,7 @@ that transitions back to State A — test both transitions.
 For checkboxes and toggles: test check → submit, then
 uncheck → submit.
 
-**3. End-to-end lifecycle flows (from description context):**
+**3. End-to-end lifecycle flows:**
 
 If the module has multiple states, produce:
   - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
@@ -164,19 +170,19 @@ For each `data_table`:
 For each field with `options: []`:
   - One test verifying all listed options are present and selectable
 
-**7. Search and filter (from description):**
+**7. Search and filter:**
 
-If description mentions search or filter:
+If AST contains a `search_input` or filter component:
   - One test: search/filter with matching criteria → correct results shown
 
-**8. Navigation and redirect (from description):**
+**8. Navigation and redirect:**
 
-If description mentions "redirected to X" or "opens Y page":
+If AST has an `on_success` containing "redirect", "navigates to", or "opens":
   - One test per unique redirect verifying navigation occurs
 
-**9. Pre-population (from description):**
+**9. Pre-population:**
 
-If description mentions "pre-filled", "auto-populated", "defaults to":
+If AST has a field with `default` or `pre_filled` attribute:
   - One test verifying pre-fill behavior
 
 ---
@@ -222,7 +228,7 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Positive - USER PROMPT
+[23:11:21] Test-Positive - USER PROMPT
 ------------------------------------------------------------
 <module_name>Account Statements</module_name>
 
@@ -230,93 +236,95 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 {
   "module_name": "Account Statements",
   "components": {
-    "Generate_Statement_Form": {
-      "type": "form",
-      "fields": {
-        "Statement_Period_Mode": {
-          "type": "dropdown",
-          "required": false,
-          "options": [
-            "Month-and-Year",
-            "Custom Range"
-          ]
-        },
-        "Month_Year": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Month-and-Year",
+    "Statements_Page": {
+      "type": "container",
+      "components": {
+        "Generate_Statement_Form": {
+          "type": "form",
+          "fields": {
+            "Statement_Period_Mode": {
+              "type": "dropdown",
+              "required": true,
+              "options": [
+                "Month-and-Year",
+                "Custom Date Range"
+              ]
+            },
+            "Month_Year": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Month-and-Year",
+              "constraints": [
+                "must represent a month-and-year value (month granularity)"
+              ]
+            },
+            "Start_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "End_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "Account": {
+              "type": "dropdown",
+              "required": false
+            }
+          },
           "constraints": [
-            "must specify month and year (day ignored)"
+            "if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date",
+            "if Statement_Period_Mode == Month-and-Year then Month_Year must be set",
+            "dates must be valid and within retrievable transaction history"
+          ],
+          "submit_actions": [
+            {
+              "element_name": "Generate Statement",
+              "preconditions": [
+                "date fields must satisfy form constraints"
+              ],
+              "on_success": "Statement generated successfully; retrieves relevant transactions",
+              "on_failure": "Unable to generate statement \u2014 please try again later."
+            }
           ]
         },
-        "Start_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "End_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "Account": {
-          "type": "dropdown",
-          "required": true
-        }
-      },
-      "constraints": [
-        "if Statement_Period_Mode == Custom Range then Start_Date <= End_Date",
-        "dates must be valid calendar dates"
-      ],
-      "submit_actions": [
-        {
-          "element_name": "Generate Statement",
-          "on_success": "Statement generated successfully; retrieves relevant transactions",
-          "on_failure": "Unable to generate statement \u2014 please try again later.",
-          "constraints": [
-            "validates date inputs according to Statement_Period_Mode",
-            "Start_Date <= End_Date when Custom Range is selected"
+        "EStatement_Preference_Form": {
+          "type": "form",
+          "fields": {
+            "Paperless_Opt_in": {
+              "type": "checkbox",
+              "required": false
+            },
+            "Email_Address": {
+              "type": "email",
+              "required_when": "Paperless_Opt_in == true",
+              "constraints": [
+                "must be a valid email address"
+              ]
+            }
+          },
+          "submit_actions": [
+            {
+              "element_name": "Save Preference",
+              "preconditions": [
+                "if opting into paperless statements, Email_Address must be present and valid"
+              ],
+              "on_success": "e-Statement preference updated.",
+              "on_failure": "validation failed; highlights Email_Address with guidance"
+            }
           ]
         }
-      ]
-    },
-    "EStatement_Preference_Form": {
-      "type": "form",
-      "fields": {
-        "Paperless": {
-          "type": "checkbox",
-          "required": false
-        },
-        "Email_Address": {
-          "type": "email",
-          "required_when": "Paperless == true",
-          "constraints": [
-            "must be a valid email address"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Save Preference",
-          "on_success": "e-Statement preference updated.",
-          "on_failure": "highlights Email Address field with guidance",
-          "constraints": [
-            "if Paperless == true then Email_Address must be a valid email address"
-          ]
-        }
-      ]
+      }
     }
   }
 }
 </ast>
 
-<description>
-The Statements page provides two coordinated forms displayed side by side.The generate statement form includes Statement Period (month-and-year or custom date range), Account (dropdown), and a “Generate Statement” button. The system validates the dates and retrieves the relevant transactions. On success it displays “Statement generated successfully.”; if generation fails it shows “Unable to generate statement — please try again later.”The e-statement preference form includes a checkbox to opt into paperless statements, an Email Address field, and a “Save Preference” button. The system validates the email address; success displays “e-Statement preference updated.”, while a failure highlights the email field with guidance.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:13] Test-Positive - LLM RESPONSE
+[23:13:15] Test-Positive - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Account Statements",
@@ -324,172 +332,144 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Generate Statement — Complete data using Month-and-Year",
+      "test_case": "Generate statement (Month-and-Year) - complete data",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Month-and-Year\"",
-        "Set Month_Year to March 2026 (enter a valid calendar month/year)",
-        "Select Account = \"Checking - ****1234\" (an available account)",
-        "Click the \"Generate Statement\" button"
+        "Navigate to Statements_Page and locate Generate_Statement_Form",
+        "Set Statement_Period_Mode dropdown to 'Month-and-Year' (Statement_Period_Mode)",
+        "Set Month_Year to a valid month value (Month_Year) — satisfies 'if Statement_Period_Mode == Month-and-Year then Month_Year must be set' constraint",
+        "Select an Account from Account dropdown (optional field)",
+        "Click the 'Generate Statement' submit action"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system displays the success message and shows the retrieved transactions for the selected month-and-year).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Generate Statement — Minimum viable (only required Account selected)",
+      "test_case": "Generate statement (Month-and-Year) - minimum required fields only",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form leave Statement Period Mode blank (no selection)",
-        "Select Account = \"Savings - ****5678\" (an available account)",
-        "Click the \"Generate Statement\" button"
+        "Navigate to Generate_Statement_Form",
+        "Set Statement_Period_Mode to 'Month-and-Year' (Statement_Period_Mode)",
+        "Set Month_Year to a valid month value (Month_Year)",
+        "Leave Account blank (optional)",
+        "Click the 'Generate Statement' submit action (precondition: date fields must satisfy form constraints)"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts the minimal input - Account is provided - and displays the success message and the retrieved transactions).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Generate Statement — Custom Range (conditional fields shown and used)",
+      "test_case": "Generate statement (Custom Date Range) - Start_Date equals End_Date (valid range)",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Custom Range\"",
-        "Enter Start_Date = 2026-03-01 and End_Date = 2026-03-31 (valid calendar dates with Start_Date <= End_Date)",
-        "Select Account = \"Business - ****9012\"",
-        "Click the \"Generate Statement\" button"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to 'Custom Date Range' (Statement_Period_Mode)",
+        "Set Start_Date to a valid date (Start_Date)",
+        "Set End_Date to the same valid date as Start_Date (End_Date) — satisfies constraint 'if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date'",
+        "Leave Account blank (optional) or select an Account",
+        "Click the 'Generate Statement' submit action"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system validates the custom date range, accepts Start_Date <= End_Date, displays the success message and shows transactions for the requested range).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Statement Period Mode dropdown contains expected options and reveals correct date fields",
+      "test_case": "Verify Statement_Period_Mode dropdown options are present and selectable",
       "preconditions": [
-        "User logged in"
+        "User logged in",
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "Open the Statement Period Mode dropdown in the Generate Statement form",
-        "Verify the options \"Month-and-Year\" and \"Custom Range\" are present and selectable",
-        "Select \"Month-and-Year\" and verify the Month_Year field is displayed (month+year input)",
-        "Select \"Custom Range\" and verify Start_Date and End_Date fields are displayed"
+        "Open Generate_Statement_Form",
+        "Open the Statement_Period_Mode dropdown"
       ],
-      "expected_result": "Dropdown includes the options \"Month-and-Year\" and \"Custom Range\" and selecting each option reveals the corresponding date input fields (Month_Year for Month-and-Year; Start_Date and End_Date for Custom Range) as required by the form's conditional fields.",
+      "expected_result": "Both options 'Month-and-Year' and 'Custom Date Range' are visible in Statement_Period_Mode dropdown and can be selected",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Generate Statement — Month-and-Year accepts a date with a day (day ignored) and generates",
-      "preconditions": [
-        "User logged in",
-        "At least one account exists in Account dropdown"
-      ],
-      "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Month-and-Year\"",
-        "Enter Month_Year as 2026-03-15 (a valid calendar date where the day is present but month+year are the intended values)",
-        "Select Account = \"Checking - ****1234\"",
-        "Click the \"Generate Statement\" button"
-      ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts the Month-and-Year input even if a day was entered — day is ignored per field constraint — and displays the success message and retrieved transactions).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-006",
-      "test_case": "Save E-Statement Preference — Complete data (Paperless checked with valid email)",
+      "test_case": "Statements page shows both Generate Statement and E-Statement Preference forms",
       "preconditions": [
         "User logged in"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form check Paperless",
-        "Enter Email_Address = \"user@example.com\" (a valid email address)",
-        "Click the \"Save Preference\" button"
+        "Navigate to Statements_Page",
+        "Verify Generate_Statement_Form component is present on the page",
+        "Verify EStatement_Preference_Form component is present on the page"
+      ],
+      "expected_result": "Generate_Statement_Form and EStatement_Preference_Form are both visible on Statements_Page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "e-Statement preference - opt into paperless with valid email (complete data)",
+      "preconditions": [
+        "User logged in",
+        "EStatement_Preference_Form available on Statements_Page"
+      ],
+      "steps": [
+        "Open EStatement_Preference_Form",
+        "Check the Paperless_Opt_in checkbox (Paperless_Opt_in == true)",
+        "Enter a valid Email_Address (Email_Address) that satisfies 'must be a valid email address' constraint",
+        "Click the 'Save Preference' submit action (precondition: if opting into paperless statements, Email_Address must be present and valid)"
       ],
       "expected_result": "e-Statement preference updated.",
       "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Save E-Statement Preference — Minimum viable (Paperless unchecked, email optional)",
+      "test_case": "e-Statement preference - minimum viable (opt out / no email)",
       "preconditions": [
-        "User logged in"
+        "User logged in",
+        "EStatement_Preference_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form ensure Paperless is unchecked",
+        "Open EStatement_Preference_Form",
+        "Ensure Paperless_Opt_in checkbox is unchecked (Paperless_Opt_in == false)",
         "Leave Email_Address blank",
-        "Click the \"Save Preference\" button"
+        "Click the 'Save Preference' submit action"
       ],
       "expected_result": "e-Statement preference updated.",
       "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "E-Statement Preference toggle both directions (check -> save, then uncheck -> save)",
-      "preconditions": [
-        "User logged in"
-      ],
-      "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form check Paperless, enter Email_Address = \"notify@domain.com\" and click \"Save Preference\"",
-        "Verify success message is shown",
-        "Then uncheck Paperless, clear the Email_Address field, and click \"Save Preference\" again"
-      ],
-      "expected_result": "First save displays \"e-Statement preference updated.\"; second save also displays \"e-Statement preference updated.\" (tests both directions of the Paperless toggle and that saving succeeds in both states).",
-      "priority": "high"
-    },
-    {
-      "tc_id": "P-009",
-      "test_case": "Both forms are visible side-by-side on the Statements page",
-      "preconditions": [
-        "User logged in"
-      ],
-      "steps": [
-        "Navigate to the Statements page"
-      ],
-      "expected_result": "Generate Statement form and E-Statement Preference form are both visible side by side on the page (as described in the module description).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-011",
-      "test_case": "Generate Statement — Custom Range where Start_Date equals End_Date (single-day range)",
+      "test_case": "e-Statement preference - toggle paperless on (with valid email) then off (bidirectional)",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "EStatement_Preference_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Custom Range\"",
-        "Enter Start_Date = 2026-03-15 and End_Date = 2026-03-15 (valid calendar date with Start_Date == End_Date)",
-        "Select Account = \"Savings - ****5678\"",
-        "Click the \"Generate Statement\" button"
+        "Open EStatement_Preference_Form",
+        "Enable Paperless_Opt_in (check the checkbox)",
+        "Enter a valid Email_Address (Email_Address)",
+        "Click 'Save Preference' and verify success",
+        "After success, open EStatement_Preference_Form again, uncheck Paperless_Opt_in (disable), leave Email_Address empty, and click 'Save Preference' again"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts a single-day custom range where Start_Date == End_Date and displays the success message and the retrieved transactions for that day).",
-      "priority": "medium"
+      "expected_result": "First save returns 'e-Statement preference updated.' and second save returns 'e-Statement preference updated.' (verifies both opt-in and opt-out flows)",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 10,
+    "total": 8,
     "high_priority": 6,
-    "medium_priority": 4,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[22:01:13] Test-Positive - PARSED JSON
+[23:13:15] Test-Positive - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Account Statements",
@@ -497,166 +477,138 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Generate Statement \u2014 Complete data using Month-and-Year",
+      "test_case": "Generate statement (Month-and-Year) - complete data",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Month-and-Year\"",
-        "Set Month_Year to March 2026 (enter a valid calendar month/year)",
-        "Select Account = \"Checking - ****1234\" (an available account)",
-        "Click the \"Generate Statement\" button"
+        "Navigate to Statements_Page and locate Generate_Statement_Form",
+        "Set Statement_Period_Mode dropdown to 'Month-and-Year' (Statement_Period_Mode)",
+        "Set Month_Year to a valid month value (Month_Year) \u2014 satisfies 'if Statement_Period_Mode == Month-and-Year then Month_Year must be set' constraint",
+        "Select an Account from Account dropdown (optional field)",
+        "Click the 'Generate Statement' submit action"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system displays the success message and shows the retrieved transactions for the selected month-and-year).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Generate Statement \u2014 Minimum viable (only required Account selected)",
+      "test_case": "Generate statement (Month-and-Year) - minimum required fields only",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form leave Statement Period Mode blank (no selection)",
-        "Select Account = \"Savings - ****5678\" (an available account)",
-        "Click the \"Generate Statement\" button"
+        "Navigate to Generate_Statement_Form",
+        "Set Statement_Period_Mode to 'Month-and-Year' (Statement_Period_Mode)",
+        "Set Month_Year to a valid month value (Month_Year)",
+        "Leave Account blank (optional)",
+        "Click the 'Generate Statement' submit action (precondition: date fields must satisfy form constraints)"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts the minimal input - Account is provided - and displays the success message and the retrieved transactions).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Generate Statement \u2014 Custom Range (conditional fields shown and used)",
+      "test_case": "Generate statement (Custom Date Range) - Start_Date equals End_Date (valid range)",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Custom Range\"",
-        "Enter Start_Date = 2026-03-01 and End_Date = 2026-03-31 (valid calendar dates with Start_Date <= End_Date)",
-        "Select Account = \"Business - ****9012\"",
-        "Click the \"Generate Statement\" button"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to 'Custom Date Range' (Statement_Period_Mode)",
+        "Set Start_Date to a valid date (Start_Date)",
+        "Set End_Date to the same valid date as Start_Date (End_Date) \u2014 satisfies constraint 'if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date'",
+        "Leave Account blank (optional) or select an Account",
+        "Click the 'Generate Statement' submit action"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system validates the custom date range, accepts Start_Date <= End_Date, displays the success message and shows transactions for the requested range).",
+      "expected_result": "Statement generated successfully; retrieves relevant transactions",
       "priority": "high"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Statement Period Mode dropdown contains expected options and reveals correct date fields",
+      "test_case": "Verify Statement_Period_Mode dropdown options are present and selectable",
       "preconditions": [
-        "User logged in"
+        "User logged in",
+        "Generate_Statement_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "Open the Statement Period Mode dropdown in the Generate Statement form",
-        "Verify the options \"Month-and-Year\" and \"Custom Range\" are present and selectable",
-        "Select \"Month-and-Year\" and verify the Month_Year field is displayed (month+year input)",
-        "Select \"Custom Range\" and verify Start_Date and End_Date fields are displayed"
+        "Open Generate_Statement_Form",
+        "Open the Statement_Period_Mode dropdown"
       ],
-      "expected_result": "Dropdown includes the options \"Month-and-Year\" and \"Custom Range\" and selecting each option reveals the corresponding date input fields (Month_Year for Month-and-Year; Start_Date and End_Date for Custom Range) as required by the form's conditional fields.",
+      "expected_result": "Both options 'Month-and-Year' and 'Custom Date Range' are visible in Statement_Period_Mode dropdown and can be selected",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Generate Statement \u2014 Month-and-Year accepts a date with a day (day ignored) and generates",
-      "preconditions": [
-        "User logged in",
-        "At least one account exists in Account dropdown"
-      ],
-      "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Month-and-Year\"",
-        "Enter Month_Year as 2026-03-15 (a valid calendar date where the day is present but month+year are the intended values)",
-        "Select Account = \"Checking - ****1234\"",
-        "Click the \"Generate Statement\" button"
-      ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts the Month-and-Year input even if a day was entered \u2014 day is ignored per field constraint \u2014 and displays the success message and retrieved transactions).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-006",
-      "test_case": "Save E-Statement Preference \u2014 Complete data (Paperless checked with valid email)",
+      "test_case": "Statements page shows both Generate Statement and E-Statement Preference forms",
       "preconditions": [
         "User logged in"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form check Paperless",
-        "Enter Email_Address = \"user@example.com\" (a valid email address)",
-        "Click the \"Save Preference\" button"
+        "Navigate to Statements_Page",
+        "Verify Generate_Statement_Form component is present on the page",
+        "Verify EStatement_Preference_Form component is present on the page"
+      ],
+      "expected_result": "Generate_Statement_Form and EStatement_Preference_Form are both visible on Statements_Page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "e-Statement preference - opt into paperless with valid email (complete data)",
+      "preconditions": [
+        "User logged in",
+        "EStatement_Preference_Form available on Statements_Page"
+      ],
+      "steps": [
+        "Open EStatement_Preference_Form",
+        "Check the Paperless_Opt_in checkbox (Paperless_Opt_in == true)",
+        "Enter a valid Email_Address (Email_Address) that satisfies 'must be a valid email address' constraint",
+        "Click the 'Save Preference' submit action (precondition: if opting into paperless statements, Email_Address must be present and valid)"
       ],
       "expected_result": "e-Statement preference updated.",
       "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Save E-Statement Preference \u2014 Minimum viable (Paperless unchecked, email optional)",
+      "test_case": "e-Statement preference - minimum viable (opt out / no email)",
       "preconditions": [
-        "User logged in"
+        "User logged in",
+        "EStatement_Preference_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form ensure Paperless is unchecked",
+        "Open EStatement_Preference_Form",
+        "Ensure Paperless_Opt_in checkbox is unchecked (Paperless_Opt_in == false)",
         "Leave Email_Address blank",
-        "Click the \"Save Preference\" button"
+        "Click the 'Save Preference' submit action"
       ],
       "expected_result": "e-Statement preference updated.",
       "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "E-Statement Preference toggle both directions (check -> save, then uncheck -> save)",
-      "preconditions": [
-        "User logged in"
-      ],
-      "steps": [
-        "Navigate to the Statements page",
-        "In the E-Statement Preference form check Paperless, enter Email_Address = \"notify@domain.com\" and click \"Save Preference\"",
-        "Verify success message is shown",
-        "Then uncheck Paperless, clear the Email_Address field, and click \"Save Preference\" again"
-      ],
-      "expected_result": "First save displays \"e-Statement preference updated.\"; second save also displays \"e-Statement preference updated.\" (tests both directions of the Paperless toggle and that saving succeeds in both states).",
-      "priority": "high"
-    },
-    {
-      "tc_id": "P-009",
-      "test_case": "Both forms are visible side-by-side on the Statements page",
-      "preconditions": [
-        "User logged in"
-      ],
-      "steps": [
-        "Navigate to the Statements page"
-      ],
-      "expected_result": "Generate Statement form and E-Statement Preference form are both visible side by side on the page (as described in the module description).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-011",
-      "test_case": "Generate Statement \u2014 Custom Range where Start_Date equals End_Date (single-day range)",
+      "test_case": "e-Statement preference - toggle paperless on (with valid email) then off (bidirectional)",
       "preconditions": [
         "User logged in",
-        "At least one account exists in Account dropdown"
+        "EStatement_Preference_Form available on Statements_Page"
       ],
       "steps": [
-        "Navigate to the Statements page",
-        "In the Generate Statement form select Statement Period Mode = \"Custom Range\"",
-        "Enter Start_Date = 2026-03-15 and End_Date = 2026-03-15 (valid calendar date with Start_Date == End_Date)",
-        "Select Account = \"Savings - ****5678\"",
-        "Click the \"Generate Statement\" button"
+        "Open EStatement_Preference_Form",
+        "Enable Paperless_Opt_in (check the checkbox)",
+        "Enter a valid Email_Address (Email_Address)",
+        "Click 'Save Preference' and verify success",
+        "After success, open EStatement_Preference_Form again, uncheck Paperless_Opt_in (disable), leave Email_Address empty, and click 'Save Preference' again"
       ],
-      "expected_result": "Statement generated successfully; retrieves relevant transactions (the system accepts a single-day custom range where Start_Date == End_Date and displays the success message and the retrieved transactions for that day).",
-      "priority": "medium"
+      "expected_result": "First save returns 'e-Statement preference updated.' and second save returns 'e-Statement preference updated.' (verifies both opt-in and opt-out flows)",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 10,
+    "total": 8,
     "high_priority": 6,
-    "medium_priority": 4,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }

@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572420
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.555660
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Transfer Funds</module_name>
 
@@ -319,42 +320,45 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
           "type": "number",
           "required": true,
           "constraints": [
-            "validate transfer amount"
+            "validated by system"
           ]
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true,
-          "options_filter": "account_type in [Checking, Savings]"
+          "constraints": [
+            "account selection filtered to account_type in [Checking, Savings]"
+          ]
         },
         "Destination_Account_Internal": {
           "type": "dropdown",
           "visible_when": "Transfer_Type == My ParaBank Account",
-          "required": true
+          "required_when": "Transfer_Type == My ParaBank Account"
         },
-        "External_Account_Number": {
+        "Destination_Account_External_Number": {
           "type": "unspecified",
           "visible_when": "Transfer_Type == External Account",
-          "required": true
+          "required_when": "Transfer_Type == External Account"
         },
-        "Confirm_External_Account_Number": {
+        "Destination_Account_External_Confirm": {
           "type": "unspecified",
           "visible_when": "Transfer_Type == External Account",
-          "required": true,
+          "required_when": "Transfer_Type == External Account",
           "constraints": [
-            "must match External_Account_Number"
+            "must match Destination_Account_External_Number"
           ]
         }
       },
       "submit_actions": [
         {
-          "on_success": "Transfer completed successfully; returns transaction ID.",
+          "element_name": "Submit Transfer",
+          "on_success": "Transfer completed successfully. Returns transaction ID",
           "on_failure_messages": [
             "Insufficient funds",
             "Account numbers do not match."
           ],
           "constraints": [
-            "sufficient funds"
+            "system checks sufficient funds before completing transfer"
           ]
         }
       ]
@@ -363,16 +367,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:59:12] Test-Negative - LLM RESPONSE
+[23:12:30] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -380,135 +378,138 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all required fields empty",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
-      ],
+      "test_case": "Submit with all required fields empty",
+      "preconditions": ["Transfer_Form is displayed"],
       "steps": [
-        "Open the Transfer Funds page",
-        "Do not select a Transfer Type",
-        "Leave Transfer Amount empty",
-        "Do not select a Source Account",
-        "Click the Submit/Transfer button"
+        "Leave Transfer_Type unselected",
+        "Leave Transfer_Amount empty",
+        "Leave Source_Account unselected",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for Transfer Type indicating it is required; Validation error displayed for Transfer Amount indicating it is required; Validation error displayed for Source Account indicating it is required",
+      "expected_result": "Validation errors displayed for Transfer_Type, Transfer_Amount and Source_Account indicating they are required",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "External transfer: missing External Account Number (required unspecified/text representative)",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
-      ],
+      "test_case": "Missing required radio: Transfer_Type not selected",
+      "preconditions": ["Transfer_Form is displayed"],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = External Account",
-        "Select a valid Source Account",
-        "Enter a valid numeric Transfer Amount",
-        "Leave External Account Number empty",
-        "Enter value into Confirm External Account Number (or leave it empty)",
-        "Click the Submit/Transfer button"
+        "Leave Transfer_Type unselected",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for External Account Number indicating it is required",
+      "expected_result": "Validation error displayed for Transfer_Type indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Transfer Amount accepts only numeric input (non-numeric format rejected)",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "Transfer Type set to My ParaBank Account (so amount and accounts are visible)"
-      ],
+      "test_case": "Missing required number: Transfer_Amount empty",
+      "preconditions": ["Transfer_Form is displayed"],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select a valid Source Account",
-        "Select a valid Destination Account (internal)",
-        "Enter 'abc' into Transfer Amount",
-        "Click the Submit/Transfer button"
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Leave Transfer_Amount empty",
+        "Select a valid Source_Account",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for Transfer Amount indicating it must be a number",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-004",
-      "test_case": "Transfer Amount fails business validation (invalid amount such as negative value)",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
-      ],
-      "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select a valid Source Account",
-        "Select a valid Destination Account (internal)",
-        "Enter '-50' (a negative amount) into Transfer Amount",
-        "Click the Submit/Transfer button"
-      ],
-      "expected_result": "Validation error displayed for Transfer Amount indicating invalid amount",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Attempt transfer that violates sufficient funds constraint",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "Select a Source Account whose available balance is less than the intended Transfer Amount"
-      ],
-      "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select the Source Account with insufficient balance",
-        "Select a valid Destination Account (internal)",
-        "Enter an amount greater than the Source Account's available balance into Transfer Amount",
-        "Click the Submit/Transfer button"
-      ],
-      "expected_result": "'Insufficient funds' error message displayed",
+      "expected_result": "Validation error displayed for Transfer_Amount indicating it is required",
       "priority": "high"
     },
     {
-      "tc_id": "N-006",
-      "test_case": "External transfer: Confirm External Account Number does not match External Account Number",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
-      ],
+      "tc_id": "N-004",
+      "test_case": "Missing required dropdown: Source_Account not selected",
+      "preconditions": ["Transfer_Form is displayed"],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = External Account",
-        "Select a valid Source Account",
-        "Enter a valid numeric Transfer Amount",
-        "Enter '12345678' into External Account Number",
-        "Enter '87654321' into Confirm External Account Number (different value)",
-        "Click the Submit/Transfer button"
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter a valid Transfer_Amount",
+        "Leave Source_Account unselected",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "'Account numbers do not match.' error message displayed",
+      "expected_result": "Validation error displayed for Source_Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Transfer_Amount with non-numeric input",
+      "preconditions": ["Transfer_Form is displayed"],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter Transfer_Amount = 'abc' (non-numeric)",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "Validation error displayed for Transfer_Amount indicating invalid number format",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Source_Account selection violates account_type constraint",
+      "preconditions": ["Transfer_Form is displayed"],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter a valid Transfer_Amount",
+        "Select a Source_Account whose account_type is NOT Checking or Savings (attempt selection that violates the filter)",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "Validation error displayed for Source_Account indicating selection must be of account_type in [Checking, Savings] (violates constraint 'account selection filtered to account_type in [Checking, Savings]')",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Source Account dropdown respects account-type filter (non Checking/Savings accounts not selectable)",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "User has multiple accounts across types (Checking, Savings, and other types)"
-      ],
+      "test_case": "Conditional required field: External destination account number missing",
+      "preconditions": ["Transfer_Form is displayed"],
       "steps": [
-        "Open the Transfer Funds page",
-        "Inspect the Source Account dropdown options",
-        "Attempt to find or select an account of a type other than Checking or Savings"
+        "Select Transfer_Type = 'External Account'",
+        "Leave Destination_Account_External_Number empty",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Source Account dropdown lists only Checking and Savings accounts (accounts of other types are not listed or selectable)",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Destination_Account_External_Number indicating it is required when Transfer_Type == External Account",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Destination external confirm does not match external number (cross-field mismatch)",
+      "preconditions": ["Transfer_Form is displayed"],
+      "steps": [
+        "Select Transfer_Type = 'External Account'",
+        "Enter Destination_Account_External_Number = '123456789'",
+        "Enter Destination_Account_External_Confirm = '987654321' (mismatch)",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "'Account numbers do not match.' displayed",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-009",
+      "test_case": "Transfer blocked due to insufficient funds",
+      "preconditions": ["Transfer_Form is displayed"],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Select a Source_Account with limited balance",
+        "Enter Transfer_Amount greater than the Source_Account balance",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "'Insufficient funds' displayed (per submit action on_failure message; constraint: system checks sufficient funds before completing transfer)",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 7,
-    "high_priority": 4,
-    "medium_priority": 3,
+    "total": 9,
+    "high_priority": 8,
+    "medium_priority": 1,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[21:59:12] Test-Negative - PARSED JSON
+[23:12:30] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -516,129 +517,150 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all required fields empty",
+      "test_case": "Submit with all required fields empty",
       "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
+        "Transfer_Form is displayed"
       ],
       "steps": [
-        "Open the Transfer Funds page",
-        "Do not select a Transfer Type",
-        "Leave Transfer Amount empty",
-        "Do not select a Source Account",
-        "Click the Submit/Transfer button"
+        "Leave Transfer_Type unselected",
+        "Leave Transfer_Amount empty",
+        "Leave Source_Account unselected",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for Transfer Type indicating it is required; Validation error displayed for Transfer Amount indicating it is required; Validation error displayed for Source Account indicating it is required",
+      "expected_result": "Validation errors displayed for Transfer_Type, Transfer_Amount and Source_Account indicating they are required",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "External transfer: missing External Account Number (required unspecified/text representative)",
+      "test_case": "Missing required radio: Transfer_Type not selected",
       "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
+        "Transfer_Form is displayed"
       ],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = External Account",
-        "Select a valid Source Account",
-        "Enter a valid numeric Transfer Amount",
-        "Leave External Account Number empty",
-        "Enter value into Confirm External Account Number (or leave it empty)",
-        "Click the Submit/Transfer button"
+        "Leave Transfer_Type unselected",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for External Account Number indicating it is required",
+      "expected_result": "Validation error displayed for Transfer_Type indicating it is required",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Transfer Amount accepts only numeric input (non-numeric format rejected)",
+      "test_case": "Missing required number: Transfer_Amount empty",
       "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "Transfer Type set to My ParaBank Account (so amount and accounts are visible)"
+        "Transfer_Form is displayed"
       ],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select a valid Source Account",
-        "Select a valid Destination Account (internal)",
-        "Enter 'abc' into Transfer Amount",
-        "Click the Submit/Transfer button"
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Leave Transfer_Amount empty",
+        "Select a valid Source_Account",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Validation error displayed for Transfer Amount indicating it must be a number",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-004",
-      "test_case": "Transfer Amount fails business validation (invalid amount such as negative value)",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
-      ],
-      "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select a valid Source Account",
-        "Select a valid Destination Account (internal)",
-        "Enter '-50' (a negative amount) into Transfer Amount",
-        "Click the Submit/Transfer button"
-      ],
-      "expected_result": "Validation error displayed for Transfer Amount indicating invalid amount",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Attempt transfer that violates sufficient funds constraint",
-      "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "Select a Source Account whose available balance is less than the intended Transfer Amount"
-      ],
-      "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = My ParaBank Account",
-        "Select the Source Account with insufficient balance",
-        "Select a valid Destination Account (internal)",
-        "Enter an amount greater than the Source Account's available balance into Transfer Amount",
-        "Click the Submit/Transfer button"
-      ],
-      "expected_result": "'Insufficient funds' error message displayed",
+      "expected_result": "Validation error displayed for Transfer_Amount indicating it is required",
       "priority": "high"
     },
     {
-      "tc_id": "N-006",
-      "test_case": "External transfer: Confirm External Account Number does not match External Account Number",
+      "tc_id": "N-004",
+      "test_case": "Missing required dropdown: Source_Account not selected",
       "preconditions": [
-        "User is authenticated and on the Transfer Funds page"
+        "Transfer_Form is displayed"
       ],
       "steps": [
-        "Open the Transfer Funds page",
-        "Select Transfer Type = External Account",
-        "Select a valid Source Account",
-        "Enter a valid numeric Transfer Amount",
-        "Enter '12345678' into External Account Number",
-        "Enter '87654321' into Confirm External Account Number (different value)",
-        "Click the Submit/Transfer button"
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter a valid Transfer_Amount",
+        "Leave Source_Account unselected",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "'Account numbers do not match.' error message displayed",
+      "expected_result": "Validation error displayed for Source_Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Transfer_Amount with non-numeric input",
+      "preconditions": [
+        "Transfer_Form is displayed"
+      ],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter Transfer_Amount = 'abc' (non-numeric)",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "Validation error displayed for Transfer_Amount indicating invalid number format",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Source_Account selection violates account_type constraint",
+      "preconditions": [
+        "Transfer_Form is displayed"
+      ],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Enter a valid Transfer_Amount",
+        "Select a Source_Account whose account_type is NOT Checking or Savings (attempt selection that violates the filter)",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "Validation error displayed for Source_Account indicating selection must be of account_type in [Checking, Savings] (violates constraint 'account selection filtered to account_type in [Checking, Savings]')",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Source Account dropdown respects account-type filter (non Checking/Savings accounts not selectable)",
+      "test_case": "Conditional required field: External destination account number missing",
       "preconditions": [
-        "User is authenticated and on the Transfer Funds page",
-        "User has multiple accounts across types (Checking, Savings, and other types)"
+        "Transfer_Form is displayed"
       ],
       "steps": [
-        "Open the Transfer Funds page",
-        "Inspect the Source Account dropdown options",
-        "Attempt to find or select an account of a type other than Checking or Savings"
+        "Select Transfer_Type = 'External Account'",
+        "Leave Destination_Account_External_Number empty",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Source Account dropdown lists only Checking and Savings accounts (accounts of other types are not listed or selectable)",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Destination_Account_External_Number indicating it is required when Transfer_Type == External Account",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Destination external confirm does not match external number (cross-field mismatch)",
+      "preconditions": [
+        "Transfer_Form is displayed"
+      ],
+      "steps": [
+        "Select Transfer_Type = 'External Account'",
+        "Enter Destination_Account_External_Number = '123456789'",
+        "Enter Destination_Account_External_Confirm = '987654321' (mismatch)",
+        "Enter a valid Transfer_Amount",
+        "Select a valid Source_Account",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "'Account numbers do not match.' displayed",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-009",
+      "test_case": "Transfer blocked due to insufficient funds",
+      "preconditions": [
+        "Transfer_Form is displayed"
+      ],
+      "steps": [
+        "Select Transfer_Type = 'My ParaBank Account'",
+        "Select a Source_Account with limited balance",
+        "Enter Transfer_Amount greater than the Source_Account balance",
+        "If Destination_Account_Internal is shown, select a valid destination",
+        "Click 'Submit Transfer'"
+      ],
+      "expected_result": "'Insufficient funds' displayed (per submit action on_failure message; constraint: system checks sufficient funds before completing transfer)",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 7,
-    "high_priority": 4,
-    "medium_priority": 3,
+    "total": 9,
+    "high_priority": 8,
+    "medium_priority": 1,
     "low_priority": 0
   }
 }

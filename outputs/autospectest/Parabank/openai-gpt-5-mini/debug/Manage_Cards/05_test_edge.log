@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572911
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556683
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Manage Cards</module_name>
 
@@ -233,7 +251,7 @@ Categories to consider:
       "fields": {
         "Card_Type": {
           "type": "dropdown",
-          "required": true,
+          "required": false,
           "options": [
             "Debit",
             "Credit"
@@ -241,8 +259,7 @@ Categories to consider:
         },
         "Account_to_Link": {
           "type": "dropdown",
-          "required": true,
-          "constraints": []
+          "required": false
         },
         "Shipping_Address": {
           "type": "unspecified",
@@ -255,11 +272,11 @@ Categories to consider:
       "submit_actions": [
         {
           "element_name": "Request Card",
-          "constraints": [
+          "preconditions": [
             "selected account must be in good standing"
           ],
           "on_success": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID",
-          "on_failure": "shows validation errors and keeps form editable"
+          "on_failure": "validation failures shown inline; form remains editable"
         }
       ]
     },
@@ -268,22 +285,20 @@ Categories to consider:
       "fields": {
         "Select_Existing_Card": {
           "type": "dropdown",
-          "required": true,
-          "constraints": []
+          "required": false
         },
         "New_Spending_Limit": {
           "type": "number",
           "required": false,
           "constraints": [
             "must be numeric",
-            "must be >= 0",
-            "must not exceed policy maximum"
+            "must be <= policy maximum"
           ]
         },
         "Travel_Notice": {
-          "type": "repeating_group",
+          "type": "unspecified",
           "required": false,
-          "item_fields": {
+          "fields": {
             "Start_Date": {
               "type": "date",
               "required": false
@@ -292,35 +307,43 @@ Categories to consider:
               "type": "date",
               "required": false
             },
-            "Destination": {
-              "type": "unspecified",
-              "required": false
+            "Destinations": {
+              "type": "repeating_group",
+              "min": 0,
+              "item_fields": {
+                "Destination": {
+                  "type": "unspecified",
+                  "required": false
+                }
+              }
             }
           },
           "constraints": [
-            "date ranges must be valid (Start_Date <= End_Date)"
+            "if dates provided, Start_Date must be on or before End_Date"
           ]
         },
         "Card_Status": {
           "type": "dropdown",
-          "required": true,
+          "required": false,
           "options": [
             "Active",
             "Frozen"
           ],
-          "constraints": []
+          "constraints": [
+            "allowable card-status transitions will be validated on update"
+          ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Update Controls",
           "constraints": [
-            "validate numeric limits (e.g., New_Spending_Limit must not exceed policy maximum)",
-            "validate travel notice date ranges",
-            "validate allowable card-status transitions"
+            "numeric limits validated against policy (e.g., New_Spending_Limit must be <= policy maximum)",
+            "date ranges validated (Start_Date <= End_Date)",
+            "allowable card-status transitions validated"
           ],
           "on_success": "Card controls updated successfully.",
-          "on_failure": "shows inline validation errors (e.g., limit above policy) and form remains editable"
+          "on_failure": "validation failures displayed inline; form remains editable"
         }
       ]
     }
@@ -328,16 +351,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The Manage Cards page contains two separate forms presented in stacked cards.The card request form includes Card Type (Debit or Credit), Account to Link, Shipping Address, and a “Request Card” button. When submitted, the system checks that the address is complete, verifies the selected account’s standing, opens a card-request ticket, and shows “Card request submitted successfully.” with a tracking ID.The card controls form includes Select Existing Card (dropdown), New Spending Limit, Travel Notice (optional dates and destinations), Card Status (Active or Frozen), and an “Update Controls” button. The system validates numeric limits, date ranges, and allowable card-status transitions. Successful updates display “Card controls updated successfully.”; validation failures (for example, a limit above policy) appear inline, and the form stays editable.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:00:27] Test-Edge - LLM RESPONSE
+[23:13:25] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Manage Cards",
@@ -346,188 +363,180 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = 0 (minimum boundary) — should succeed",
+      "test_case": "New_Spending_Limit = policy maximum (boundary pass)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected in Select Existing Card dropdown"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Card Controls form, set New Spending Limit to 0",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = {policy maximum}",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Update accepted. System displays \"Card controls updated successfully.\" and persists limit = 0. (Justified by AST constraint: \"must be >= 0\")",
+      "expected_result": "\"Card controls updated successfully.\" (submit_action on_success) — numeric limits validated against policy should allow New_Spending_Limit equal to policy maximum (PASS)",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = -1 (just below minimum) — should fail",
+      "test_case": "New_Spending_Limit = policy maximum + 1 (boundary fail)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected in Select Existing Card dropdown"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Card Controls form, set New Spending Limit to -1",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = {policy maximum + 1}",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for New Spending Limit (e.g., \"must be >= 0\"); form remains editable and update is not applied. (Justified by AST constraint: \"must be >= 0\")",
+      "expected_result": "Validation fails inline and form remains editable (on_failure). Inline validation message references constraint: \"must be <= policy maximum\" (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = policy maximum (upper boundary) — should succeed",
+      "test_case": "Travel_Notice Start_Date = End_Date (date equality boundary pass)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected",
-        "Policy maximum is visible in UI or retrievable from limit helper text"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Set New Spending Limit to the displayed policy maximum value",
-        "Click Update Controls"
+        "In Travel_Notice, set Start_Date = 2025-06-15 and End_Date = 2025-06-15",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Update accepted. System displays \"Card controls updated successfully.\" and persists the limit equal to the displayed policy maximum. (Justified by AST constraint: \"must not exceed policy maximum\")",
+      "expected_result": "\"Card controls updated successfully.\" (submit_action on_success). Date constraint \"if dates provided, Start_Date must be on or before End_Date\" is satisfied when Start_Date = End_Date (PASS)",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = (policy maximum + smallest unit) — just above upper boundary — should fail",
+      "test_case": "Travel_Notice Start_Date one day after End_Date (date boundary fail)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected",
-        "Policy maximum is visible in UI or retrievable from limit helper text"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Set New Spending Limit to one unit above the displayed policy maximum (e.g., policy maximum + 1 or +0.01 depending on currency precision shown in UI)",
-        "Click Update Controls"
+        "In Travel_Notice, set End_Date = 2025-06-15 and Start_Date = 2025-06-16",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for New Spending Limit (e.g., \"limit above policy maximum\"); form remains editable and update is not applied. (Justified by AST constraint: \"must not exceed policy maximum\")",
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation references \"if dates provided, Start_Date must be on or before End_Date\" (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "boundary",
-      "test_case": "Travel Notice Start_Date = End_Date (single-day travel) — boundary equality should succeed",
+      "subcategory": "input_edge",
+      "test_case": "Shipping_Address contains only whitespace (edge of 'address must be complete')",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Request_Form"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2025-06-15 and End_Date = 2025-06-15 (same date)",
-        "Fill Destination if required by UI",
-        "Click Update Controls"
+        "In Shipping_Address enter only whitespace characters (e.g., spaces/newlines) in all required address inputs",
+        "Select an Account_to_Link that is in good standing (to satisfy precondition)",
+        "Click 'Request Card'"
       ],
-      "expected_result": "PASS: Update accepted. Date range considered valid (Start_Date <= End_Date). System displays \"Card controls updated successfully.\" (Justified by AST constraint: \"date ranges must be valid (Start_Date <= End_Date)\")",
+      "expected_result": "Validation failures shown inline; form remains editable (on_failure). Inline validation references \"address must be complete\" — whitespace-only input treated as incomplete (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "boundary",
-      "test_case": "Travel Notice Start_Date > End_Date (Start one day after End) — should fail",
+      "subcategory": "input_edge",
+      "test_case": "Very long, Unicode/emoji-inclusive Shipping_Address is accepted as a complete address",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Request_Form",
+        "Select an Account_to_Link that is in good standing (to satisfy precondition)"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2025-06-16 and End_Date = 2025-06-15 (Start after End by 1 day)",
-        "Click Update Controls"
+        "Enter a syntactically complete Shipping_Address >200 characters including Unicode and emoji",
+        "Click 'Request Card'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for the travel notice item (e.g., \"date ranges must be valid\"); form remains editable and update is not applied. (Justified by AST constraint: \"date ranges must be valid (Start_Date <= End_Date)\")",
-      "priority": "medium"
+      "expected_result": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID (on_success). Long Unicode/emoji address is accepted as meeting \"address must be complete\" (PASS)",
+      "priority": "low"
     },
     {
       "tc_id": "E-007",
-      "subcategory": "input_edge",
-      "test_case": "Shipping Address missing postal code (address incomplete) — should fail address completeness check",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Request Card' rapidly (idempotency edge)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Request Form is visible",
-        "Card Type and Account to Link are selected"
+        "Open Card_Request_Form",
+        "Shipping_Address is complete",
+        "Select an Account_to_Link that is in good standing"
       ],
       "steps": [
-        "In Shipping Address, enter street, city, state but leave postal code empty (simulate common incomplete address)",
-        "Click Request Card"
+        "Click 'Request Card' twice in rapid succession",
+        "Observe UI feedback/messages"
       ],
-      "expected_result": "FAIL: Inline validation shown indicating address incomplete (e.g., prompt to complete postal code). Form remains editable and ticket is not opened. (Justified by AST constraint on Shipping_Address: \"address must be complete\" and submit action constraint \"address is complete\")",
+      "expected_result": "Exactly one card-request ticket is opened and the UI shows a single \"Card request submitted successfully.\" with one tracking ID (on_success). No duplicate success messages/tracking IDs should appear (PASS for idempotency at UI level)",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Shipping Address with very long text and emoji (250+ characters) — verify acceptance only if 'complete' fields provided",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Update Controls' rapidly after changing New_Spending_Limit",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Type and Account to Link are selected"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Shipping Address, enter a 250+ character multi-line address that includes emoji and special characters, and include all required address parts (street, city, state, postal code, country)",
-        "Click Request Card"
+        "Change New_Spending_Limit to {policy maximum}",
+        "Click 'Update Controls' twice rapidly",
+        "Observe UI feedback/messages"
       ],
-      "expected_result": "PASS: If address meets \"address must be complete\" the request succeeds: system shows \"Card request submitted successfully.\" with a tracking ID. The UI accepts long text/emoji without breaking layout. If UI enforces a length limit, it should show a clear inline validation error about maximum length. (Justified by AST constraint: \"address must be complete\")",
+      "expected_result": "Single \"Card controls updated successfully.\" message displayed (on_success). Inline validations are not duplicated; form is not applied twice (UI-level de-duplication) (PASS)",
       "priority": "low"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "interaction_edge",
-      "test_case": "Double-click Request Card rapidly — ensure single ticket submission and single tracking ID shown",
+      "subcategory": "data_edge",
+      "test_case": "Provide only End_Date in Travel_Notice (Start_Date blank) — ambiguous 'if dates provided' edge",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Request Form is fully and validly filled (Card Type, Account to Link, complete Shipping Address)"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Rapidly double-click (or click twice in quick succession) the Request Card button",
-        "Observe UI behavior and messages"
+        "In Travel_Notice leave Start_Date blank and set End_Date = 2025-07-01",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS expected: UI prevents duplicate submissions (e.g., button disables or shows processing) and only one success message with a single tracking ID is shown. If the system allows only one ticket per submission, there must not be two separate success messages. (Justified by description: on_success \"opens card-request ticket and shows 'Card request submitted successfully.' with tracking ID\")",
-      "priority": "medium"
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation should reference the constraint: \"if dates provided, Start_Date must be on or before End_Date\" because End_Date is provided while Start_Date is missing (FAIL)",
+      "priority": "low"
     },
     {
       "tc_id": "E-010",
       "subcategory": "repeating_group_edge",
-      "test_case": "Add multiple Travel Notices then remove all before submit — optional repeating group empty on submit should be accepted",
+      "test_case": "Add multiple Destinations then remove all before submit (repeating_group edge)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "In Travel Notice repeating group, add three items with valid Start_Date <= End_Date and Destination filled",
-        "Remove all three travel notice items so the repeating group is empty",
-        "Click Update Controls"
+        "In Travel_Notice -> Destinations, add 3 Destination items with values",
+        "Remove all Destination items so none remain",
+        "Leave Start_Date and End_Date blank",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Because Travel_Notice is optional (required: false), the empty repeating group is accepted. System displays \"Card controls updated successfully.\" and no travel notices are saved. (Justified by AST field Travel_Notice: \"required\": false)",
+      "expected_result": "\"Card controls updated successfully.\" (on_success). Removing all repeating_group items results in no travel destinations being submitted; date constraint not applied when dates are not provided (PASS)",
       "priority": "low"
     },
     {
       "tc_id": "E-011",
-      "subcategory": "data_edge",
-      "test_case": "Travel Notice using Feb 29 on a leap year (2024-02-29) — valid leap-day date should be accepted",
+      "subcategory": "input_edge",
+      "test_case": "Enter non-numeric formatted New_Spending_Limit (e.g., with currency symbol) — numeric parsing edge",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2024-02-29 and End_Date = 2024-02-29",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = \"$1000\" (include currency symbol)",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Date picker/validation accepts Feb 29 for leap year; Start_Date <= End_Date so update is accepted and system shows \"Card controls updated successfully.\" (Justified by AST: Travel_Notice item fields are date types and the constraint \"date ranges must be valid (Start_Date <= End_Date)\")",
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation references constraint: \"must be numeric\" (FAIL)",
       "priority": "low"
     }
   ],
   "summary": {
     "total": 11,
-    "boundary": 6,
-    "edge": 5,
-    "medium_priority": 8,
-    "low_priority": 3
+    "boundary": 4,
+    "edge": 7,
+    "medium_priority": 6,
+    "low_priority": 5
   }
 }
 
 ------------------------------------------------------------
-[22:00:27] Test-Edge - PARSED JSON
+[23:13:25] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Manage Cards",
@@ -536,182 +545,174 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = 0 (minimum boundary) \u2014 should succeed",
+      "test_case": "New_Spending_Limit = policy maximum (boundary pass)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected in Select Existing Card dropdown"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Card Controls form, set New Spending Limit to 0",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = {policy maximum}",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Update accepted. System displays \"Card controls updated successfully.\" and persists limit = 0. (Justified by AST constraint: \"must be >= 0\")",
+      "expected_result": "\"Card controls updated successfully.\" (submit_action on_success) \u2014 numeric limits validated against policy should allow New_Spending_Limit equal to policy maximum (PASS)",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = -1 (just below minimum) \u2014 should fail",
+      "test_case": "New_Spending_Limit = policy maximum + 1 (boundary fail)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected in Select Existing Card dropdown"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Card Controls form, set New Spending Limit to -1",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = {policy maximum + 1}",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for New Spending Limit (e.g., \"must be >= 0\"); form remains editable and update is not applied. (Justified by AST constraint: \"must be >= 0\")",
+      "expected_result": "Validation fails inline and form remains editable (on_failure). Inline validation message references constraint: \"must be <= policy maximum\" (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = policy maximum (upper boundary) \u2014 should succeed",
+      "test_case": "Travel_Notice Start_Date = End_Date (date equality boundary pass)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected",
-        "Policy maximum is visible in UI or retrievable from limit helper text"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Set New Spending Limit to the displayed policy maximum value",
-        "Click Update Controls"
+        "In Travel_Notice, set Start_Date = 2025-06-15 and End_Date = 2025-06-15",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Update accepted. System displays \"Card controls updated successfully.\" and persists the limit equal to the displayed policy maximum. (Justified by AST constraint: \"must not exceed policy maximum\")",
+      "expected_result": "\"Card controls updated successfully.\" (submit_action on_success). Date constraint \"if dates provided, Start_Date must be on or before End_Date\" is satisfied when Start_Date = End_Date (PASS)",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "New Spending Limit = (policy maximum + smallest unit) \u2014 just above upper boundary \u2014 should fail",
+      "test_case": "Travel_Notice Start_Date one day after End_Date (date boundary fail)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected",
-        "Policy maximum is visible in UI or retrievable from limit helper text"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Set New Spending Limit to one unit above the displayed policy maximum (e.g., policy maximum + 1 or +0.01 depending on currency precision shown in UI)",
-        "Click Update Controls"
+        "In Travel_Notice, set End_Date = 2025-06-15 and Start_Date = 2025-06-16",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for New Spending Limit (e.g., \"limit above policy maximum\"); form remains editable and update is not applied. (Justified by AST constraint: \"must not exceed policy maximum\")",
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation references \"if dates provided, Start_Date must be on or before End_Date\" (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "boundary",
-      "test_case": "Travel Notice Start_Date = End_Date (single-day travel) \u2014 boundary equality should succeed",
+      "subcategory": "input_edge",
+      "test_case": "Shipping_Address contains only whitespace (edge of 'address must be complete')",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Request_Form"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2025-06-15 and End_Date = 2025-06-15 (same date)",
-        "Fill Destination if required by UI",
-        "Click Update Controls"
+        "In Shipping_Address enter only whitespace characters (e.g., spaces/newlines) in all required address inputs",
+        "Select an Account_to_Link that is in good standing (to satisfy precondition)",
+        "Click 'Request Card'"
       ],
-      "expected_result": "PASS: Update accepted. Date range considered valid (Start_Date <= End_Date). System displays \"Card controls updated successfully.\" (Justified by AST constraint: \"date ranges must be valid (Start_Date <= End_Date)\")",
+      "expected_result": "Validation failures shown inline; form remains editable (on_failure). Inline validation references \"address must be complete\" \u2014 whitespace-only input treated as incomplete (FAIL)",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "boundary",
-      "test_case": "Travel Notice Start_Date > End_Date (Start one day after End) \u2014 should fail",
+      "subcategory": "input_edge",
+      "test_case": "Very long, Unicode/emoji-inclusive Shipping_Address is accepted as a complete address",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Request_Form",
+        "Select an Account_to_Link that is in good standing (to satisfy precondition)"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2025-06-16 and End_Date = 2025-06-15 (Start after End by 1 day)",
-        "Click Update Controls"
+        "Enter a syntactically complete Shipping_Address >200 characters including Unicode and emoji",
+        "Click 'Request Card'"
       ],
-      "expected_result": "FAIL: Inline validation error shown for the travel notice item (e.g., \"date ranges must be valid\"); form remains editable and update is not applied. (Justified by AST constraint: \"date ranges must be valid (Start_Date <= End_Date)\")",
-      "priority": "medium"
+      "expected_result": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID (on_success). Long Unicode/emoji address is accepted as meeting \"address must be complete\" (PASS)",
+      "priority": "low"
     },
     {
       "tc_id": "E-007",
-      "subcategory": "input_edge",
-      "test_case": "Shipping Address missing postal code (address incomplete) \u2014 should fail address completeness check",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Request Card' rapidly (idempotency edge)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Request Form is visible",
-        "Card Type and Account to Link are selected"
+        "Open Card_Request_Form",
+        "Shipping_Address is complete",
+        "Select an Account_to_Link that is in good standing"
       ],
       "steps": [
-        "In Shipping Address, enter street, city, state but leave postal code empty (simulate common incomplete address)",
-        "Click Request Card"
+        "Click 'Request Card' twice in rapid succession",
+        "Observe UI feedback/messages"
       ],
-      "expected_result": "FAIL: Inline validation shown indicating address incomplete (e.g., prompt to complete postal code). Form remains editable and ticket is not opened. (Justified by AST constraint on Shipping_Address: \"address must be complete\" and submit action constraint \"address is complete\")",
+      "expected_result": "Exactly one card-request ticket is opened and the UI shows a single \"Card request submitted successfully.\" with one tracking ID (on_success). No duplicate success messages/tracking IDs should appear (PASS for idempotency at UI level)",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Shipping Address with very long text and emoji (250+ characters) \u2014 verify acceptance only if 'complete' fields provided",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Update Controls' rapidly after changing New_Spending_Limit",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Type and Account to Link are selected"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Shipping Address, enter a 250+ character multi-line address that includes emoji and special characters, and include all required address parts (street, city, state, postal code, country)",
-        "Click Request Card"
+        "Change New_Spending_Limit to {policy maximum}",
+        "Click 'Update Controls' twice rapidly",
+        "Observe UI feedback/messages"
       ],
-      "expected_result": "PASS: If address meets \"address must be complete\" the request succeeds: system shows \"Card request submitted successfully.\" with a tracking ID. The UI accepts long text/emoji without breaking layout. If UI enforces a length limit, it should show a clear inline validation error about maximum length. (Justified by AST constraint: \"address must be complete\")",
+      "expected_result": "Single \"Card controls updated successfully.\" message displayed (on_success). Inline validations are not duplicated; form is not applied twice (UI-level de-duplication) (PASS)",
       "priority": "low"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "interaction_edge",
-      "test_case": "Double-click Request Card rapidly \u2014 ensure single ticket submission and single tracking ID shown",
+      "subcategory": "data_edge",
+      "test_case": "Provide only End_Date in Travel_Notice (Start_Date blank) \u2014 ambiguous 'if dates provided' edge",
       "preconditions": [
-        "User is on Manage Cards page",
-        "Card Request Form is fully and validly filled (Card Type, Account to Link, complete Shipping Address)"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "Rapidly double-click (or click twice in quick succession) the Request Card button",
-        "Observe UI behavior and messages"
+        "In Travel_Notice leave Start_Date blank and set End_Date = 2025-07-01",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS expected: UI prevents duplicate submissions (e.g., button disables or shows processing) and only one success message with a single tracking ID is shown. If the system allows only one ticket per submission, there must not be two separate success messages. (Justified by description: on_success \"opens card-request ticket and shows 'Card request submitted successfully.' with tracking ID\")",
-      "priority": "medium"
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation should reference the constraint: \"if dates provided, Start_Date must be on or before End_Date\" because End_Date is provided while Start_Date is missing (FAIL)",
+      "priority": "low"
     },
     {
       "tc_id": "E-010",
       "subcategory": "repeating_group_edge",
-      "test_case": "Add multiple Travel Notices then remove all before submit \u2014 optional repeating group empty on submit should be accepted",
+      "test_case": "Add multiple Destinations then remove all before submit (repeating_group edge)",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Controls_Form"
       ],
       "steps": [
-        "In Travel Notice repeating group, add three items with valid Start_Date <= End_Date and Destination filled",
-        "Remove all three travel notice items so the repeating group is empty",
-        "Click Update Controls"
+        "In Travel_Notice -> Destinations, add 3 Destination items with values",
+        "Remove all Destination items so none remain",
+        "Leave Start_Date and End_Date blank",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Because Travel_Notice is optional (required: false), the empty repeating group is accepted. System displays \"Card controls updated successfully.\" and no travel notices are saved. (Justified by AST field Travel_Notice: \"required\": false)",
+      "expected_result": "\"Card controls updated successfully.\" (on_success). Removing all repeating_group items results in no travel destinations being submitted; date constraint not applied when dates are not provided (PASS)",
       "priority": "low"
     },
     {
       "tc_id": "E-011",
-      "subcategory": "data_edge",
-      "test_case": "Travel Notice using Feb 29 on a leap year (2024-02-29) \u2014 valid leap-day date should be accepted",
+      "subcategory": "input_edge",
+      "test_case": "Enter non-numeric formatted New_Spending_Limit (e.g., with currency symbol) \u2014 numeric parsing edge",
       "preconditions": [
-        "User is on Manage Cards page",
-        "An existing card is selected"
+        "Open Card_Controls_Form",
+        "An existing card is selected in Select_Existing_Card (if applicable)"
       ],
       "steps": [
-        "In Travel Notice repeating group, add an item",
-        "Set Start_Date = 2024-02-29 and End_Date = 2024-02-29",
-        "Click Update Controls"
+        "Enter New_Spending_Limit = \"$1000\" (include currency symbol)",
+        "Click 'Update Controls'"
       ],
-      "expected_result": "PASS: Date picker/validation accepts Feb 29 for leap year; Start_Date <= End_Date so update is accepted and system shows \"Card controls updated successfully.\" (Justified by AST: Travel_Notice item fields are date types and the constraint \"date ranges must be valid (Start_Date <= End_Date)\")",
+      "expected_result": "Validation failures displayed inline; form remains editable (on_failure). Inline validation references constraint: \"must be numeric\" (FAIL)",
       "priority": "low"
     }
   ],
   "summary": {
     "total": 11,
-    "boundary": 6,
-    "edge": 5,
-    "medium_priority": 8,
-    "low_priority": 3
+    "boundary": 4,
+    "edge": 7,
+    "medium_priority": 6,
+    "low_priority": 5
   }
 }

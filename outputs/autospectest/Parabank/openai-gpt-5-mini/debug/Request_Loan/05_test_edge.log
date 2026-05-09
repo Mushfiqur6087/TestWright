@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572654
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556204
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Request Loan</module_name>
 
@@ -232,59 +250,49 @@ Categories to consider:
       "type": "form",
       "fields": {
         "Loan_Type": {
-          "type": "radio",
-          "required": true,
+          "type": "unspecified",
           "options": [
             "Personal",
             "Auto",
             "Home"
-          ]
+          ],
+          "selection_mode": "card"
         },
         "Loan_Amount": {
           "type": "number",
-          "required": true,
           "constraints": [
-            "when Loan_Type == Personal: min 1000, max 50000",
-            "when Loan_Type == Auto: min 5000, max 75000",
-            "when Loan_Type == Home: min 50000, max 500000"
+            "value must be between 1000 and 50000 when Loan_Type == Personal",
+            "value must be between 5000 and 75000 when Loan_Type == Auto",
+            "value must be between 50000 and 500000 when Loan_Type == Home"
           ]
         },
-        "Down_Payment": {
+        "Down_Payment_Amount": {
           "type": "number",
-          "required": true,
           "constraints": [
-            "must be less than Loan_Amount",
-            "must be >= 10% of Loan_Amount (credit engine minimum)"
+            "value must be less than Loan_Amount",
+            "value must be >= 0.10 * Loan_Amount (credit engine minimum)"
           ]
         },
         "Collateral_Account": {
           "type": "dropdown",
-          "required": true,
           "constraints": [
-            "selected_account_balance must be >= 20% of Loan_Amount",
-            "sufficient collateral funds required for selected account"
+            "selected account balance must be >= 0.20 * Loan_Amount",
+            "selected account must have sufficient funds (mock check; no actual debits)"
           ]
         }
       },
-      "constraints": [
-        "cross-field: Down_Payment < Loan_Amount",
-        "cross-field: selected_account_balance >= 0.20 * Loan_Amount"
-      ],
       "submit_actions": [
         {
-          "element_name": "Submit Request",
-          "type": "button",
-          "constraints": [
-            "invokes credit engine simulation with 80% approval rate",
-            "requires Down_Payment >= 10% of Loan_Amount"
-          ],
-          "on_success": "Loan approved and created successfully! Account details displayed. No actual balance debits occur in this mock system.",
-          "on_failure": "Loan denied; display specific reasons to user",
-          "failure_reasons": [
+          "on_success": "Loan approved and created successfully! Shows account details. (mock; no balance debits)",
+          "on_failure_reasons": [
             "Insufficient credit history",
             "Inadequate collateral value",
-            "Down payment below minimum",
-            "Collateral account balance insufficient"
+            "Down payment below required minimum"
+          ],
+          "constraints": [
+            "credit engine simulates 80% approval rate",
+            "enforces minimum down payment 10% of Loan_Amount",
+            "evaluates collateral cover >= 20% of Loan_Amount"
           ]
         }
       ]
@@ -292,110 +300,11 @@ Categories to consider:
   }
 }
 </ast>
-
-<description>
-The loan page has interactive loan type cards (Personal, Auto, Home) with interest rates, Loan Amount field with type-specific ranges (Personal: $1,000-$50,000, Auto: $5,000-$75,000, Home: $50,000-$500,000), Down Payment Amount, and Collateral Account dropdown. The system validates amount ranges, down payment < loan amount, sufficient collateral funds, and 20% collateral value. Credit engine simulates 80% approval rate with 10% minimum down payment requirement. Success shows "Loan approved and created successfully!" with account details; denial shows specific reasons like "Insufficient credit history" or "Inadequate collateral value." Note: In this mock system, no actual balance debits occur.
-
-
-</description>
 
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:06] Test-Edge - LLM RESPONSE
-------------------------------------------------------------
-
-
-------------------------------------------------------------
-[22:01:06] Test-Edge - JSON PARSE ERROR
-------------------------------------------------------------
-Failed to parse LLM response as JSON (attempt 1/3): Expecting value: line 1 column 1 (char 0)
-Response: ...
-
-------------------------------------------------------------
-[22:01:06] Test-Edge - USER PROMPT
-------------------------------------------------------------
-<module_name>Request Loan</module_name>
-
-<ast>
-{
-  "module_name": "Request Loan",
-  "components": {
-    "Loan_Request_Form": {
-      "type": "form",
-      "fields": {
-        "Loan_Type": {
-          "type": "radio",
-          "required": true,
-          "options": [
-            "Personal",
-            "Auto",
-            "Home"
-          ]
-        },
-        "Loan_Amount": {
-          "type": "number",
-          "required": true,
-          "constraints": [
-            "when Loan_Type == Personal: min 1000, max 50000",
-            "when Loan_Type == Auto: min 5000, max 75000",
-            "when Loan_Type == Home: min 50000, max 500000"
-          ]
-        },
-        "Down_Payment": {
-          "type": "number",
-          "required": true,
-          "constraints": [
-            "must be less than Loan_Amount",
-            "must be >= 10% of Loan_Amount (credit engine minimum)"
-          ]
-        },
-        "Collateral_Account": {
-          "type": "dropdown",
-          "required": true,
-          "constraints": [
-            "selected_account_balance must be >= 20% of Loan_Amount",
-            "sufficient collateral funds required for selected account"
-          ]
-        }
-      },
-      "constraints": [
-        "cross-field: Down_Payment < Loan_Amount",
-        "cross-field: selected_account_balance >= 0.20 * Loan_Amount"
-      ],
-      "submit_actions": [
-        {
-          "element_name": "Submit Request",
-          "type": "button",
-          "constraints": [
-            "invokes credit engine simulation with 80% approval rate",
-            "requires Down_Payment >= 10% of Loan_Amount"
-          ],
-          "on_success": "Loan approved and created successfully! Account details displayed. No actual balance debits occur in this mock system.",
-          "on_failure": "Loan denied; display specific reasons to user",
-          "failure_reasons": [
-            "Insufficient credit history",
-            "Inadequate collateral value",
-            "Down payment below minimum",
-            "Collateral account balance insufficient"
-          ]
-        }
-      ]
-    }
-  }
-}
-</ast>
-
-<description>
-The loan page has interactive loan type cards (Personal, Auto, Home) with interest rates, Loan Amount field with type-specific ranges (Personal: $1,000-$50,000, Auto: $5,000-$75,000, Home: $50,000-$500,000), Down Payment Amount, and Collateral Account dropdown. The system validates amount ranges, down payment < loan amount, sufficient collateral funds, and 20% collateral value. Credit engine simulates 80% approval rate with 10% minimum down payment requirement. Success shows "Loan approved and created successfully!" with account details; denial shows specific reasons like "Insufficient credit history" or "Inadequate collateral value." Note: In this mock system, no actual balance debits occur.
-
-
-</description>
-
-IMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and escaped. No markdown formatting.
-
-------------------------------------------------------------
-[22:02:42] Test-Edge - LLM RESPONSE
+[23:13:23] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Request Loan",
@@ -404,213 +313,328 @@ IMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and es
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Personal loan — Loan_Amount at minimum $1,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal", "Collateral account selected with balance >= $200 (20% of $1,000)"],
-      "steps": ["Set Loan_Amount = 1000.00", "Set Down_Payment = 100.00 (10% of loan)", "Select Collateral_Account with balance = 200.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Personal range and Down_Payment >= 10% and collateral >= 20%). Submission proceeds to credit engine simulation (may show either success 'Loan approved and created successfully!' or denial with listed reasons). This test is PASS for validation.",
+      "test_case": "Loan_Amount Personal - minimum accepted value (boundary pass)",
+      "preconditions": [
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $200"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 1000",
+        "Enter Down_Payment_Amount = 100 (satisfies 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $200 (>= 0.20 * 1000)",
+        "Click Submit"
+      ],
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (pass). If approved, UI may show: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Personal loan — Loan_Amount just below minimum $999 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal"],
-      "steps": ["Set Loan_Amount = 999.00", "Set Down_Payment = 100.00", "Select any Collateral_Account"], 
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $1,000 and $50,000 (FAIL).",
+      "test_case": "Loan_Amount Personal - just below minimum (boundary fail)",
+      "preconditions": [
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $199"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 999",
+        "Enter Down_Payment_Amount = 99.9 (would be ≥0.10 * 999 if allowed)",
+        "Select Collateral_Account with displayed balance $199",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "Personal loan — Loan_Amount at maximum $50,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal", "Collateral account balance >= $10,000 (20% of $50,000)"],
-      "steps": ["Set Loan_Amount = 50000.00", "Set Down_Payment = 5000.00 (10%)", "Select Collateral_Account with balance = 10000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Personal range). Submission proceeds to credit engine simulation (may show success 'Loan approved and created successfully!' or denial). PASS for validation.",
+      "test_case": "Loan_Amount Personal - maximum accepted value (boundary pass)",
+      "preconditions": [
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,000"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 50000",
+        "Enter Down_Payment_Amount = 5000 (≥ 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $10,000 (>= 0.20 * 50000)",
+        "Click Submit"
+      ],
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "Personal loan — Loan_Amount just above maximum $50,001 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal"],
-      "steps": ["Set Loan_Amount = 50001.00", "Set Down_Payment accordingly", "Select any Collateral_Account"], 
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $1,000 and $50,000 (FAIL).",
+      "test_case": "Loan_Amount Personal - just above maximum (boundary fail)",
+      "preconditions": [
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,001"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 50001",
+        "Enter Down_Payment_Amount = 5000.1",
+        "Select Collateral_Account with displayed balance $10,001",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Auto loan — Loan_Amount at minimum $5,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Collateral account balance >= $1,000 (20% of $5,000)"],
-      "steps": ["Set Loan_Amount = 5000.00", "Set Down_Payment = 500.00 (10%)", "Select Collateral_Account with balance = 1000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Auto range and other constraints met). Submission proceeds to credit engine simulation. PASS for validation.",
+      "test_case": "Loan_Amount Home - minimum accepted value (boundary pass)",
+      "preconditions": [
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,000"
+      ],
+      "steps": [
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 50000",
+        "Enter Down_Payment_Amount = 5000 (≥ 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $10,000 (>= 0.20 * 50000)",
+        "Click Submit"
+      ],
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 50000 and 500000 when Loan_Type == Home\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Auto loan — Loan_Amount just below minimum $4,999 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto"],
-      "steps": ["Set Loan_Amount = 4999.00", "Set Down_Payment accordingly", "Select any Collateral_Account"],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $5,000 and $75,000 (FAIL).",
+      "test_case": "Loan_Amount Home - just below minimum (boundary fail)",
+      "preconditions": [
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $9,999"
+      ],
+      "steps": [
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 49999",
+        "Enter Down_Payment_Amount = 4999.9",
+        "Select Collateral_Account with displayed balance $9,999",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 50000 and 500000 when Loan_Type == Home\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "boundary",
-      "test_case": "Auto loan — Loan_Amount at maximum $75,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Collateral account balance >= $15,000 (20% of $75,000)"],
-      "steps": ["Set Loan_Amount = 75000.00", "Set Down_Payment = 7500.00 (10%)", "Select Collateral_Account with balance = 15000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Auto range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "test_case": "Loan_Amount Home - maximum accepted value (boundary pass)",
+      "preconditions": [
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $100,000"
+      ],
+      "steps": [
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 500000",
+        "Enter Down_Payment_Amount = 50000 (≥ 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $100,000 (>= 0.20 * 500000)",
+        "Click Submit"
+      ],
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 50000 and 500000 when Loan_Type == Home\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "boundary",
-      "test_case": "Auto loan — Loan_Amount just above maximum $75,001 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto"],
-      "steps": ["Set Loan_Amount = 75001.00", "Set Down_Payment accordingly", "Select any Collateral_Account"],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $5,000 and $75,000 (FAIL).",
+      "test_case": "Loan_Amount Home - just above maximum (boundary fail)",
+      "preconditions": [
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $100,001"
+      ],
+      "steps": [
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 500001",
+        "Enter Down_Payment_Amount = 50000.1",
+        "Select Collateral_Account with displayed balance $100,001",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 50000 and 500000 when Loan_Type == Home\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
       "subcategory": "boundary",
-      "test_case": "Home loan — Loan_Amount at minimum $50,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Home", "Collateral account balance >= $10,000 (20% of $50,000)"],
-      "steps": ["Set Loan_Amount = 50000.00", "Set Down_Payment = 5000.00 (10%)", "Select Collateral_Account with balance = 10000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Home range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "test_case": "Down_Payment_Amount - exact 10% of Loan_Amount (minimum relative pass)",
+      "preconditions": [
+        "Loan_Type set to Personal",
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 10000",
+        "Enter Down_Payment_Amount = 1000 (exactly 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $2000 (>= 0.20 * Loan_Amount)",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-010",
       "subcategory": "boundary",
-      "test_case": "Home loan — Loan_Amount just below minimum $49,999 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Home"],
-      "steps": ["Set Loan_Amount = 49999.00", "Set Down_Payment accordingly", "Select any Collateral_Account"],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $50,000 and $500,000 (FAIL).",
+      "test_case": "Down_Payment_Amount - just below 10% of Loan_Amount (minimum relative fail)",
+      "preconditions": [
+        "Loan_Type set to Personal",
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 10000",
+        "Enter Down_Payment_Amount = 999.99 (just below 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $1999.98",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-011",
       "subcategory": "boundary",
-      "test_case": "Home loan — Loan_Amount at maximum $500,000 (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Home", "Collateral account balance >= $100,000 (20% of $500,000)"],
-      "steps": ["Set Loan_Amount = 500000.00", "Set Down_Payment = 50000.00 (10%)", "Select Collateral_Account with balance = 100000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds (Loan Amount within Home range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "test_case": "Down_Payment_Amount - just less than Loan_Amount (less-than relation pass)",
+      "preconditions": [
+        "Constraint present: \"value must be less than Loan_Amount\""
+      ],
+      "steps": [
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 20000",
+        "Enter Down_Payment_Amount = 19999.99 (just less than Loan_Amount)",
+        "Select Collateral_Account with displayed balance $4000 (>= 0.20 * 20000)",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"value must be less than Loan_Amount\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-012",
       "subcategory": "boundary",
-      "test_case": "Home loan — Loan_Amount just above maximum $500,001 (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Home"],
-      "steps": ["Set Loan_Amount = 500001.00", "Set Down_Payment accordingly", "Select any Collateral_Account"],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $50,000 and $500,000 (FAIL).",
+      "test_case": "Down_Payment_Amount - equal to Loan_Amount (less-than relation fail)",
+      "preconditions": [
+        "Constraint present: \"value must be less than Loan_Amount\""
+      ],
+      "steps": [
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 20000",
+        "Enter Down_Payment_Amount = 20000 (equal to Loan_Amount)",
+        "Select Collateral_Account with displayed balance $4000",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be less than Loan_Amount\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-013",
       "subcategory": "boundary",
-      "test_case": "Down_Payment exactly 10% of Loan_Amount (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Loan_Amount = 10000.00", "Collateral account balance >= 2000.00"],
-      "steps": ["Set Down_Payment = 1000.00 (exactly 10% of 10000.00)", "Select Collateral_Account with balance = 2000.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds for Down_Payment (meets 'must be >= 10% of Loan_Amount'). Submission proceeds to credit engine simulation. PASS for validation.",
+      "test_case": "Collateral_Account balance exactly 20% of Loan_Amount (boundary pass)",
+      "preconditions": [
+        "Constraint present: \"selected account balance must be >= 0.20 * Loan_Amount\"",
+        "Collateral_Account dropdown displays account balances"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 5000",
+        "Enter Down_Payment_Amount = 500 (≥ 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance = 1000 (exactly 0.20 * 5000)",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"selected account balance must be >= 0.20 * Loan_Amount\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-014",
       "subcategory": "boundary",
-      "test_case": "Down_Payment just below 10% (9.99%) of Loan_Amount (validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Loan_Amount = 10000.00"],
-      "steps": ["Set Down_Payment = 999.00 (9.99% of 10000 approximated)", "Select any Collateral_Account", "Click Submit Request"],
-      "expected_result": "Form validation fails. Failure reason should indicate Down payment below minimum (FAIL).",
+      "test_case": "Collateral_Account balance just below 20% of Loan_Amount (boundary fail)",
+      "preconditions": [
+        "Constraint present: \"selected account balance must be >= 0.20 * Loan_Amount\"",
+        "Collateral_Account dropdown displays account balances"
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 5000",
+        "Enter Down_Payment_Amount = 500",
+        "Select Collateral_Account with displayed balance = 999.99 (just below 0.20 * 5000)",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"selected account balance must be >= 0.20 * Loan_Amount\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-015",
-      "subcategory": "boundary",
-      "test_case": "Down_Payment = Loan_Amount - $0.01 (strictly less than Loan_Amount, validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal", "Loan_Amount = 1000.00", "Collateral account balance >= 200.00"],
-      "steps": ["Set Down_Payment = 999.99", "Select Collateral_Account with balance = 200.00", "Click Submit Request"],
-      "expected_result": "Form validation succeeds for 'Down_Payment < Loan_Amount' (strict less-than satisfied). Submission proceeds to credit engine simulation. PASS for validation.",
+      "subcategory": "input_edge",
+      "test_case": "Decimal precision: Loan_Amount with cents causes 10% rounding edge",
+      "preconditions": [
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
+      ],
+      "steps": [
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 1000.01",
+        "Enter Down_Payment_Amount = 100.00 (which is below 0.10 * 1000.01 = 100.001)",
+        "Select Collateral_Account with displayed balance $200.00",
+        "Click Submit"
+      ],
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (fail). This verifies handling of decimal precision at the 10% threshold.",
       "priority": "medium"
     },
     {
       "tc_id": "E-016",
-      "subcategory": "boundary",
-      "test_case": "Down_Payment equal to Loan_Amount (validation fail — must be less than Loan_Amount)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal", "Loan_Amount = 1000.00"],
-      "steps": ["Set Down_Payment = 1000.00", "Select any Collateral_Account", "Click Submit Request"],
-      "expected_result": "Form validation fails. Validation error: Down Payment must be less than Loan Amount (FAIL).",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click Submit to detect duplicate success messages",
+      "preconditions": [
+        "Form filled with valid values so constraints would allow approval",
+        "On success the UI displays: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\""
+      ],
+      "steps": [
+        "Fill form: Select Loan_Type = Personal, Enter Loan_Amount = 2000, Enter Down_Payment_Amount = 200, Select Collateral_Account with balance $400",
+        "Click Submit twice in rapid succession (double-click or two quick clicks)"
+      ],
+      "expected_result": "The UI should show at most one occurrence of: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\" (no duplicated success messages). If backend approval arrives, only one success confirmation is presented.",
       "priority": "medium"
     },
     {
       "tc_id": "E-017",
-      "subcategory": "boundary",
-      "test_case": "Collateral account balance exactly 20% of Loan_Amount (validation pass)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Loan_Amount = 25000.00"],
-      "steps": ["Select Collateral_Account with balance = 5000.00 (exactly 20%)", "Set Down_Payment = 2500.00 (10%)", "Click Submit Request"],
-      "expected_result": "Form validation succeeds for collateral constraint (selected_account_balance >= 0.20 * Loan_Amount). Submission proceeds to credit engine simulation. PASS for validation.",
-      "priority": "medium"
+      "subcategory": "state_edge",
+      "test_case": "After approval, UI indicates no balance debits (mock behavior visible)",
+      "preconditions": [
+        "On success the UI displays: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\""
+      ],
+      "steps": [
+        "Fill form with valid values and submit so approval occurs",
+        "Observe the success message and any displayed account details or balances"
+      ],
+      "expected_result": "UI must display the exact success text: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\" indicating no actual debits. If account balances are displayed, they should remain unchanged in the UI snapshot shown with the success message.",
+      "priority": "low"
     },
     {
       "tc_id": "E-018",
-      "subcategory": "boundary",
-      "test_case": "Collateral account balance just below 20% of Loan_Amount (19.99% — validation fail)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Loan_Amount = 25000.00"],
-      "steps": ["Select Collateral_Account with balance = 4999.00 (~19.996%)", "Set Down_Payment = 2500.00", "Click Submit Request"],
-      "expected_result": "Form validation fails. Failure reason should indicate 'Collateral account balance insufficient' or 'Inadequate collateral value' (FAIL).",
+      "subcategory": "data_edge",
+      "test_case": "Change Loan_Type after entering Loan_Amount that was valid for previous type but invalid for new type",
+      "preconditions": [
+        "Constraints exist: \"value must be between 5000 and 75000 when Loan_Type == Auto\" and \"value must be between 1000 and 50000 when Loan_Type == Personal\""
+      ],
+      "steps": [
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 60000 (valid for Auto: 5000-75000)",
+        "Change Loan_Type to Personal",
+        "Observe validation state of Loan_Amount field and any visible validation messages",
+        "Attempt to submit"
+      ],
+      "expected_result": "After switching Loan_Type to Personal, the Loan_Amount should be flagged as invalid with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\". Submission should be blocked until Loan_Amount is within the Personal range (fail until corrected).",
       "priority": "medium"
-    },
-    {
-      "tc_id": "E-019",
-      "subcategory": "input_edge",
-      "test_case": "Decimal rounding edge — Loan_Amount produces fractional cent for 10% down payment (rounding behavior)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Personal", "Loan_Amount = 3333.33", "Collateral account balance set appropriately"],
-      "steps": ["Set Loan_Amount = 3333.33", "Set Down_Payment = 333.33 (10% rounded down)", "Select Collateral_Account with balance >= 666.67 (20% rounded up) if needed", "Click Submit Request"],
-      "expected_result": "System must validate using the same rounding rules shown in UI. If system treats 10% of 3333.33 as 333.333 → a Down_Payment of 333.33 may be accepted or rejected depending on UI rounding; expected behavior: validation is deterministic and shows either acceptance (if UI rounds down) or explicit message 'Down payment below minimum' (if rounding requires 333.34). The test verifies consistent rounding/validation behavior.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-020",
-      "subcategory": "state_edge",
-      "test_case": "Change Loan_Type after filling Loan_Amount/Down_Payment (validation refresh)",
-      "preconditions": ["User on Request Loan page", "Initially Loan_Type = Home", "Loan_Amount = 100000.00", "Down_Payment = 10000.00", "Collateral meets 20%"],
-      "steps": ["Switch Loan_Type from Home to Personal (without changing Loan_Amount or Down_Payment)", "Observe field-level validation messages and enabled/disabled state of Submit Request"],
-      "expected_result": "System re-validates fields against Personal ranges. Since 100,000 is outside Personal max ($50,000), the Loan_Amount field should show a validation error and prevent submission until Loan_Amount is adjusted. Validation should update immediately when Loan_Type changes.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-021",
-      "subcategory": "interaction_edge",
-      "test_case": "Switch collateral account to one that becomes insufficient (immediate validation)",
-      "preconditions": ["User on Request Loan page", "Loan_Type = Auto", "Loan_Amount = 20000.00", "Down_Payment >= 10% set"],
-      "steps": ["Select Collateral_Account A with balance = 5000.00 (meets 20%)", "Then change selection to Collateral_Account B with balance = 3999.00 (below 20%)", "Observe validation state and attempt to click Submit Request"],
-      "expected_result": "Upon selecting Account B, UI should show immediate validation failure for collateral ('Collateral account balance insufficient' or similar) and Submit Request should be blocked until a sufficient collateral is selected. This verifies dynamic validation on dropdown change.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-022",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click Submit Request (duplicate submission protection)",
-      "preconditions": ["User on Request Loan page", "Valid inputs: Loan_Type = Personal, Loan_Amount = 2000.00, Down_Payment = 200.00, Collateral sufficient"],
-      "steps": ["Click Submit Request twice rapidly (double-click)", "Observe UI feedback and whether multiple success messages or multiple created-loan confirmations appear"],
-      "expected_result": "UI should prevent duplicate submissions (only one credit engine simulation and only one success/denial message shown). Even in mock system, the UI should not display duplicate 'Loan approved and created successfully!' confirmations for the same action. Expected behavior: single result shown; duplicate clicks ignored or button disabled after first click.",
-      "priority": "low"
     }
   ],
   "summary": {
-    "total": 22,
-    "boundary": 18,
+    "total": 18,
+    "boundary": 14,
     "edge": 4,
-    "medium_priority": 21,
-    "low_priority": 1
+    "medium_priority": 15,
+    "low_priority": 3
   }
 }
 
 ------------------------------------------------------------
-[22:02:42] Test-Edge - PARSED JSON
+[23:13:23] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Request Loan",
@@ -619,387 +643,322 @@ IMPORTANT: Return ONLY valid JSON. Ensure all strings are properly quoted and es
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Personal loan \u2014 Loan_Amount at minimum $1,000 (validation pass)",
+      "test_case": "Loan_Amount Personal - minimum accepted value (boundary pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal",
-        "Collateral account selected with balance >= $200 (20% of $1,000)"
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $200"
       ],
       "steps": [
-        "Set Loan_Amount = 1000.00",
-        "Set Down_Payment = 100.00 (10% of loan)",
-        "Select Collateral_Account with balance = 200.00",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 1000",
+        "Enter Down_Payment_Amount = 100 (satisfies 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $200 (>= 0.20 * 1000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Personal range and Down_Payment >= 10% and collateral >= 20%). Submission proceeds to credit engine simulation (may show either success 'Loan approved and created successfully!' or denial with listed reasons). This test is PASS for validation.",
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (pass). If approved, UI may show: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Personal loan \u2014 Loan_Amount just below minimum $999 (validation fail)",
+      "test_case": "Loan_Amount Personal - just below minimum (boundary fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal"
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $199"
       ],
       "steps": [
-        "Set Loan_Amount = 999.00",
-        "Set Down_Payment = 100.00",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 999",
+        "Enter Down_Payment_Amount = 99.9 (would be \u22650.10 * 999 if allowed)",
+        "Select Collateral_Account with displayed balance $199",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $1,000 and $50,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "Personal loan \u2014 Loan_Amount at maximum $50,000 (validation pass)",
+      "test_case": "Loan_Amount Personal - maximum accepted value (boundary pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal",
-        "Collateral account balance >= $10,000 (20% of $50,000)"
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,000"
       ],
       "steps": [
-        "Set Loan_Amount = 50000.00",
-        "Set Down_Payment = 5000.00 (10%)",
-        "Select Collateral_Account with balance = 10000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 50000",
+        "Enter Down_Payment_Amount = 5000 (\u2265 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $10,000 (>= 0.20 * 50000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Personal range). Submission proceeds to credit engine simulation (may show success 'Loan approved and created successfully!' or denial). PASS for validation.",
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "Personal loan \u2014 Loan_Amount just above maximum $50,001 (validation fail)",
+      "test_case": "Loan_Amount Personal - just above maximum (boundary fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal"
+        "Loan_Type card option 'Personal' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,001"
       ],
       "steps": [
-        "Set Loan_Amount = 50001.00",
-        "Set Down_Payment accordingly",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 50001",
+        "Enter Down_Payment_Amount = 5000.1",
+        "Select Collateral_Account with displayed balance $10,001",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $1,000 and $50,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Auto loan \u2014 Loan_Amount at minimum $5,000 (validation pass)",
+      "test_case": "Loan_Amount Home - minimum accepted value (boundary pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Collateral account balance >= $1,000 (20% of $5,000)"
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $10,000"
       ],
       "steps": [
-        "Set Loan_Amount = 5000.00",
-        "Set Down_Payment = 500.00 (10%)",
-        "Select Collateral_Account with balance = 1000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 50000",
+        "Enter Down_Payment_Amount = 5000 (\u2265 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $10,000 (>= 0.20 * 50000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Auto range and other constraints met). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 50000 and 500000 when Loan_Type == Home\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Auto loan \u2014 Loan_Amount just below minimum $4,999 (validation fail)",
+      "test_case": "Loan_Amount Home - just below minimum (boundary fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto"
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $9,999"
       ],
       "steps": [
-        "Set Loan_Amount = 4999.00",
-        "Set Down_Payment accordingly",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 49999",
+        "Enter Down_Payment_Amount = 4999.9",
+        "Select Collateral_Account with displayed balance $9,999",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $5,000 and $75,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 50000 and 500000 when Loan_Type == Home\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "boundary",
-      "test_case": "Auto loan \u2014 Loan_Amount at maximum $75,000 (validation pass)",
+      "test_case": "Loan_Amount Home - maximum accepted value (boundary pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Collateral account balance >= $15,000 (20% of $75,000)"
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $100,000"
       ],
       "steps": [
-        "Set Loan_Amount = 75000.00",
-        "Set Down_Payment = 7500.00 (10%)",
-        "Select Collateral_Account with balance = 15000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 500000",
+        "Enter Down_Payment_Amount = 50000 (\u2265 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $100,000 (>= 0.20 * 500000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Auto range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Form submission should be accepted. Constraint satisfied: \"value must be between 50000 and 500000 when Loan_Type == Home\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "boundary",
-      "test_case": "Auto loan \u2014 Loan_Amount just above maximum $75,001 (validation fail)",
+      "test_case": "Loan_Amount Home - just above maximum (boundary fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto"
+        "Loan_Type card option 'Home' is available",
+        "Collateral_Account dropdown contains an account with displayed balance $100,001"
       ],
       "steps": [
-        "Set Loan_Amount = 75001.00",
-        "Set Down_Payment accordingly",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Home",
+        "Enter Loan_Amount = 500001",
+        "Enter Down_Payment_Amount = 50000.1",
+        "Select Collateral_Account with displayed balance $100,001",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $5,000 and $75,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be between 50000 and 500000 when Loan_Type == Home\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
       "subcategory": "boundary",
-      "test_case": "Home loan \u2014 Loan_Amount at minimum $50,000 (validation pass)",
+      "test_case": "Down_Payment_Amount - exact 10% of Loan_Amount (minimum relative pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Home",
-        "Collateral account balance >= $10,000 (20% of $50,000)"
+        "Loan_Type set to Personal",
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
       ],
       "steps": [
-        "Set Loan_Amount = 50000.00",
-        "Set Down_Payment = 5000.00 (10%)",
-        "Select Collateral_Account with balance = 10000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 10000",
+        "Enter Down_Payment_Amount = 1000 (exactly 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $2000 (>= 0.20 * Loan_Amount)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Home range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-010",
       "subcategory": "boundary",
-      "test_case": "Home loan \u2014 Loan_Amount just below minimum $49,999 (validation fail)",
+      "test_case": "Down_Payment_Amount - just below 10% of Loan_Amount (minimum relative fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Home"
+        "Loan_Type set to Personal",
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
       ],
       "steps": [
-        "Set Loan_Amount = 49999.00",
-        "Set Down_Payment accordingly",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 10000",
+        "Enter Down_Payment_Amount = 999.99 (just below 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance $1999.98",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $50,000 and $500,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-011",
       "subcategory": "boundary",
-      "test_case": "Home loan \u2014 Loan_Amount at maximum $500,000 (validation pass)",
+      "test_case": "Down_Payment_Amount - just less than Loan_Amount (less-than relation pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Home",
-        "Collateral account balance >= $100,000 (20% of $500,000)"
+        "Constraint present: \"value must be less than Loan_Amount\""
       ],
       "steps": [
-        "Set Loan_Amount = 500000.00",
-        "Set Down_Payment = 50000.00 (10%)",
-        "Select Collateral_Account with balance = 100000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 20000",
+        "Enter Down_Payment_Amount = 19999.99 (just less than Loan_Amount)",
+        "Select Collateral_Account with displayed balance $4000 (>= 0.20 * 20000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds (Loan Amount within Home range). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"value must be less than Loan_Amount\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-012",
       "subcategory": "boundary",
-      "test_case": "Home loan \u2014 Loan_Amount just above maximum $500,001 (validation fail)",
+      "test_case": "Down_Payment_Amount - equal to Loan_Amount (less-than relation fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Home"
+        "Constraint present: \"value must be less than Loan_Amount\""
       ],
       "steps": [
-        "Set Loan_Amount = 500001.00",
-        "Set Down_Payment accordingly",
-        "Select any Collateral_Account"
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 20000",
+        "Enter Down_Payment_Amount = 20000 (equal to Loan_Amount)",
+        "Select Collateral_Account with displayed balance $4000",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Validation error: Loan Amount must be between $50,000 and $500,000 (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be less than Loan_Amount\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-013",
       "subcategory": "boundary",
-      "test_case": "Down_Payment exactly 10% of Loan_Amount (validation pass)",
+      "test_case": "Collateral_Account balance exactly 20% of Loan_Amount (boundary pass)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Loan_Amount = 10000.00",
-        "Collateral account balance >= 2000.00"
+        "Constraint present: \"selected account balance must be >= 0.20 * Loan_Amount\"",
+        "Collateral_Account dropdown displays account balances"
       ],
       "steps": [
-        "Set Down_Payment = 1000.00 (exactly 10% of 10000.00)",
-        "Select Collateral_Account with balance = 2000.00",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 5000",
+        "Enter Down_Payment_Amount = 500 (\u2265 0.10 * Loan_Amount)",
+        "Select Collateral_Account with displayed balance = 1000 (exactly 0.20 * 5000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds for Down_Payment (meets 'must be >= 10% of Loan_Amount'). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Submission should be accepted. Constraint satisfied: \"selected account balance must be >= 0.20 * Loan_Amount\" (pass).",
       "priority": "medium"
     },
     {
       "tc_id": "E-014",
       "subcategory": "boundary",
-      "test_case": "Down_Payment just below 10% (9.99%) of Loan_Amount (validation fail)",
+      "test_case": "Collateral_Account balance just below 20% of Loan_Amount (boundary fail)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Loan_Amount = 10000.00"
+        "Constraint present: \"selected account balance must be >= 0.20 * Loan_Amount\"",
+        "Collateral_Account dropdown displays account balances"
       ],
       "steps": [
-        "Set Down_Payment = 999.00 (9.99% of 10000 approximated)",
-        "Select any Collateral_Account",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 5000",
+        "Enter Down_Payment_Amount = 500",
+        "Select Collateral_Account with displayed balance = 999.99 (just below 0.20 * 5000)",
+        "Click Submit"
       ],
-      "expected_result": "Form validation fails. Failure reason should indicate Down payment below minimum (FAIL).",
+      "expected_result": "Submission should be blocked with validation referencing: \"selected account balance must be >= 0.20 * Loan_Amount\" (fail).",
       "priority": "medium"
     },
     {
       "tc_id": "E-015",
-      "subcategory": "boundary",
-      "test_case": "Down_Payment = Loan_Amount - $0.01 (strictly less than Loan_Amount, validation pass)",
+      "subcategory": "input_edge",
+      "test_case": "Decimal precision: Loan_Amount with cents causes 10% rounding edge",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal",
-        "Loan_Amount = 1000.00",
-        "Collateral account balance >= 200.00"
+        "Constraint present: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\""
       ],
       "steps": [
-        "Set Down_Payment = 999.99",
-        "Select Collateral_Account with balance = 200.00",
-        "Click Submit Request"
+        "Select Loan_Type = Personal",
+        "Enter Loan_Amount = 1000.01",
+        "Enter Down_Payment_Amount = 100.00 (which is below 0.10 * 1000.01 = 100.001)",
+        "Select Collateral_Account with displayed balance $200.00",
+        "Click Submit"
       ],
-      "expected_result": "Form validation succeeds for 'Down_Payment < Loan_Amount' (strict less-than satisfied). Submission proceeds to credit engine simulation. PASS for validation.",
+      "expected_result": "Submission should be blocked with validation referencing: \"value must be >= 0.10 * Loan_Amount (credit engine minimum)\" (fail). This verifies handling of decimal precision at the 10% threshold.",
       "priority": "medium"
     },
     {
       "tc_id": "E-016",
-      "subcategory": "boundary",
-      "test_case": "Down_Payment equal to Loan_Amount (validation fail \u2014 must be less than Loan_Amount)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click Submit to detect duplicate success messages",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal",
-        "Loan_Amount = 1000.00"
+        "Form filled with valid values so constraints would allow approval",
+        "On success the UI displays: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\""
       ],
       "steps": [
-        "Set Down_Payment = 1000.00",
-        "Select any Collateral_Account",
-        "Click Submit Request"
+        "Fill form: Select Loan_Type = Personal, Enter Loan_Amount = 2000, Enter Down_Payment_Amount = 200, Select Collateral_Account with balance $400",
+        "Click Submit twice in rapid succession (double-click or two quick clicks)"
       ],
-      "expected_result": "Form validation fails. Validation error: Down Payment must be less than Loan Amount (FAIL).",
+      "expected_result": "The UI should show at most one occurrence of: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\" (no duplicated success messages). If backend approval arrives, only one success confirmation is presented.",
       "priority": "medium"
     },
     {
       "tc_id": "E-017",
-      "subcategory": "boundary",
-      "test_case": "Collateral account balance exactly 20% of Loan_Amount (validation pass)",
+      "subcategory": "state_edge",
+      "test_case": "After approval, UI indicates no balance debits (mock behavior visible)",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Loan_Amount = 25000.00"
+        "On success the UI displays: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\""
       ],
       "steps": [
-        "Select Collateral_Account with balance = 5000.00 (exactly 20%)",
-        "Set Down_Payment = 2500.00 (10%)",
-        "Click Submit Request"
+        "Fill form with valid values and submit so approval occurs",
+        "Observe the success message and any displayed account details or balances"
       ],
-      "expected_result": "Form validation succeeds for collateral constraint (selected_account_balance >= 0.20 * Loan_Amount). Submission proceeds to credit engine simulation. PASS for validation.",
-      "priority": "medium"
+      "expected_result": "UI must display the exact success text: \"Loan approved and created successfully! Shows account details. (mock; no balance debits)\" indicating no actual debits. If account balances are displayed, they should remain unchanged in the UI snapshot shown with the success message.",
+      "priority": "low"
     },
     {
       "tc_id": "E-018",
-      "subcategory": "boundary",
-      "test_case": "Collateral account balance just below 20% of Loan_Amount (19.99% \u2014 validation fail)",
+      "subcategory": "data_edge",
+      "test_case": "Change Loan_Type after entering Loan_Amount that was valid for previous type but invalid for new type",
       "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Loan_Amount = 25000.00"
+        "Constraints exist: \"value must be between 5000 and 75000 when Loan_Type == Auto\" and \"value must be between 1000 and 50000 when Loan_Type == Personal\""
       ],
       "steps": [
-        "Select Collateral_Account with balance = 4999.00 (~19.996%)",
-        "Set Down_Payment = 2500.00",
-        "Click Submit Request"
+        "Select Loan_Type = Auto",
+        "Enter Loan_Amount = 60000 (valid for Auto: 5000-75000)",
+        "Change Loan_Type to Personal",
+        "Observe validation state of Loan_Amount field and any visible validation messages",
+        "Attempt to submit"
       ],
-      "expected_result": "Form validation fails. Failure reason should indicate 'Collateral account balance insufficient' or 'Inadequate collateral value' (FAIL).",
+      "expected_result": "After switching Loan_Type to Personal, the Loan_Amount should be flagged as invalid with validation referencing: \"value must be between 1000 and 50000 when Loan_Type == Personal\". Submission should be blocked until Loan_Amount is within the Personal range (fail until corrected).",
       "priority": "medium"
-    },
-    {
-      "tc_id": "E-019",
-      "subcategory": "input_edge",
-      "test_case": "Decimal rounding edge \u2014 Loan_Amount produces fractional cent for 10% down payment (rounding behavior)",
-      "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Personal",
-        "Loan_Amount = 3333.33",
-        "Collateral account balance set appropriately"
-      ],
-      "steps": [
-        "Set Loan_Amount = 3333.33",
-        "Set Down_Payment = 333.33 (10% rounded down)",
-        "Select Collateral_Account with balance >= 666.67 (20% rounded up) if needed",
-        "Click Submit Request"
-      ],
-      "expected_result": "System must validate using the same rounding rules shown in UI. If system treats 10% of 3333.33 as 333.333 \u2192 a Down_Payment of 333.33 may be accepted or rejected depending on UI rounding; expected behavior: validation is deterministic and shows either acceptance (if UI rounds down) or explicit message 'Down payment below minimum' (if rounding requires 333.34). The test verifies consistent rounding/validation behavior.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-020",
-      "subcategory": "state_edge",
-      "test_case": "Change Loan_Type after filling Loan_Amount/Down_Payment (validation refresh)",
-      "preconditions": [
-        "User on Request Loan page",
-        "Initially Loan_Type = Home",
-        "Loan_Amount = 100000.00",
-        "Down_Payment = 10000.00",
-        "Collateral meets 20%"
-      ],
-      "steps": [
-        "Switch Loan_Type from Home to Personal (without changing Loan_Amount or Down_Payment)",
-        "Observe field-level validation messages and enabled/disabled state of Submit Request"
-      ],
-      "expected_result": "System re-validates fields against Personal ranges. Since 100,000 is outside Personal max ($50,000), the Loan_Amount field should show a validation error and prevent submission until Loan_Amount is adjusted. Validation should update immediately when Loan_Type changes.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-021",
-      "subcategory": "interaction_edge",
-      "test_case": "Switch collateral account to one that becomes insufficient (immediate validation)",
-      "preconditions": [
-        "User on Request Loan page",
-        "Loan_Type = Auto",
-        "Loan_Amount = 20000.00",
-        "Down_Payment >= 10% set"
-      ],
-      "steps": [
-        "Select Collateral_Account A with balance = 5000.00 (meets 20%)",
-        "Then change selection to Collateral_Account B with balance = 3999.00 (below 20%)",
-        "Observe validation state and attempt to click Submit Request"
-      ],
-      "expected_result": "Upon selecting Account B, UI should show immediate validation failure for collateral ('Collateral account balance insufficient' or similar) and Submit Request should be blocked until a sufficient collateral is selected. This verifies dynamic validation on dropdown change.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-022",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click Submit Request (duplicate submission protection)",
-      "preconditions": [
-        "User on Request Loan page",
-        "Valid inputs: Loan_Type = Personal, Loan_Amount = 2000.00, Down_Payment = 200.00, Collateral sufficient"
-      ],
-      "steps": [
-        "Click Submit Request twice rapidly (double-click)",
-        "Observe UI feedback and whether multiple success messages or multiple created-loan confirmations appear"
-      ],
-      "expected_result": "UI should prevent duplicate submissions (only one credit engine simulation and only one success/denial message shown). Even in mock system, the UI should not display duplicate 'Loan approved and created successfully!' confirmations for the same action. Expected behavior: single result shown; duplicate clicks ignored or button disabled after first click.",
-      "priority": "low"
     }
   ],
   "summary": {
-    "total": 22,
-    "boundary": 18,
+    "total": 18,
+    "boundary": 14,
     "edge": 4,
-    "medium_priority": 21,
-    "low_priority": 1
+    "medium_priority": 15,
+    "low_priority": 3
   }
 }

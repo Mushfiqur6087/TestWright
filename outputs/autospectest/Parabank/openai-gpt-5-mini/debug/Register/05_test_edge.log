@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572112
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.554804
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Register</module_name>
 
@@ -255,26 +273,23 @@ Categories to consider:
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-            "must match regex: ^(\\d{5})(-\\d{4})?$"
+            "must be 5 digits or 5+4 format (12345 or 12345-6789)"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format (123) 456-7890",
-            "must match regex: ^\\(\\d{3}\\) \\d{3}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern (123) 456-7890",
+            "automatic formatting applied to (123) 456-7890 on input"
           ]
         },
         "Social_Security_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format 123-45-6789",
-            "must match regex: ^\\d{3}-\\d{2}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern 123-45-6789",
+            "automatic formatting applied to 123-45-6789 on input"
           ]
         },
         "Username": {
@@ -288,8 +303,7 @@ Categories to consider:
           "type": "password",
           "required": true,
           "constraints": [
-            "must be at least 8 characters",
-            "min_length: 8"
+            "minimum length 8 characters"
           ]
         },
         "Confirm_Password": {
@@ -303,15 +317,14 @@ Categories to consider:
       "submit_actions": [
         {
           "element_name": "Register",
-          "type": "button",
           "constraints": [
-            "validates all required fields are present",
-            "validates field pattern conformance (Phone, ZIP, SSN, Email)",
-            "validates Confirm_Password matches Password"
+            "on submit: validates required fields are present",
+            "on submit: validates each field matches its pattern constraints",
+            "on submit: validates Confirm_Password matches Password"
           ],
           "on_success": "Account created successfully \u2014 please sign in",
-          "redirect_to": "Login page",
-          "on_failure": "displays field-level errors for correction"
+          "on_success_redirect": "Login page",
+          "on_failure": "displays specific field-level errors for correction"
         }
       ]
     }
@@ -319,16 +332,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The registration page presents a comprehensive sign-up form with required inputs for First Name, Last Name, Street Address, City, State (dropdown with all US states), ZIP Code, Phone Number, Social Security Number, Username (email format), Password, and Confirm Password, plus a "Register" button. The system enforces specific validation constraints: Username must be a valid email format, Phone Number must follow the format (123) 456-7890 with automatic formatting, ZIP Code must be 5 digits or 5+4 format (12345 or 12345-6789), SSN must follow the format 123-45-6789 with automatic formatting, Password must be at least 8 characters, and Confirm Password must match the Password field. On submission, the system validates field completeness, pattern conformance, and password match. Success produces "Account created successfully — please sign in," then redirects to the login page, otherwise specific field-level errors are displayed for correction.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:58:18] Test-Edge - LLM RESPONSE
+[23:12:03] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Register",
@@ -337,215 +344,222 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Password exactly 8 characters — should succeed",
+      "test_case": "ZIP_Code 5-digit boundary — exact 5 digits should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields will be filled with valid values: First_Name=John, Last_Name=Doe, Street_Address=1 Main St, City=Anytown, State=CA, ZIP_Code=12345, Phone_Number=(123) 456-7890, Social_Security_Number=123-45-6789, Username=user@example.com"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Password = \"Abcdef12\" (8 characters)",
-        "Enter Confirm_Password = \"Abcdef12\"",
-        "Click the Register button"
+        "Fill First_Name with 'Alice'",
+        "Fill Last_Name with 'Smith'",
+        "Fill Street_Address with '1 Main St'",
+        "Fill City with 'Anytown'",
+        "Select State (any valid option)",
+        "Fill ZIP_Code with '12345'",
+        "Fill Phone_Number with '(123) 456-7890'",
+        "Fill Social_Security_Number with '123-45-6789'",
+        "Fill Username with 'alice@example.com'",
+        "Fill Password with 'Passw0rd' (8 chars)",
+        "Fill Confirm_Password with 'Passw0rd'",
+        "Click Register"
       ],
-      "expected_result": "PASS — submission succeeds; displays \"Account created successfully — please sign in\" and redirects to Login page (satisfies AST constraint min_length: 8 / description: \"Password must be at least 8 characters\")",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. ZIP_Code satisfies 'must be 5 digits or 5+4 format (12345 or 12345-6789)'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Password 7 characters — should fail",
+      "test_case": "ZIP_Code just-past boundary — 4 digits should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values as in E-001"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Password = \"Abcdef1\" (7 characters)",
-        "Enter Confirm_Password = \"Abcdef1\"",
-        "Click the Register button"
+        "Fill required fields as valid values except ZIP_Code",
+        "Fill ZIP_Code with '1234' (one digit short)",
+        "Click Register"
       ],
-      "expected_result": "FAIL — field-level error shown for Password: \"Password must be at least 8 characters\" (validation per AST constraint min_length: 8); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for ZIP_Code referencing 'must be 5 digits or 5+4 format (12345 or 12345-6789)'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "ZIP Code 5-digit format (exact) — should succeed",
+      "test_case": "Phone_Number exact pattern — '(123) 456-7890' should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values: use Password >=8 chars, Phone=(123) 456-7890, SSN=123-45-6789, Username=user@example.com"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter ZIP_Code = \"12345\"",
-        "Ensure other fields valid and click Register"
+        "Fill required fields with valid values",
+        "Fill Phone_Number with '(123) 456-7890'",
+        "Click Register"
       ],
-      "expected_result": "PASS — submission succeeds; displays \"Account created successfully — please sign in\" and redirects to Login page (satisfies AST constraint: must match 5-digit or 5+4 ZIP format)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Phone_Number satisfies 'must match pattern (123) 456-7890'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "ZIP Code one digit short (4 digits) — should fail",
+      "test_case": "Phone_Number missing final digit — '(123) 456-789' should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-003"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter ZIP_Code = \"1234\"",
+        "Fill required fields with valid values except Phone_Number",
+        "Fill Phone_Number with '(123) 456-789' (one digit short)",
         "Click Register"
       ],
-      "expected_result": "FAIL — field-level error for ZIP_Code: message indicating it \"must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)\" (per AST constraint); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Phone_Number referencing 'must match pattern (123) 456-7890'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Phone Number in exact required format — should succeed",
+      "test_case": "Social_Security_Number exact pattern — '123-45-6789' should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values as in E-001"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"(123) 456-7890\"",
+        "Fill required fields with valid values",
+        "Fill Social_Security_Number with '123-45-6789'",
         "Click Register"
       ],
-      "expected_result": "PASS — submission succeeds; displays \"Account created successfully — please sign in\" and redirects to Login page (satisfies AST regex ^\\(\\d{3}\\) \\d{3}-\\d{4}$ and description)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Social_Security_Number satisfies 'must match pattern 123-45-6789'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Phone Number missing required space after closing parenthesis (\"(123)456-7890\") — should fail",
+      "test_case": "Social_Security_Number missing final digit — '123-45-678' should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-005"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"(123)456-7890\" (missing the space required by the pattern)",
+        "Fill required fields with valid values except Social_Security_Number",
+        "Fill Social_Security_Number with '123-45-678' (one digit short)",
         "Click Register"
       ],
-      "expected_result": "FAIL — field-level error for Phone_Number indicating it must follow format \"(123) 456-7890\" (per AST regex); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Social_Security_Number referencing 'must match pattern 123-45-6789'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "boundary",
-      "test_case": "SSN correct format (123-45-6789) — should succeed",
+      "test_case": "Password minimum length boundary — exactly 8 characters should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly (Password >=8 chars, Phone formatted, ZIP valid, Username valid)"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Social_Security_Number = \"123-45-6789\"",
+        "Fill required fields with valid values",
+        "Fill Password with 'Abc12345' (8 characters)",
+        "Fill Confirm_Password with 'Abc12345'",
         "Click Register"
       ],
-      "expected_result": "PASS — submission succeeds; displays \"Account created successfully — please sign in\" and redirects to Login page (satisfies AST regex ^\\d{3}-\\d{2}-\\d{4}$ and description)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Password satisfies 'minimum length 8 characters'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "boundary",
-      "test_case": "SSN grouping incorrect (e.g., \"12-345-6789\") — should fail",
+      "test_case": "Password just-past boundary — 7 characters should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-007"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Social_Security_Number = \"12-345-6789\" (groups do not match 3-2-4)",
+        "Fill required fields with valid values except Password",
+        "Fill Password with 'Abc1234' (7 characters)",
+        "Fill Confirm_Password with 'Abc1234'",
         "Click Register"
       ],
-      "expected_result": "FAIL — field-level error for Social_Security_Number: message indicating it \"must follow format 123-45-6789\" (per AST regex); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Password referencing 'minimum length 8 characters'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
       "subcategory": "input_edge",
-      "test_case": "Paste unformatted 10 digits into Phone Number — input autoformats to required pattern",
+      "test_case": "Phone_Number auto-format on paste — paste '1234567890' should format to '(123) 456-7890'",
       "preconditions": [
-        "Registration page is open",
-        "Phone_Number field is empty",
-        "AST: Phone_Number has \"autoformat_on_input\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Paste \"1234567890\" directly into the Phone_Number input",
-        "Move focus out of the Phone_Number field (blur)"
+        "Paste the digits '1234567890' into Phone_Number field",
+        "Observe Phone_Number field formatting",
+        "Fill other required fields with valid values and submit"
       ],
-      "expected_result": "The Phone_Number field value autoformats to \"(123) 456-7890\" (autoformat_on_input behavior as specified in AST); no validation error shown for Phone_Number",
+      "expected_result": "Phone_Number field is auto-formatted per 'automatic formatting applied to (123) 456-7890 on input' (field displays '(123) 456-7890'); form submission succeeds showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-010",
       "subcategory": "input_edge",
-      "test_case": "Paste unformatted 9 digits into SSN field — input autoformats to 123-45-6789",
+      "test_case": "Social_Security_Number auto-format while typing — continuous digits should format to '123-45-6789'",
       "preconditions": [
-        "Registration page is open",
-        "Social_Security_Number field is empty",
-        "AST: Social_Security_Number has \"autoformat_on_input\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Paste \"123456789\" into the Social_Security_Number input",
-        "Move focus out of the SSN field"
+        "Type digits '123456789' into Social_Security_Number field without hyphens",
+        "Observe Social_Security_Number field formatting as you type",
+        "Fill other required fields with valid values and submit"
       ],
-      "expected_result": "The Social_Security_Number field value autoformats to \"123-45-6789\" (autoformat_on_input behavior per AST); no field-level error for SSN",
+      "expected_result": "Social_Security_Number field is auto-formatted per 'automatic formatting applied to 123-45-6789 on input' (field displays '123-45-6789'); form submission succeeds showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-011",
-      "subcategory": "input_edge",
-      "test_case": "Password and Confirm_Password differ only by trailing whitespace — match validation fails",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click Register — ensure single success and single redirect",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly (ZIP, Phone, SSN, Username valid)"
+        "Open Registration_Form",
+        "All fields filled with valid values"
       ],
       "steps": [
-        "Enter Password = \"SecurePwd8\"",
-        "Enter Confirm_Password = \"SecurePwd8 \" (same characters plus one trailing space)",
-        "Click Register"
+        "Click the Register button twice in rapid succession (double-click)",
+        "Observe success messages and redirects"
       ],
-      "expected_result": "FAIL — field-level error on Confirm_Password stating it \"must match Password\" (per AST constraint); matching is exact, so trailing whitespace causes a mismatch",
+      "expected_result": "UI prevents duplicate handling: a single 'Account created successfully \\u2014 please sign in' is shown and a single redirect to 'Login page' occurs (no duplicate success messages or multiple redirects). This aligns with submit_actions on_success and on_success_redirect.",
       "priority": "medium"
     },
     {
       "tc_id": "E-012",
-      "subcategory": "input_edge",
-      "test_case": "Username (email) entered with leading/trailing whitespace — validation treats it as invalid email format",
+      "subcategory": "data_edge",
+      "test_case": "Username with plus-addressing — 'user+tag@example.com' should satisfy email constraint",
       "preconditions": [
-        "Registration page is open",
-        "AST: Username has constraint \"must be a valid email format\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Username = \" user@example.com \" (leading and trailing spaces)",
-        "Fill other required fields validly and click Register"
+        "Fill Username with 'user+tag@example.com'",
+        "Fill other required fields with valid values",
+        "Click Register"
       ],
-      "expected_result": "FAIL — field-level error for Username indicating it \"must be a valid email format\" (spaces prevent matching typical email format regex); form not submitted",
+      "expected_result": "PASS: Username satisfies 'must be a valid email format' and form submits showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-013",
-      "subcategory": "input_edge",
-      "test_case": "Phone Number entered with country prefix (+1) — should fail pattern validation",
+      "subcategory": "state_edge",
+      "test_case": "Confirm_Password mismatch by one character should FAIL and show field-level error",
       "preconditions": [
-        "Registration page is open",
-        "AST: Phone_Number regex requires format ^\\(\\d{3}\\) \\d{3}-\\d{4}$"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"+1 (123) 456-7890\"",
+        "Fill Password with 'Password1'",
+        "Fill Confirm_Password with 'Password!' (differs by one character)",
+        "Fill other required fields with valid values",
         "Click Register"
       ],
-      "expected_result": "FAIL — field-level error for Phone_Number indicating it must follow the format \"(123) 456-7890\" (AST regex does not allow a leading \"+1\" prefix)",
-      "priority": "low"
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Confirm_Password referencing 'must match Password' and overall on_failure behavior 'displays specific field-level errors for correction'.",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 13,
     "boundary": 8,
     "edge": 5,
-    "medium_priority": 9,
-    "low_priority": 4
+    "medium_priority": 10,
+    "low_priority": 3
   }
 }
 
 ------------------------------------------------------------
-[21:58:18] Test-Edge - PARSED JSON
+[23:12:03] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Register",
@@ -554,209 +568,216 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Password exactly 8 characters \u2014 should succeed",
+      "test_case": "ZIP_Code 5-digit boundary \u2014 exact 5 digits should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields will be filled with valid values: First_Name=John, Last_Name=Doe, Street_Address=1 Main St, City=Anytown, State=CA, ZIP_Code=12345, Phone_Number=(123) 456-7890, Social_Security_Number=123-45-6789, Username=user@example.com"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Password = \"Abcdef12\" (8 characters)",
-        "Enter Confirm_Password = \"Abcdef12\"",
-        "Click the Register button"
+        "Fill First_Name with 'Alice'",
+        "Fill Last_Name with 'Smith'",
+        "Fill Street_Address with '1 Main St'",
+        "Fill City with 'Anytown'",
+        "Select State (any valid option)",
+        "Fill ZIP_Code with '12345'",
+        "Fill Phone_Number with '(123) 456-7890'",
+        "Fill Social_Security_Number with '123-45-6789'",
+        "Fill Username with 'alice@example.com'",
+        "Fill Password with 'Passw0rd' (8 chars)",
+        "Fill Confirm_Password with 'Passw0rd'",
+        "Click Register"
       ],
-      "expected_result": "PASS \u2014 submission succeeds; displays \"Account created successfully \u2014 please sign in\" and redirects to Login page (satisfies AST constraint min_length: 8 / description: \"Password must be at least 8 characters\")",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. ZIP_Code satisfies 'must be 5 digits or 5+4 format (12345 or 12345-6789)'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Password 7 characters \u2014 should fail",
+      "test_case": "ZIP_Code just-past boundary \u2014 4 digits should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values as in E-001"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Password = \"Abcdef1\" (7 characters)",
-        "Enter Confirm_Password = \"Abcdef1\"",
-        "Click the Register button"
+        "Fill required fields as valid values except ZIP_Code",
+        "Fill ZIP_Code with '1234' (one digit short)",
+        "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error shown for Password: \"Password must be at least 8 characters\" (validation per AST constraint min_length: 8); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for ZIP_Code referencing 'must be 5 digits or 5+4 format (12345 or 12345-6789)'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "ZIP Code 5-digit format (exact) \u2014 should succeed",
+      "test_case": "Phone_Number exact pattern \u2014 '(123) 456-7890' should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values: use Password >=8 chars, Phone=(123) 456-7890, SSN=123-45-6789, Username=user@example.com"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter ZIP_Code = \"12345\"",
-        "Ensure other fields valid and click Register"
+        "Fill required fields with valid values",
+        "Fill Phone_Number with '(123) 456-7890'",
+        "Click Register"
       ],
-      "expected_result": "PASS \u2014 submission succeeds; displays \"Account created successfully \u2014 please sign in\" and redirects to Login page (satisfies AST constraint: must match 5-digit or 5+4 ZIP format)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Phone_Number satisfies 'must match pattern (123) 456-7890'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "ZIP Code one digit short (4 digits) \u2014 should fail",
+      "test_case": "Phone_Number missing final digit \u2014 '(123) 456-789' should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-003"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter ZIP_Code = \"1234\"",
+        "Fill required fields with valid values except Phone_Number",
+        "Fill Phone_Number with '(123) 456-789' (one digit short)",
         "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error for ZIP_Code: message indicating it \"must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)\" (per AST constraint); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Phone_Number referencing 'must match pattern (123) 456-7890'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Phone Number in exact required format \u2014 should succeed",
+      "test_case": "Social_Security_Number exact pattern \u2014 '123-45-6789' should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled with valid values as in E-001"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"(123) 456-7890\"",
+        "Fill required fields with valid values",
+        "Fill Social_Security_Number with '123-45-6789'",
         "Click Register"
       ],
-      "expected_result": "PASS \u2014 submission succeeds; displays \"Account created successfully \u2014 please sign in\" and redirects to Login page (satisfies AST regex ^\\(\\d{3}\\) \\d{3}-\\d{4}$ and description)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Social_Security_Number satisfies 'must match pattern 123-45-6789'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Phone Number missing required space after closing parenthesis (\"(123)456-7890\") \u2014 should fail",
+      "test_case": "Social_Security_Number missing final digit \u2014 '123-45-678' should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-005"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"(123)456-7890\" (missing the space required by the pattern)",
+        "Fill required fields with valid values except Social_Security_Number",
+        "Fill Social_Security_Number with '123-45-678' (one digit short)",
         "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error for Phone_Number indicating it must follow format \"(123) 456-7890\" (per AST regex); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Social_Security_Number referencing 'must match pattern 123-45-6789'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "boundary",
-      "test_case": "SSN correct format (123-45-6789) \u2014 should succeed",
+      "test_case": "Password minimum length boundary \u2014 exactly 8 characters should PASS",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly (Password >=8 chars, Phone formatted, ZIP valid, Username valid)"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Social_Security_Number = \"123-45-6789\"",
+        "Fill required fields with valid values",
+        "Fill Password with 'Abc12345' (8 characters)",
+        "Fill Confirm_Password with 'Abc12345'",
         "Click Register"
       ],
-      "expected_result": "PASS \u2014 submission succeeds; displays \"Account created successfully \u2014 please sign in\" and redirects to Login page (satisfies AST regex ^\\d{3}-\\d{2}-\\d{4}$ and description)",
+      "expected_result": "PASS: Form submits successfully and shows 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'. Password satisfies 'minimum length 8 characters'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "boundary",
-      "test_case": "SSN grouping incorrect (e.g., \"12-345-6789\") \u2014 should fail",
+      "test_case": "Password just-past boundary \u2014 7 characters should FAIL",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly as in E-007"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Social_Security_Number = \"12-345-6789\" (groups do not match 3-2-4)",
+        "Fill required fields with valid values except Password",
+        "Fill Password with 'Abc1234' (7 characters)",
+        "Fill Confirm_Password with 'Abc1234'",
         "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error for Social_Security_Number: message indicating it \"must follow format 123-45-6789\" (per AST regex); form not submitted",
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Password referencing 'minimum length 8 characters'.",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
       "subcategory": "input_edge",
-      "test_case": "Paste unformatted 10 digits into Phone Number \u2014 input autoformats to required pattern",
+      "test_case": "Phone_Number auto-format on paste \u2014 paste '1234567890' should format to '(123) 456-7890'",
       "preconditions": [
-        "Registration page is open",
-        "Phone_Number field is empty",
-        "AST: Phone_Number has \"autoformat_on_input\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Paste \"1234567890\" directly into the Phone_Number input",
-        "Move focus out of the Phone_Number field (blur)"
+        "Paste the digits '1234567890' into Phone_Number field",
+        "Observe Phone_Number field formatting",
+        "Fill other required fields with valid values and submit"
       ],
-      "expected_result": "The Phone_Number field value autoformats to \"(123) 456-7890\" (autoformat_on_input behavior as specified in AST); no validation error shown for Phone_Number",
+      "expected_result": "Phone_Number field is auto-formatted per 'automatic formatting applied to (123) 456-7890 on input' (field displays '(123) 456-7890'); form submission succeeds showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-010",
       "subcategory": "input_edge",
-      "test_case": "Paste unformatted 9 digits into SSN field \u2014 input autoformats to 123-45-6789",
+      "test_case": "Social_Security_Number auto-format while typing \u2014 continuous digits should format to '123-45-6789'",
       "preconditions": [
-        "Registration page is open",
-        "Social_Security_Number field is empty",
-        "AST: Social_Security_Number has \"autoformat_on_input\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Paste \"123456789\" into the Social_Security_Number input",
-        "Move focus out of the SSN field"
+        "Type digits '123456789' into Social_Security_Number field without hyphens",
+        "Observe Social_Security_Number field formatting as you type",
+        "Fill other required fields with valid values and submit"
       ],
-      "expected_result": "The Social_Security_Number field value autoformats to \"123-45-6789\" (autoformat_on_input behavior per AST); no field-level error for SSN",
+      "expected_result": "Social_Security_Number field is auto-formatted per 'automatic formatting applied to 123-45-6789 on input' (field displays '123-45-6789'); form submission succeeds showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-011",
-      "subcategory": "input_edge",
-      "test_case": "Password and Confirm_Password differ only by trailing whitespace \u2014 match validation fails",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click Register \u2014 ensure single success and single redirect",
       "preconditions": [
-        "Registration page is open",
-        "All other required fields filled validly (ZIP, Phone, SSN, Username valid)"
+        "Open Registration_Form",
+        "All fields filled with valid values"
       ],
       "steps": [
-        "Enter Password = \"SecurePwd8\"",
-        "Enter Confirm_Password = \"SecurePwd8 \" (same characters plus one trailing space)",
-        "Click Register"
+        "Click the Register button twice in rapid succession (double-click)",
+        "Observe success messages and redirects"
       ],
-      "expected_result": "FAIL \u2014 field-level error on Confirm_Password stating it \"must match Password\" (per AST constraint); matching is exact, so trailing whitespace causes a mismatch",
+      "expected_result": "UI prevents duplicate handling: a single 'Account created successfully \\u2014 please sign in' is shown and a single redirect to 'Login page' occurs (no duplicate success messages or multiple redirects). This aligns with submit_actions on_success and on_success_redirect.",
       "priority": "medium"
     },
     {
       "tc_id": "E-012",
-      "subcategory": "input_edge",
-      "test_case": "Username (email) entered with leading/trailing whitespace \u2014 validation treats it as invalid email format",
+      "subcategory": "data_edge",
+      "test_case": "Username with plus-addressing \u2014 'user+tag@example.com' should satisfy email constraint",
       "preconditions": [
-        "Registration page is open",
-        "AST: Username has constraint \"must be a valid email format\""
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Username = \" user@example.com \" (leading and trailing spaces)",
-        "Fill other required fields validly and click Register"
+        "Fill Username with 'user+tag@example.com'",
+        "Fill other required fields with valid values",
+        "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error for Username indicating it \"must be a valid email format\" (spaces prevent matching typical email format regex); form not submitted",
+      "expected_result": "PASS: Username satisfies 'must be a valid email format' and form submits showing 'Account created successfully \\u2014 please sign in' and redirects to 'Login page'.",
       "priority": "low"
     },
     {
       "tc_id": "E-013",
-      "subcategory": "input_edge",
-      "test_case": "Phone Number entered with country prefix (+1) \u2014 should fail pattern validation",
+      "subcategory": "state_edge",
+      "test_case": "Confirm_Password mismatch by one character should FAIL and show field-level error",
       "preconditions": [
-        "Registration page is open",
-        "AST: Phone_Number regex requires format ^\\(\\d{3}\\) \\d{3}-\\d{4}$"
+        "Open Registration_Form"
       ],
       "steps": [
-        "Enter Phone_Number = \"+1 (123) 456-7890\"",
+        "Fill Password with 'Password1'",
+        "Fill Confirm_Password with 'Password!' (differs by one character)",
+        "Fill other required fields with valid values",
         "Click Register"
       ],
-      "expected_result": "FAIL \u2014 field-level error for Phone_Number indicating it must follow the format \"(123) 456-7890\" (AST regex does not allow a leading \"+1\" prefix)",
-      "priority": "low"
+      "expected_result": "FAIL: Submission blocked; displays field-level error for Confirm_Password referencing 'must match Password' and overall on_failure behavior 'displays specific field-level errors for correction'.",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 13,
     "boundary": 8,
     "edge": 5,
-    "medium_priority": 9,
-    "low_priority": 4
+    "medium_priority": 10,
+    "low_priority": 3
   }
 }

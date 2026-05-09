@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.316672
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.143899
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - SYSTEM PROMPT
+[23:08:55] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - USER PROMPT
+[23:08:55] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Open New Account
 
@@ -215,7 +215,7 @@ This page contains an account-opening form with interactive account type selecti
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:54:40] UI-AST Agent - LLM RESPONSE
+[23:09:15] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Open New Account",
@@ -232,7 +232,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
             "Savings"
           ],
           "constraints": [
-            "required"
+            "must be selected"
           ]
         },
         "Initial_Deposit_Amount": {
@@ -248,20 +248,21 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "dropdown",
           "required": true,
           "constraints": [
-            "selected account must have sufficient balance to cover Initial_Deposit_Amount"
+            "funding account must have sufficient balance for the requested Initial_Deposit_Amount"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Open Account",
-          "type": "button",
           "preconditions": [
             "Account_Type must be selected",
-            "Initial_Deposit_Amount must be numeric and meet minimum for selected Account_Type",
+            "Initial_Deposit_Amount must satisfy minimum for selected Account_Type",
             "Funding_Source_Account must have sufficient balance"
           ],
-          "on_success": "Account opened successfully! redirects to accounts overview"
+          "enabled_when": "Account_Type is selected AND Initial_Deposit_Amount meets selected account minimum AND Funding_Source_Account is selected",
+          "on_success": "Account opened successfully!",
+          "post_success": "redirects to accounts overview"
         }
       ]
     }
@@ -269,7 +270,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[21:54:40] UI-AST Agent - PARSED JSON
+[23:09:15] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Open New Account",
@@ -286,7 +287,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
             "Savings"
           ],
           "constraints": [
-            "required"
+            "must be selected"
           ]
         },
         "Initial_Deposit_Amount": {
@@ -302,20 +303,21 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "dropdown",
           "required": true,
           "constraints": [
-            "selected account must have sufficient balance to cover Initial_Deposit_Amount"
+            "funding account must have sufficient balance for the requested Initial_Deposit_Amount"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Open Account",
-          "type": "button",
           "preconditions": [
             "Account_Type must be selected",
-            "Initial_Deposit_Amount must be numeric and meet minimum for selected Account_Type",
+            "Initial_Deposit_Amount must satisfy minimum for selected Account_Type",
             "Funding_Source_Account must have sufficient balance"
           ],
-          "on_success": "Account opened successfully! redirects to accounts overview"
+          "enabled_when": "Account_Type is selected AND Initial_Deposit_Amount meets selected account minimum AND Funding_Source_Account is selected",
+          "on_success": "Account opened successfully!",
+          "post_success": "redirects to accounts overview"
         }
       ]
     }

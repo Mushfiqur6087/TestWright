@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573327
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557515
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Support Center</module_name>
 
@@ -309,14 +310,12 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
       "fields": {
         "Subject": {
           "type": "unspecified",
-          "required": false,
           "constraints": [
-            "must meet subject length limits (system checks subject length)"
+            "subject length validated"
           ]
         },
         "Category": {
           "type": "dropdown",
-          "required": false,
           "options": [
             "Account",
             "Technical",
@@ -326,25 +325,25 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
         },
         "Message_Body": {
           "type": "unspecified",
-          "format": "rich_text",
           "required": true,
           "constraints": [
-            "message body must be present"
+            "must be present"
           ]
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "must be an allowed attachment type (system validates attachment types)"
+            "validates attachment types"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline validation guidance"
+          "type": "button",
+          "on_success": "Message sent successfully; returns ticket ID",
+          "on_failure": "displays inline guidance"
         }
       ]
     },
@@ -352,33 +351,31 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
       "type": "form",
       "fields": {
         "Reason_for_Call": {
-          "type": "dropdown",
-          "required": false
+          "type": "dropdown"
         },
         "Preferred_Date": {
           "type": "date",
-          "required": true,
           "constraints": [
-            "date must be at least the next business day"
+            "must be at least the next business day"
           ]
         },
         "Preferred_Time_Window": {
-          "type": "unspecified",
-          "required": false
+          "type": "unspecified"
         },
         "Phone_Number": {
           "type": "unspecified",
-          "required": true,
           "prefilled": true,
+          "editable": true,
           "constraints": [
-            "must match phone number format"
+            "phone number format validation"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "on_success": "Callback request submitted; sends email confirmation",
+          "type": "button",
+          "on_success": "Callback request submitted; email confirmation sent",
           "on_failure": "validation errors shown inline"
         }
       ]
@@ -387,16 +384,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-
-The Support Center page integrates two communication forms.The secure message form includes Subject, Category (dropdown: Account, Technical, Security, Other), Message Body (rich text), optional Attachment, and a “Send Message” button. The system checks subject length, ensures a message body is present, and validates attachment types. On success it shows “Message sent successfully.” with a ticket ID; failures display inline guidance. The schedule callback form includes Reason for Call (dropdown), Preferred Date, Preferred Time Window, Phone Number (pre-filled but editable), and a “Request Callback” button. The system ensures the date is at least the next business day and validates the phone number format. Success returns “Callback request submitted.” and sends an email confirmation; validation errors are shown inline.
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:02:02] Test-Negative - LLM RESPONSE
+[23:13:58] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Support Center",
@@ -404,122 +395,117 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Send Message with missing required Message Body",
+      "test_case": "Secure Message — missing required Message_Body",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Secure Message form, leave Message Body empty",
-        "Optionally fill Subject and Category or leave them blank",
-        "Click 'Send Message'"
+        "Ensure Subject is empty",
+        "Ensure Category is not selected",
+        "Leave Message_Body empty",
+        "Do not attach any file to Attachment",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Message Body indicating it is required (inline guidance shown for Message Body)",
+      "expected_result": "Validation error displayed for Message_Body indicating 'must be present'; submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Request Callback with all required fields empty (clear prefilled phone and leave date empty)",
+      "test_case": "Secure Message — submit form completely empty",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible",
-        "Phone Number is prefilled"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, clear the prefilled Phone Number field",
-        "Leave Preferred Date empty",
-        "Click 'Request Callback'"
+        "Leave Subject empty",
+        "Do not select Category",
+        "Leave Message_Body empty",
+        "Do not attach any file to Attachment",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation errors displayed inline for Preferred Date and Phone Number indicating they are required",
+      "expected_result": "Validation errors displayed for required fields (at minimum Message_Body with 'must be present'); submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Request Callback with Preferred Date earlier than next business day (violates business-rule constraint)",
+      "test_case": "Secure Message — Subject length constraint violated",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, set Preferred Date to today (not the next business day)",
-        "Ensure Phone Number field has a valid phone number",
-        "Click 'Request Callback'"
+        "Enter a Subject value that violates length rules (e.g., a single character 'A' or an excessively long string)",
+        "Enter a valid Message_Body value (to avoid the required-field rejection)",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Preferred Date indicating it must be at least the next business day",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Subject indicating 'subject length validated' (constraint violation); submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Request Callback with invalid Preferred Date format",
+      "test_case": "Secure Message — Attachment with invalid file type",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, enter an invalid date string into Preferred Date (e.g., '99/99/9999')",
-        "Ensure Phone Number field has a valid phone number",
-        "Click 'Request Callback'"
+        "Attach a file of an unsupported type (e.g., select an .exe or other invalid extension) into Attachment",
+        "Enter a valid Message_Body value",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Preferred Date indicating the date is invalid/incorrect format",
+      "expected_result": "Validation error displayed for Attachment indicating 'validates attachment types'; attachment rejected and submission blocked, with inline guidance shown (Secure_Message_Form on_failure)",
       "priority": "medium"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Request Callback with invalid Phone Number format",
+      "test_case": "Schedule Callback — Preferred_Date violates 'next business day' constraint",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible",
-        "Phone Number is prefilled"
+        "Schedule_Callback_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, edit Phone Number to an invalid value (e.g., 'abc123')",
-        "Set Preferred Date to a valid next-business-day date",
-        "Click 'Request Callback'"
+        "Select a Preferred_Date that is NOT at least the next business day (e.g., set Preferred_Date to today)",
+        "Fill other fields minimally as needed (Reason_for_Call optional, Phone_Number may remain prefilled)",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Validation error displayed for Phone Number indicating it must match phone number format",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Preferred_Date indicating 'must be at least the next business day'; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "high"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Send Message with Subject exceeding system length limits",
+      "test_case": "Schedule Callback — Preferred_Date invalid date format",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Schedule_Callback_Form is displayed"
       ],
       "steps": [
-        "In Secure Message form, enter a Subject longer than allowed by the system (very long string)",
-        "Enter a valid Message Body",
-        "Click 'Send Message'"
+        "Enter an invalid date string into Preferred_Date (e.g., '99/99/9999')",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Inline validation guidance displayed for Subject indicating it does not meet subject length limits",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Preferred_Date indicating invalid date format; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Send Message with disallowed attachment type",
+      "test_case": "Schedule Callback — Phone_Number format validation fails",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Schedule_Callback_Form is displayed",
+        "Phone_Number is prefilled and editable"
       ],
       "steps": [
-        "In Secure Message form, attach a disallowed file type (e.g., .exe or other blocked extension)",
-        "Enter a valid Message Body",
-        "Click 'Send Message'"
+        "Edit Phone_Number and enter an invalid value (e.g., 'abc')",
+        "Set Preferred_Date to a valid next-business-day value",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Inline validation guidance displayed for Attachment indicating the file type is not allowed",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Phone_Number indicating 'phone number format validation'; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 7,
-    "high_priority": 5,
-    "medium_priority": 2,
+    "high_priority": 3,
+    "medium_priority": 4,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[22:02:02] Test-Negative - PARSED JSON
+[23:13:58] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Support Center",
@@ -527,116 +513,111 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Send Message with missing required Message Body",
+      "test_case": "Secure Message \u2014 missing required Message_Body",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Secure Message form, leave Message Body empty",
-        "Optionally fill Subject and Category or leave them blank",
-        "Click 'Send Message'"
+        "Ensure Subject is empty",
+        "Ensure Category is not selected",
+        "Leave Message_Body empty",
+        "Do not attach any file to Attachment",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Message Body indicating it is required (inline guidance shown for Message Body)",
+      "expected_result": "Validation error displayed for Message_Body indicating 'must be present'; submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Request Callback with all required fields empty (clear prefilled phone and leave date empty)",
+      "test_case": "Secure Message \u2014 submit form completely empty",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible",
-        "Phone Number is prefilled"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, clear the prefilled Phone Number field",
-        "Leave Preferred Date empty",
-        "Click 'Request Callback'"
+        "Leave Subject empty",
+        "Do not select Category",
+        "Leave Message_Body empty",
+        "Do not attach any file to Attachment",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation errors displayed inline for Preferred Date and Phone Number indicating they are required",
+      "expected_result": "Validation errors displayed for required fields (at minimum Message_Body with 'must be present'); submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Request Callback with Preferred Date earlier than next business day (violates business-rule constraint)",
+      "test_case": "Secure Message \u2014 Subject length constraint violated",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, set Preferred Date to today (not the next business day)",
-        "Ensure Phone Number field has a valid phone number",
-        "Click 'Request Callback'"
+        "Enter a Subject value that violates length rules (e.g., a single character 'A' or an excessively long string)",
+        "Enter a valid Message_Body value (to avoid the required-field rejection)",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Preferred Date indicating it must be at least the next business day",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Subject indicating 'subject length validated' (constraint violation); submission blocked and the form 'displays inline guidance' (Secure_Message_Form on_failure)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Request Callback with invalid Preferred Date format",
+      "test_case": "Secure Message \u2014 Attachment with invalid file type",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible"
+        "Secure_Message_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, enter an invalid date string into Preferred Date (e.g., '99/99/9999')",
-        "Ensure Phone Number field has a valid phone number",
-        "Click 'Request Callback'"
+        "Attach a file of an unsupported type (e.g., select an .exe or other invalid extension) into Attachment",
+        "Enter a valid Message_Body value",
+        "Click the 'Send Message' button"
       ],
-      "expected_result": "Validation error displayed for Preferred Date indicating the date is invalid/incorrect format",
+      "expected_result": "Validation error displayed for Attachment indicating 'validates attachment types'; attachment rejected and submission blocked, with inline guidance shown (Secure_Message_Form on_failure)",
       "priority": "medium"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Request Callback with invalid Phone Number format",
+      "test_case": "Schedule Callback \u2014 Preferred_Date violates 'next business day' constraint",
       "preconditions": [
-        "User is on the Support Center page",
-        "Schedule Callback form is visible",
-        "Phone Number is prefilled"
+        "Schedule_Callback_Form is displayed"
       ],
       "steps": [
-        "In Schedule Callback form, edit Phone Number to an invalid value (e.g., 'abc123')",
-        "Set Preferred Date to a valid next-business-day date",
-        "Click 'Request Callback'"
+        "Select a Preferred_Date that is NOT at least the next business day (e.g., set Preferred_Date to today)",
+        "Fill other fields minimally as needed (Reason_for_Call optional, Phone_Number may remain prefilled)",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Validation error displayed for Phone Number indicating it must match phone number format",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Preferred_Date indicating 'must be at least the next business day'; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "high"
     },
     {
       "tc_id": "N-006",
-      "test_case": "Send Message with Subject exceeding system length limits",
+      "test_case": "Schedule Callback \u2014 Preferred_Date invalid date format",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Schedule_Callback_Form is displayed"
       ],
       "steps": [
-        "In Secure Message form, enter a Subject longer than allowed by the system (very long string)",
-        "Enter a valid Message Body",
-        "Click 'Send Message'"
+        "Enter an invalid date string into Preferred_Date (e.g., '99/99/9999')",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Inline validation guidance displayed for Subject indicating it does not meet subject length limits",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Preferred_Date indicating invalid date format; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Send Message with disallowed attachment type",
+      "test_case": "Schedule Callback \u2014 Phone_Number format validation fails",
       "preconditions": [
-        "User is on the Support Center page",
-        "Secure Message form is visible"
+        "Schedule_Callback_Form is displayed",
+        "Phone_Number is prefilled and editable"
       ],
       "steps": [
-        "In Secure Message form, attach a disallowed file type (e.g., .exe or other blocked extension)",
-        "Enter a valid Message Body",
-        "Click 'Send Message'"
+        "Edit Phone_Number and enter an invalid value (e.g., 'abc')",
+        "Set Preferred_Date to a valid next-business-day value",
+        "Click the 'Request Callback' button"
       ],
-      "expected_result": "Inline validation guidance displayed for Attachment indicating the file type is not allowed",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Phone_Number indicating 'phone number format validation'; submission blocked and 'validation errors shown inline' (Schedule_Callback_Form on_failure)",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 7,
-    "high_priority": 5,
-    "medium_priority": 2,
+    "high_priority": 3,
+    "medium_priority": 4,
     "low_priority": 0
   }
 }

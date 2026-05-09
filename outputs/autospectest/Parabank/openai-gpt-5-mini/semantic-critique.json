@@ -1,15 +1,17 @@
 {
   "project_name": "Parabank",
-  "generated_at": "2026-05-09T22:02:42.235589Z",
+  "generated_at": "2026-05-09T23:14:08.444772Z",
   "modules": [
     {
       "module_id": 1,
       "module_title": "Login",
       "critique": {
         "verdict": "yes",
-        "summary": "AST accurately captures the interactive elements (two required fields, validations, Sign In submit behavior with success/failure outcomes, and Forgot Password link) with no missing or extraneous interactive items.",
+        "summary": "AST captures the required fields, validations, submit behavior, success/failure outcomes, and the Forgot Password link; one minor inferred action (navigation target) is noted as a phantom.",
         "missing": [],
-        "phantoms": [],
+        "phantoms": [
+          "components.Forgot_Password_Link.on_click (navigates to password reset flow not explicitly stated in description)"
+        ],
         "fixes": []
       },
       "forced_ship": false
@@ -19,9 +21,9 @@
       "module_title": "Register",
       "critique": {
         "verdict": "yes",
-        "summary": "AST accurately captures the form fields, types, validations, submit behavior, and success/failure outcomes; only the explicit list of US states for the State dropdown is not included (minor).",
+        "summary": "AST correctly captures all interactive fields, validations, and submit behavior; only minor missing detail is the explicit list of US states for the State dropdown.",
         "missing": [
-          "components.Registration_Form.fields.State.options (explicit list of all US states for the dropdown)"
+          "components.Registration_Form.fields.State.options (list of all US states not included)"
         ],
         "phantoms": [],
         "fixes": []
@@ -33,11 +35,9 @@
       "module_title": "Accounts Overview",
       "critique": {
         "verdict": "yes",
-        "summary": "AST matches the description with all required interactive elements present; one minor phantom (an explicitly named row action) is acceptable.",
+        "summary": "AST correctly captures the customer accounts table including masked clickable Account Number (click not implemented), columns, default sort by Open_Date ascending, and footer total balance aggregator.",
         "missing": [],
-        "phantoms": [
-          "components.Accounts_Table.row_actions[0] (action_name 'Open Account' not explicitly named in description)"
-        ],
+        "phantoms": [],
         "fixes": []
       },
       "forced_ship": false
@@ -47,7 +47,7 @@
       "module_title": "Open New Account",
       "critique": {
         "verdict": "yes",
-        "summary": "The AST accurately captures the account type selection, deposit amount field, funding account dropdown, real-time validations (including conditional minimums and sufficient balance), and the success message with redirect.",
+        "summary": "AST includes the account-type selector, deposit amount field, funding account dropdown, validations (including conditional minimums), real-time validation flag, and success redirect \u2014 suitable to use.",
         "missing": [],
         "phantoms": [],
         "fixes": []
@@ -58,24 +58,32 @@
       "module_id": 5,
       "module_title": "Transfer Funds",
       "critique": {
-        "verdict": "yes",
-        "summary": "AST accurately captures the form fields, conditional destination options, validations, and success/failure behaviors described.",
-        "missing": [],
-        "phantoms": [],
-        "fixes": []
+        "verdict": "retry",
+        "summary": "External account fields lack explicit input types and the submit action has a labeled button not mentioned in the description; regenerate with those fixes.",
+        "missing": [
+          "components.Transfer_Form.fields.Destination_Account_External_Number.type",
+          "components.Transfer_Form.fields.Destination_Account_External_Confirm.type"
+        ],
+        "phantoms": [
+          "components.Transfer_Form.submit_actions[0].element_name (Submit Transfer button not specified in the description)"
+        ],
+        "fixes": [
+          "Set components.Transfer_Form.fields.Destination_Account_External_Number.type to a concrete input type (e.g., \"text\" or \"account_number\") and add any explicit validation pattern if account numbers are numeric.",
+          "Set components.Transfer_Form.fields.Destination_Account_External_Confirm.type to the same concrete input type as the external number (e.g., \"text\" or \"account_number\") so the matching constraint applies to a defined input.",
+          "Update components.Transfer_Form.submit_actions[0].element_name to a generic \"Submit\" label or remove the explicit element_name; alternatively, include the submit button label in the functional description so the AST can accurately reflect the named button."
+        ]
       },
-      "forced_ship": false
+      "forced_ship": true
     },
     {
       "module_id": 6,
       "module_title": "Payments",
       "critique": {
         "verdict": "yes",
-        "summary": "AST accurately covers all interactive fields, the Pay button, validation rules, success/failure behaviors; only two minor inferred items noted.",
+        "summary": "The AST accurately captures the payment form, all specified fields, the Source Account dropdown, the Pay submit action with validation/preconditions, and success/failure behaviors; only one minor inferred constraint was added.",
         "missing": [],
         "phantoms": [
-          "Bill_Payment_Form.fields.Payment_Amount.constraints[0] (must be greater than 0) - not stated in description",
-          "Bill_Payment_Form.submit_actions[0].preconditions[0] (available_funds in Source_Account >= Payment_Amount) - description specifies funds are checked on submit, not a precondition"
+          "components.Bill_Payment_Form.fields.Payment_Amount.constraints[0] (\"must be greater than 0\" constraint is an inferred rule not explicitly stated in the description)"
         ],
         "fixes": []
       },
@@ -86,7 +94,7 @@
       "module_title": "Request Loan",
       "critique": {
         "verdict": "yes",
-        "summary": "AST correctly represents the interactive loan type selection, amount and down-payment fields, collateral dropdown, validation rules, and submit/credit-engine behavior described.",
+        "summary": "AST correctly captures the loan type cards, amount/type-specific constraints, down payment and collateral fields, validation rules (including 10% min down and 20% collateral), the 80% credit-engine simulation, and success/failure outcomes with reasons; no missing or phantom interactive elements.",
         "missing": [],
         "phantoms": [],
         "fixes": []
@@ -98,10 +106,8 @@
       "module_title": "Update Contact Info",
       "critique": {
         "verdict": "yes",
-        "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
-        "missing": [
-          "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
-        ],
+        "summary": "AST includes the editable form with all seven prefilled fields, the 'Update Profile' submit action, per-field validation constraints, and success/failure behaviors, matching the description.",
+        "missing": [],
         "phantoms": [],
         "fixes": []
       },
@@ -112,9 +118,12 @@
       "module_title": "Manage Cards",
       "critique": {
         "verdict": "yes",
-        "summary": "The AST accurately captures both forms, all interactive fields, their validations, and the submit actions (including success messages and validation failure behavior).",
+        "summary": "AST matches the description: both forms, all interactive fields, submit buttons, success/failure behaviors, and validations are present; only small inferred details were added.",
         "missing": [],
-        "phantoms": [],
+        "phantoms": [
+          "Card_Controls_Form.fields.Travel_Notice.fields.Destinations (repeating_group structure and item_fields inferred from 'destinations')",
+          "Card_Controls_Form.fields.New_Spending_Limit.constraints[1] (explicit 'must be <= policy maximum' phrasing inferred from 'validates numeric limits')"
+        ],
         "fixes": []
       },
       "forced_ship": false
@@ -124,7 +133,7 @@
       "module_title": "Investments",
       "critique": {
         "verdict": "yes",
-        "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+        "summary": "The AST accurately captures both interactive forms (Trade Funds and Recurring Investment Plan), their fields, validation rules, submit actions, and success/error behaviors as described.",
         "missing": [],
         "phantoms": [],
         "fixes": []
@@ -136,9 +145,12 @@
       "module_title": "Account Statements",
       "critique": {
         "verdict": "yes",
-        "summary": "The AST accurately captures both forms, their interactive fields, buttons, validation rules, and success/failure behaviors with no missing interactive elements or extraneous items.",
+        "summary": "AST accurately represents both forms, their fields, buttons, validation behavior, and the explicit conditional for statement period; only a couple of minor inferred constraints/conditionals were added that are not verbatim in the description.",
         "missing": [],
-        "phantoms": [],
+        "phantoms": [
+          "components.Statements_Page.components.EStatement_Preference_Form.fields.Email_Address.required_when (the description does not explicitly state the Email Address is required only when Paperless_Opt_in is true)",
+          "components.Statements_Page.components.Generate_Statement_Form.constraints[2] (the constraint 'dates must be valid and within retrievable transaction history' is an inferred detail not explicitly stated)"
+        ],
         "fixes": []
       },
       "forced_ship": false
@@ -148,7 +160,7 @@
       "module_title": "Security Settings",
       "critique": {
         "verdict": "yes",
-        "summary": "AST accurately represents the collapsible panel, form fields, change button, validation constraints, and success/failure behaviors described.",
+        "summary": "The AST accurately represents the collapsible panel, the change-password form with all three password fields, the Change Password button, the required validation constraints, and the success/error behaviors.",
         "missing": [],
         "phantoms": [],
         "fixes": []
@@ -160,9 +172,10 @@
       "module_title": "Support Center",
       "critique": {
         "verdict": "yes",
-        "summary": "AST accurately captures both forms, their fields, validation rules, and submit behaviors; one minor optional attribute (explicit 'editable' flag for Phone_Number) is missing.",
+        "summary": "AST correctly captures both forms, fields, validations, and submit behaviors; only minor field-type specifics are left unspecified.",
         "missing": [
-          "components.Schedule_Callback_Form.fields.Phone_Number.editable"
+          "Secure_Message_Form.fields.Message_Body.type (should be 'rich_text' per description)",
+          "Schedule_Callback_Form.fields.Preferred_Time_Window.type (should indicate time window/time-range control)"
         ],
         "phantoms": [],
         "fixes": []

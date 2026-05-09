@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573147
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557064
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Account Statements</module_name>
 
@@ -228,403 +246,441 @@ Categories to consider:
 {
   "module_name": "Account Statements",
   "components": {
-    "Generate_Statement_Form": {
-      "type": "form",
-      "fields": {
-        "Statement_Period_Mode": {
-          "type": "dropdown",
-          "required": false,
-          "options": [
-            "Month-and-Year",
-            "Custom Range"
-          ]
-        },
-        "Month_Year": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Month-and-Year",
+    "Statements_Page": {
+      "type": "container",
+      "components": {
+        "Generate_Statement_Form": {
+          "type": "form",
+          "fields": {
+            "Statement_Period_Mode": {
+              "type": "dropdown",
+              "required": true,
+              "options": [
+                "Month-and-Year",
+                "Custom Date Range"
+              ]
+            },
+            "Month_Year": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Month-and-Year",
+              "constraints": [
+                "must represent a month-and-year value (month granularity)"
+              ]
+            },
+            "Start_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "End_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "Account": {
+              "type": "dropdown",
+              "required": false
+            }
+          },
           "constraints": [
-            "must specify month and year (day ignored)"
+            "if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date",
+            "if Statement_Period_Mode == Month-and-Year then Month_Year must be set",
+            "dates must be valid and within retrievable transaction history"
+          ],
+          "submit_actions": [
+            {
+              "element_name": "Generate Statement",
+              "preconditions": [
+                "date fields must satisfy form constraints"
+              ],
+              "on_success": "Statement generated successfully; retrieves relevant transactions",
+              "on_failure": "Unable to generate statement \u2014 please try again later."
+            }
           ]
         },
-        "Start_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "End_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "Account": {
-          "type": "dropdown",
-          "required": true
-        }
-      },
-      "constraints": [
-        "if Statement_Period_Mode == Custom Range then Start_Date <= End_Date",
-        "dates must be valid calendar dates"
-      ],
-      "submit_actions": [
-        {
-          "element_name": "Generate Statement",
-          "on_success": "Statement generated successfully; retrieves relevant transactions",
-          "on_failure": "Unable to generate statement \u2014 please try again later.",
-          "constraints": [
-            "validates date inputs according to Statement_Period_Mode",
-            "Start_Date <= End_Date when Custom Range is selected"
+        "EStatement_Preference_Form": {
+          "type": "form",
+          "fields": {
+            "Paperless_Opt_in": {
+              "type": "checkbox",
+              "required": false
+            },
+            "Email_Address": {
+              "type": "email",
+              "required_when": "Paperless_Opt_in == true",
+              "constraints": [
+                "must be a valid email address"
+              ]
+            }
+          },
+          "submit_actions": [
+            {
+              "element_name": "Save Preference",
+              "preconditions": [
+                "if opting into paperless statements, Email_Address must be present and valid"
+              ],
+              "on_success": "e-Statement preference updated.",
+              "on_failure": "validation failed; highlights Email_Address with guidance"
+            }
           ]
         }
-      ]
-    },
-    "EStatement_Preference_Form": {
-      "type": "form",
-      "fields": {
-        "Paperless": {
-          "type": "checkbox",
-          "required": false
-        },
-        "Email_Address": {
-          "type": "email",
-          "required_when": "Paperless == true",
-          "constraints": [
-            "must be a valid email address"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Save Preference",
-          "on_success": "e-Statement preference updated.",
-          "on_failure": "highlights Email Address field with guidance",
-          "constraints": [
-            "if Paperless == true then Email_Address must be a valid email address"
-          ]
-        }
-      ]
+      }
     }
   }
 }
 </ast>
 
-<description>
-The Statements page provides two coordinated forms displayed side by side.The generate statement form includes Statement Period (month-and-year or custom date range), Account (dropdown), and a “Generate Statement” button. The system validates the dates and retrieves the relevant transactions. On success it displays “Statement generated successfully.”; if generation fails it shows “Unable to generate statement — please try again later.”The e-statement preference form includes a checkbox to opt into paperless statements, an Email Address field, and a “Save Preference” button. The system validates the email address; success displays “e-Statement preference updated.”, while a failure highlights the email field with guidance.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:17] Test-Edge - LLM RESPONSE
+[23:13:45] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Account Statements",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Custom Range: Start_Date equal to End_Date (boundary pass)",
+      "test_case": "Custom Date Range: Start_Date == End_Date (should PASS)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Statement_Period_Mode == Custom Date Range (visible fields: Start_Date, End_Date)",
+        "Constraint to test: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-06-15",
-        "Set End_Date to 2024-06-15",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-15",
+        "Enter End_Date = 2026-05-15 (same as Start_Date)",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "PASS: Validation for 'Start_Date <= End_Date' succeeds and the system attempts generation. If generation completes, displays 'Statement generated successfully.'; no date-order validation error is shown.",
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS) because the constraint \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\" is satisfied when Start_Date == End_Date.",
       "priority": "medium"
     },
     {
-      "tc_id": "E-002",
+      "tc_id": "B-002",
       "subcategory": "boundary",
-      "test_case": "Custom Range: Start_Date one day after End_Date (boundary fail)",
+      "test_case": "Custom Date Range: End_Date one day before Start_Date (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Statement_Period_Mode == Custom Date Range (visible fields: Start_Date, End_Date)",
+        "Constraint to test: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-06-16",
-        "Set End_Date to 2024-06-15",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-16",
+        "Enter End_Date = 2026-05-15 (one day before Start_Date)",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "FAIL: Validation fails per constraint 'if Statement_Period_Mode == Custom Range then Start_Date <= End_Date' and the UI prevents generation with a date-order validation error message referencing the invalid range.",
+      "expected_result": "Form validation fails for the constraint \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\" (FAIL). The Generate Statement submit precondition \"date fields must satisfy form constraints\" is not met; submission should not succeed and user is shown an error (expect on_failure behavior).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-003",
+      "subcategory": "boundary",
+      "test_case": "Month-and-Year: Month_Year set with month granularity (should PASS)",
+      "preconditions": [
+        "Statement_Period_Mode == Month-and-Year (Month_Year visible)",
+        "Constraint to test: \"must represent a month-and-year value (month granularity)\""
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\"",
+        "Set Month_Year to May 2026 (select/enter a month-year value, no specific day)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS) because Month_Year satisfies the constraint \"must represent a month-and-year value (month granularity)\".",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-004",
+      "subcategory": "boundary",
+      "test_case": "Month-and-Year: Month_Year set to a specific day (day granularity) (should FAIL)",
+      "preconditions": [
+        "Statement_Period_Mode == Month-and-Year (Month_Year visible)",
+        "Constraint to test: \"must represent a month-and-year value (month granularity)\""
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\"",
+        "Set Month_Year to 2026-05-15 (a specific day instead of month granularity)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "Form validation fails for the constraint \"must represent a month-and-year value (month granularity)\" (FAIL). Submission should be blocked and user prompted to provide a month-and-year value.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-001",
+      "subcategory": "state_edge",
+      "test_case": "Switch modes after filling Custom Date Range (missing Month_Year becomes required)",
+      "preconditions": [
+        "Constraint: \"if Statement_Period_Mode == Month-and-Year then Month_Year must be set\"",
+        "Start with Statement_Period_Mode == Custom Date Range"
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-04-01 and End_Date = 2026-04-30 (valid)",
+        "Switch Statement_Period_Mode to \"Month-and-Year\" without entering Month_Year",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "Submission is blocked because the constraint \"if Statement_Period_Mode == Month-and-Year then Month_Year must be set\" is unmet (FAIL). The form should indicate Month_Year is required before generation.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "state_edge",
+      "test_case": "Hidden Month_Year is ignored when in Custom Date Range mode (should PASS)",
+      "preconditions": [
+        "Constraint: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\"",
+        "Start with Statement_Period_Mode == Month-and-Year and a value in Month_Year"
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\" and set Month_Year = 2026-05 (valid)",
+        "Switch Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-01 and End_Date = 2026-05-01 (valid equal dates)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS). The previously-entered Month_Year (hidden) should not prevent submission because current mode requires the Custom Date Range constraint only.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Valid calendar date: February 29 on a leap year (date validation pass)",
+      "subcategory": "input_edge",
+      "test_case": "Paperless opt-in: Email_Address contains leading/trailing whitespace (should fail validation)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range or using Start_Date/End_Date fields",
-        "Account selected"
+        "Field: Email_Address",
+        "Constraint: \"must be a valid email address\"",
+        "Submit action: \"Save Preference\" with on_failure: \"validation failed; highlights Email_Address with guidance\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-02-29",
-        "Set End_Date to 2024-02-29",
-        "Click 'Generate Statement'"
+        "Open EStatement_Preference_Form",
+        "Check Paperless_Opt_in = true",
+        "Enter Email_Address = \"  user@example.com  \" (leading and trailing spaces)",
+        "Click \"Save Preference\""
       ],
-      "expected_result": "PASS: 'dates must be valid calendar dates' validation accepts 2024-02-29 as valid; no calendar-date validation error is shown and the system attempts generation (may show 'Statement generated successfully.' on success).",
-      "priority": "medium"
+      "expected_result": "Validation for Email_Address fails if whitespace prevents it from matching the constraint \"must be a valid email address\" (FAIL). The submit on_failure behavior \"validation failed; highlights Email_Address with guidance\" should occur.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Invalid calendar date: February 29 on a non-leap year (date validation fail)",
+      "subcategory": "input_edge",
+      "test_case": "Paperless opt-in checked but Email_Address left blank (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Field: Paperless_Opt_in",
+        "Field: Email_Address with required_when: \"Paperless_Opt_in == true\"",
+        "Submit action: \"Save Preference\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Attempt to set Start_Date to 2019-02-29 (non-leap year)",
-        "Attempt to set End_Date to 2019-02-29",
-        "Click 'Generate Statement' if the UI allows the date"
+        "Open EStatement_Preference_Form",
+        "Check Paperless_Opt_in = true",
+        "Leave Email_Address empty",
+        "Click \"Save Preference\""
       ],
-      "expected_result": "FAIL: 'dates must be valid calendar dates' validation rejects 2019-02-29 as invalid; UI prevents generation and displays a calendar/date validation error for the invalid date(s).",
+      "expected_result": "Submission fails because Email_Address is required_when \"Paperless_Opt_in == true\" (FAIL). The form should trigger the submit on_failure \"validation failed; highlights Email_Address with guidance\".",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "Month-and-Year mode: day component ignored (select a day within the month)",
-      "preconditions": [
-        "Statement_Period_Mode set to Month-and-Year",
-        "Account selected"
-      ],
-      "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Month-and-Year'",
-        "In Month_Year control select 2024-03-31 (a specific day in March 2024)",
-        "Click 'Generate Statement'"
-      ],
-      "expected_result": "PASS: Per constraint 'must specify month and year (day ignored)', the system treats the input as March 2024 (day ignored). Date validation passes and the system proceeds to generate the statement (displays 'Statement generated successfully.' on success).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-006",
-      "subcategory": "input_edge",
-      "test_case": "Paperless checked with Email_Address containing leading/trailing whitespace",
-      "preconditions": [
-        "On EStatement Preference form",
-        "Paperless checkbox checked"
-      ],
-      "steps": [
-        "Open E-Statement Preference form",
-        "Check 'Paperless'",
-        "Enter ' user@example.com ' (leading and trailing spaces) into Email_Address",
-        "Click 'Save Preference'"
-      ],
-      "expected_result": "FAIL (validation): Per constraint 'if Paperless == true then Email_Address must be a valid email address', the Email Address field is highlighted with guidance if the system treats whitespace as invalid. The UI should flag the field and show guidance about entering a valid email address.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-007",
-      "subcategory": "state_edge",
-      "test_case": "Toggle Paperless requirement: check without email then uncheck before saving",
-      "preconditions": [
-        "On EStatement Preference form"
-      ],
-      "steps": [
-        "Open E-Statement Preference form",
-        "Check 'Paperless' and leave Email_Address empty",
-        "Attempt to click 'Save Preference' (expect validation/error)",
-        "Without refreshing, uncheck 'Paperless' so Paperless == false",
-        "Click 'Save Preference' again"
-      ],
-      "expected_result": "First save attempt FAILS because 'Email_Address' is required when Paperless == true; after unchecking Paperless, save succeeds and system shows 'e-Statement preference updated.' (no Email_Address validation error), demonstrating required_when behavior.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-008",
       "subcategory": "data_edge",
-      "test_case": "Custom Range with far-future valid dates (year 2099) — validation acceptance",
+      "test_case": "Start_Date outside retrievable transaction history (far past date) (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Form constraint: \"dates must be valid and within retrievable transaction history\"",
+        "Statement_Period_Mode == Custom Date Range"
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2099-12-01",
-        "Set End_Date to 2099-12-31",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 1900-01-01 (date likely outside history) and End_Date = 1900-01-31",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "PASS (validation): 'dates must be valid calendar dates' accepts far-future valid dates; date validation does not block generation. The system proceeds to attempt statement generation (may show either 'Statement generated successfully.' or 'Unable to generate statement — please try again later.' depending on backend data).",
-      "priority": "low"
+      "expected_result": "Submission fails due to the constraint \"dates must be valid and within retrievable transaction history\" (FAIL). The Generate Statement precondition \"date fields must satisfy form constraints\" is not met; expect an error and no statement generation.",
+      "priority": "medium"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 9,
     "boundary": 4,
-    "edge": 4,
-    "medium_priority": 6,
+    "edge": 5,
+    "medium_priority": 7,
     "low_priority": 2
   }
 }
 
 ------------------------------------------------------------
-[22:01:17] Test-Edge - PARSED JSON
+[23:13:45] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Account Statements",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Custom Range: Start_Date equal to End_Date (boundary pass)",
+      "test_case": "Custom Date Range: Start_Date == End_Date (should PASS)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Statement_Period_Mode == Custom Date Range (visible fields: Start_Date, End_Date)",
+        "Constraint to test: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-06-15",
-        "Set End_Date to 2024-06-15",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-15",
+        "Enter End_Date = 2026-05-15 (same as Start_Date)",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "PASS: Validation for 'Start_Date <= End_Date' succeeds and the system attempts generation. If generation completes, displays 'Statement generated successfully.'; no date-order validation error is shown.",
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS) because the constraint \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\" is satisfied when Start_Date == End_Date.",
       "priority": "medium"
     },
     {
-      "tc_id": "E-002",
+      "tc_id": "B-002",
       "subcategory": "boundary",
-      "test_case": "Custom Range: Start_Date one day after End_Date (boundary fail)",
+      "test_case": "Custom Date Range: End_Date one day before Start_Date (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Statement_Period_Mode == Custom Date Range (visible fields: Start_Date, End_Date)",
+        "Constraint to test: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-06-16",
-        "Set End_Date to 2024-06-15",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-16",
+        "Enter End_Date = 2026-05-15 (one day before Start_Date)",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "FAIL: Validation fails per constraint 'if Statement_Period_Mode == Custom Range then Start_Date <= End_Date' and the UI prevents generation with a date-order validation error message referencing the invalid range.",
+      "expected_result": "Form validation fails for the constraint \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\" (FAIL). The Generate Statement submit precondition \"date fields must satisfy form constraints\" is not met; submission should not succeed and user is shown an error (expect on_failure behavior).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-003",
+      "subcategory": "boundary",
+      "test_case": "Month-and-Year: Month_Year set with month granularity (should PASS)",
+      "preconditions": [
+        "Statement_Period_Mode == Month-and-Year (Month_Year visible)",
+        "Constraint to test: \"must represent a month-and-year value (month granularity)\""
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\"",
+        "Set Month_Year to May 2026 (select/enter a month-year value, no specific day)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS) because Month_Year satisfies the constraint \"must represent a month-and-year value (month granularity)\".",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-004",
+      "subcategory": "boundary",
+      "test_case": "Month-and-Year: Month_Year set to a specific day (day granularity) (should FAIL)",
+      "preconditions": [
+        "Statement_Period_Mode == Month-and-Year (Month_Year visible)",
+        "Constraint to test: \"must represent a month-and-year value (month granularity)\""
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\"",
+        "Set Month_Year to 2026-05-15 (a specific day instead of month granularity)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "Form validation fails for the constraint \"must represent a month-and-year value (month granularity)\" (FAIL). Submission should be blocked and user prompted to provide a month-and-year value.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-001",
+      "subcategory": "state_edge",
+      "test_case": "Switch modes after filling Custom Date Range (missing Month_Year becomes required)",
+      "preconditions": [
+        "Constraint: \"if Statement_Period_Mode == Month-and-Year then Month_Year must be set\"",
+        "Start with Statement_Period_Mode == Custom Date Range"
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-04-01 and End_Date = 2026-04-30 (valid)",
+        "Switch Statement_Period_Mode to \"Month-and-Year\" without entering Month_Year",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "Submission is blocked because the constraint \"if Statement_Period_Mode == Month-and-Year then Month_Year must be set\" is unmet (FAIL). The form should indicate Month_Year is required before generation.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "state_edge",
+      "test_case": "Hidden Month_Year is ignored when in Custom Date Range mode (should PASS)",
+      "preconditions": [
+        "Constraint: \"if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date\"",
+        "Start with Statement_Period_Mode == Month-and-Year and a value in Month_Year"
+      ],
+      "steps": [
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Month-and-Year\" and set Month_Year = 2026-05 (valid)",
+        "Switch Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 2026-05-01 and End_Date = 2026-05-01 (valid equal dates)",
+        "Click \"Generate Statement\""
+      ],
+      "expected_result": "\"Statement generated successfully; retrieves relevant transactions\" (PASS). The previously-entered Month_Year (hidden) should not prevent submission because current mode requires the Custom Date Range constraint only.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Valid calendar date: February 29 on a leap year (date validation pass)",
+      "subcategory": "input_edge",
+      "test_case": "Paperless opt-in: Email_Address contains leading/trailing whitespace (should fail validation)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range or using Start_Date/End_Date fields",
-        "Account selected"
+        "Field: Email_Address",
+        "Constraint: \"must be a valid email address\"",
+        "Submit action: \"Save Preference\" with on_failure: \"validation failed; highlights Email_Address with guidance\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2024-02-29",
-        "Set End_Date to 2024-02-29",
-        "Click 'Generate Statement'"
+        "Open EStatement_Preference_Form",
+        "Check Paperless_Opt_in = true",
+        "Enter Email_Address = \"  user@example.com  \" (leading and trailing spaces)",
+        "Click \"Save Preference\""
       ],
-      "expected_result": "PASS: 'dates must be valid calendar dates' validation accepts 2024-02-29 as valid; no calendar-date validation error is shown and the system attempts generation (may show 'Statement generated successfully.' on success).",
-      "priority": "medium"
+      "expected_result": "Validation for Email_Address fails if whitespace prevents it from matching the constraint \"must be a valid email address\" (FAIL). The submit on_failure behavior \"validation failed; highlights Email_Address with guidance\" should occur.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Invalid calendar date: February 29 on a non-leap year (date validation fail)",
+      "subcategory": "input_edge",
+      "test_case": "Paperless opt-in checked but Email_Address left blank (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Field: Paperless_Opt_in",
+        "Field: Email_Address with required_when: \"Paperless_Opt_in == true\"",
+        "Submit action: \"Save Preference\""
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Attempt to set Start_Date to 2019-02-29 (non-leap year)",
-        "Attempt to set End_Date to 2019-02-29",
-        "Click 'Generate Statement' if the UI allows the date"
+        "Open EStatement_Preference_Form",
+        "Check Paperless_Opt_in = true",
+        "Leave Email_Address empty",
+        "Click \"Save Preference\""
       ],
-      "expected_result": "FAIL: 'dates must be valid calendar dates' validation rejects 2019-02-29 as invalid; UI prevents generation and displays a calendar/date validation error for the invalid date(s).",
+      "expected_result": "Submission fails because Email_Address is required_when \"Paperless_Opt_in == true\" (FAIL). The form should trigger the submit on_failure \"validation failed; highlights Email_Address with guidance\".",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "Month-and-Year mode: day component ignored (select a day within the month)",
-      "preconditions": [
-        "Statement_Period_Mode set to Month-and-Year",
-        "Account selected"
-      ],
-      "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Month-and-Year'",
-        "In Month_Year control select 2024-03-31 (a specific day in March 2024)",
-        "Click 'Generate Statement'"
-      ],
-      "expected_result": "PASS: Per constraint 'must specify month and year (day ignored)', the system treats the input as March 2024 (day ignored). Date validation passes and the system proceeds to generate the statement (displays 'Statement generated successfully.' on success).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-006",
-      "subcategory": "input_edge",
-      "test_case": "Paperless checked with Email_Address containing leading/trailing whitespace",
-      "preconditions": [
-        "On EStatement Preference form",
-        "Paperless checkbox checked"
-      ],
-      "steps": [
-        "Open E-Statement Preference form",
-        "Check 'Paperless'",
-        "Enter ' user@example.com ' (leading and trailing spaces) into Email_Address",
-        "Click 'Save Preference'"
-      ],
-      "expected_result": "FAIL (validation): Per constraint 'if Paperless == true then Email_Address must be a valid email address', the Email Address field is highlighted with guidance if the system treats whitespace as invalid. The UI should flag the field and show guidance about entering a valid email address.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-007",
-      "subcategory": "state_edge",
-      "test_case": "Toggle Paperless requirement: check without email then uncheck before saving",
-      "preconditions": [
-        "On EStatement Preference form"
-      ],
-      "steps": [
-        "Open E-Statement Preference form",
-        "Check 'Paperless' and leave Email_Address empty",
-        "Attempt to click 'Save Preference' (expect validation/error)",
-        "Without refreshing, uncheck 'Paperless' so Paperless == false",
-        "Click 'Save Preference' again"
-      ],
-      "expected_result": "First save attempt FAILS because 'Email_Address' is required when Paperless == true; after unchecking Paperless, save succeeds and system shows 'e-Statement preference updated.' (no Email_Address validation error), demonstrating required_when behavior.",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-008",
       "subcategory": "data_edge",
-      "test_case": "Custom Range with far-future valid dates (year 2099) \u2014 validation acceptance",
+      "test_case": "Start_Date outside retrievable transaction history (far past date) (should FAIL)",
       "preconditions": [
-        "Statement_Period_Mode set to Custom Range",
-        "Account selected"
+        "Form constraint: \"dates must be valid and within retrievable transaction history\"",
+        "Statement_Period_Mode == Custom Date Range"
       ],
       "steps": [
-        "Open Generate Statement form",
-        "Set Statement_Period_Mode to 'Custom Range'",
-        "Set Start_Date to 2099-12-01",
-        "Set End_Date to 2099-12-31",
-        "Click 'Generate Statement'"
+        "Open Generate_Statement_Form",
+        "Set Statement_Period_Mode to \"Custom Date Range\"",
+        "Enter Start_Date = 1900-01-01 (date likely outside history) and End_Date = 1900-01-31",
+        "Click \"Generate Statement\""
       ],
-      "expected_result": "PASS (validation): 'dates must be valid calendar dates' accepts far-future valid dates; date validation does not block generation. The system proceeds to attempt statement generation (may show either 'Statement generated successfully.' or 'Unable to generate statement \u2014 please try again later.' depending on backend data).",
-      "priority": "low"
+      "expected_result": "Submission fails due to the constraint \"dates must be valid and within retrievable transaction history\" (FAIL). The Generate Statement precondition \"date fields must satisfy form constraints\" is not met; expect an error and no statement generation.",
+      "priority": "medium"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 9,
     "boundary": 4,
-    "edge": 4,
-    "medium_priority": 6,
+    "edge": 5,
+    "medium_priority": 7,
     "low_priority": 2
   }
 }

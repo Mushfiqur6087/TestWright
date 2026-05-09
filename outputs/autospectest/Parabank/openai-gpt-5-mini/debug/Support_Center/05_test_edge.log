@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573363
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557560
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Support Center</module_name>
 
@@ -233,14 +251,12 @@ Categories to consider:
       "fields": {
         "Subject": {
           "type": "unspecified",
-          "required": false,
           "constraints": [
-            "must meet subject length limits (system checks subject length)"
+            "subject length validated"
           ]
         },
         "Category": {
           "type": "dropdown",
-          "required": false,
           "options": [
             "Account",
             "Technical",
@@ -250,25 +266,25 @@ Categories to consider:
         },
         "Message_Body": {
           "type": "unspecified",
-          "format": "rich_text",
           "required": true,
           "constraints": [
-            "message body must be present"
+            "must be present"
           ]
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "must be an allowed attachment type (system validates attachment types)"
+            "validates attachment types"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline validation guidance"
+          "type": "button",
+          "on_success": "Message sent successfully; returns ticket ID",
+          "on_failure": "displays inline guidance"
         }
       ]
     },
@@ -276,33 +292,31 @@ Categories to consider:
       "type": "form",
       "fields": {
         "Reason_for_Call": {
-          "type": "dropdown",
-          "required": false
+          "type": "dropdown"
         },
         "Preferred_Date": {
           "type": "date",
-          "required": true,
           "constraints": [
-            "date must be at least the next business day"
+            "must be at least the next business day"
           ]
         },
         "Preferred_Time_Window": {
-          "type": "unspecified",
-          "required": false
+          "type": "unspecified"
         },
         "Phone_Number": {
           "type": "unspecified",
-          "required": true,
           "prefilled": true,
+          "editable": true,
           "constraints": [
-            "must match phone number format"
+            "phone number format validation"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "on_success": "Callback request submitted; sends email confirmation",
+          "type": "button",
+          "on_success": "Callback request submitted; email confirmation sent",
           "on_failure": "validation errors shown inline"
         }
       ]
@@ -311,252 +325,354 @@ Categories to consider:
 }
 </ast>
 
-<description>
-
-The Support Center page integrates two communication forms.The secure message form includes Subject, Category (dropdown: Account, Technical, Security, Other), Message Body (rich text), optional Attachment, and a “Send Message” button. The system checks subject length, ensures a message body is present, and validates attachment types. On success it shows “Message sent successfully.” with a ticket ID; failures display inline guidance. The schedule callback form includes Reason for Call (dropdown), Preferred Date, Preferred Time Window, Phone Number (pre-filled but editable), and a “Request Callback” button. The system ensures the date is at least the next business day and validates the phone number format. Success returns “Callback request submitted.” and sends an email confirmation; validation errors are shown inline.
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:02:11] Test-Edge - LLM RESPONSE
+[23:14:08] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Support Center",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Preferred Date = next business day (should PASS)",
+      "test_case": "Preferred_Date = exactly the next business day (should succeed)",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible",
-        "Phone Number prefilled with a syntactically-valid number"
+        "User is on Schedule_Callback_Form",
+        "Today is any weekday (test runner determines next business day)"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to the next business day (skip weekends; if today is Wednesday, pick Thursday; if today is Friday, pick next Monday)",
-        "Optionally set Reason for Call and Preferred Time Window",
-        "Leave Phone Number as prefilled or ensure it remains valid",
+        "Open Schedule_Callback_Form",
+        "Set Preferred_Date to the next business day (the first business day after today)",
+        "Ensure Phone_Number is present or enter a valid phone number",
         "Click 'Request Callback'"
       ],
-      "expected_result": "PASS — Submission succeeds and UI shows the success text 'Callback request submitted.'; no inline validation error about the date is shown.",
+      "expected_result": "PASS: Preferred_Date equal to the next business day is accepted per constraint 'must be at least the next business day' and submission succeeds showing 'Callback request submitted; email confirmation sent'.",
       "priority": "medium"
     },
     {
-      "tc_id": "E-002",
+      "tc_id": "B-002",
       "subcategory": "boundary",
-      "test_case": "Preferred Date = today (should FAIL)",
+      "test_case": "Preferred_Date = today (just before the required next business day) (should fail)",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible"
+        "User is on Schedule_Callback_Form",
+        "Today is any weekday"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to today (the current calendar date)",
-        "Ensure Phone Number is present (prefilled) or valid",
+        "Open Schedule_Callback_Form",
+        "Set Preferred_Date to today",
+        "Ensure Phone_Number is present or enter a valid phone number",
         "Click 'Request Callback'"
       ],
-      "expected_result": "FAIL — Submission blocked; inline validation shown indicating the Preferred Date is invalid per rule 'date must be at least the next business day'.",
+      "expected_result": "FAIL: Preferred_Date violates constraint 'must be at least the next business day' and submission is blocked; the form shows validation errors inline ('validation errors shown inline').",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "input_edge",
-      "test_case": "Message Body contains only whitespace (should FAIL)",
+      "test_case": "Very long Subject (500+ chars) to exercise 'subject length validated'",
       "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible"
+        "User is on Secure_Message_Form",
+        "Message_Body is filled with valid text (satisfies 'must be present')"
       ],
       "steps": [
-        "Open Secure Message form",
-        "Leave Subject and Category as desired (Subject optional)",
-        "In the Message Body (rich text) enter only whitespace characters and line breaks (e.g., spaces + newlines) and no other content",
+        "In Subject enter a 500-character string (no line breaks)",
+        "Select Category (e.g., 'Technical')",
+        "Attach no files",
         "Click 'Send Message'"
       ],
-      "expected_result": "FAIL — Submission blocked; inline validation shown indicating 'message body must be present' (message body is treated as empty).",
-      "priority": "medium"
+      "expected_result": "System enforces 'subject length validated'. If the 500-character Subject violates the validation, submission fails and the UI 'displays inline guidance'. If the implementation permits this length, submission succeeds and shows 'Message sent successfully; returns ticket ID'.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Message Body contains only an embedded image (no text) (unclear content-type presence) — verify acceptance",
+      "test_case": "Subject with leading and trailing whitespace to check trimming + 'subject length validated'",
       "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible",
-        "Image available to embed/upload into rich text editor"
+        "User is on Secure_Message_Form",
+        "Message_Body is filled with valid text"
       ],
       "steps": [
-        "Open Secure Message form",
-        "In the Message Body (rich text) insert/embed a single image or paste an inline image and do NOT add any textual characters",
+        "In Subject enter '    Short subject    ' (leading and trailing spaces)",
+        "Select Category",
         "Click 'Send Message'"
       ],
-      "expected_result": "EXPECTED BEHAVIOR — Because Message Body is a rich_text field and the system 'ensures a message body is present', the form should treat embedded rich content as a present message body and accept the submission; UI shows 'Message sent successfully.' with a ticket ID. If the implementation requires textual characters, an inline validation error 'message body must be present' is shown. (Test verifies which behavior the system implements.)",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-005",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click 'Send Message' to check duplicate ticket creation",
-      "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible",
-        "All required fields filled with valid data (Message Body present)"
-      ],
-      "steps": [
-        "Open Secure Message form and fill Subject/Category/Message Body (valid content)",
-        "Rapidly click or double-click the 'Send Message' button twice in quick succession",
-        "Observe the UI response(s)"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR — Only a single successful submission result should be shown (one 'Message sent successfully.' message and one ticket ID). The UI should not display two success messages or two different ticket IDs. If duplicate submissions occur, two success messages or multiple ticket IDs will be visible.",
+      "expected_result": "The system's handling of whitespace is validated against 'subject length validated': if implementation trims whitespace and the trimmed length meets validation, submission succeeds with 'Message sent successfully; returns ticket ID'; otherwise, it fails and 'displays inline guidance'.",
       "priority": "low"
     },
     {
-      "tc_id": "E-006",
-      "subcategory": "data_edge",
-      "test_case": "Preferred Date set to next calendar day when that day is not a business day (weekend) — should FAIL",
+      "tc_id": "E-005",
+      "subcategory": "input_edge",
+      "test_case": "Message_Body contains only whitespace (should fail due to 'must be present')",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible",
-        "Test executed on a day where tomorrow is a weekend day (execute on a Friday so tomorrow is Saturday)"
+        "User is on Secure_Message_Form",
+        "Subject contains a valid short subject"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to the next calendar day which is not a business day (e.g., if today is Friday, set date to Saturday)",
+        "In Message_Body enter a string of spaces/newlines only",
+        "Click 'Send Message'"
+      ],
+      "expected_result": "FAIL: Message_Body violates constraint 'must be present'; submission is blocked and the form 'displays inline guidance' indicating the required field error.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Send Message' rapidly to check duplicate ticket creation",
+      "preconditions": [
+        "User is on Secure_Message_Form",
+        "Required fields (Message_Body) and Subject are filled with valid data"
+      ],
+      "steps": [
+        "Click 'Send Message' twice rapidly (double-click)",
+        "Observe UI responses/messages after the second click"
+      ],
+      "expected_result": "The UI should not create duplicate tickets. The user should see a single success outcome 'Message sent successfully; returns ticket ID' (one ticket ID displayed). If the second click triggers validation/failure, the UI should not produce two success messages. Duplicate ticket creation would be a failure of this test.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "input_edge",
+      "test_case": "Attach a zero-byte file of a valid type (exercises 'validates attachment types' without size info)",
+      "preconditions": [
+        "User is on Secure_Message_Form",
+        "Message_Body is filled and Subject provided"
+      ],
+      "steps": [
+        "Attach a zero-byte file whose extension corresponds to a typically allowed type (e.g., .pdf)",
+        "Click 'Send Message'"
+      ],
+      "expected_result": "Because the AST specifies 'validates attachment types' (but not size), two acceptable outcomes are defined: if the attachment type validation passes despite zero-byte size, submission succeeds with 'Message sent successfully; returns ticket ID'; if the system rejects zero-byte files as invalid, it should 'display inline guidance'. The test verifies which behavior occurs and that the UI follows one consistent path.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Clear the prefilled Phone_Number and submit Schedule_Callback_Form (should fail per 'phone number format validation')",
+      "preconditions": [
+        "User is on Schedule_Callback_Form",
+        "Preferred_Date set to a valid next business day"
+      ],
+      "steps": [
+        "Clear the prefilled Phone_Number field so it is empty",
         "Click 'Request Callback'"
       ],
-      "expected_result": "FAIL — Submission blocked; inline validation shown indicating the Preferred Date is invalid per rule 'date must be at least the next business day' because the selected date is not the next business day.",
+      "expected_result": "FAIL: Empty Phone_Number violates 'phone number format validation' and submission is blocked; the form shows validation errors inline ('validation errors shown inline').",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "data_edge",
+      "test_case": "Preferred_Date set to next calendar day when that day is a weekend (should fail per 'must be at least the next business day')",
+      "preconditions": [
+        "Test is executed on a day where the next calendar day is a weekend (e.g., today = Friday)",
+        "User is on Schedule_Callback_Form"
+      ],
+      "steps": [
+        "Set Preferred_Date to the next calendar day which is a weekend (e.g., Saturday)",
+        "Ensure Phone_Number is present",
+        "Click 'Request Callback'"
+      ],
+      "expected_result": "FAIL: Selecting the next calendar day when it is not a business day violates 'must be at least the next business day' and submission is blocked with 'validation errors shown inline'.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "state_edge",
+      "test_case": "After successful Send Message, use browser Back and attempt to send again without changing fields (verify duplicate prevention)",
+      "preconditions": [
+        "User has successfully submitted Secure_Message_Form and observed 'Message sent successfully; returns ticket ID'",
+        "Browser retains previous form state when navigating back"
+      ],
+      "steps": [
+        "After seeing 'Message sent successfully; returns ticket ID', click browser Back to return to the filled Secure_Message_Form",
+        "Without changing fields, click 'Send Message' again"
+      ],
+      "expected_result": "The system should prevent unintended duplicate tickets. Either the second submission is blocked and the UI indicates the prior success (no new ticket created), or the UI displays a clear duplicate-handling message. At minimum, duplicate ticket creation is considered a failure. The original success message 'Message sent successfully; returns ticket ID' must remain a single authoritative result.",
       "priority": "medium"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 10,
     "boundary": 2,
-    "edge": 4,
-    "medium_priority": 5,
-    "low_priority": 1
+    "edge": 8,
+    "medium_priority": 6,
+    "low_priority": 4
   }
 }
 
 ------------------------------------------------------------
-[22:02:11] Test-Edge - PARSED JSON
+[23:14:08] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Support Center",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Preferred Date = next business day (should PASS)",
+      "test_case": "Preferred_Date = exactly the next business day (should succeed)",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible",
-        "Phone Number prefilled with a syntactically-valid number"
+        "User is on Schedule_Callback_Form",
+        "Today is any weekday (test runner determines next business day)"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to the next business day (skip weekends; if today is Wednesday, pick Thursday; if today is Friday, pick next Monday)",
-        "Optionally set Reason for Call and Preferred Time Window",
-        "Leave Phone Number as prefilled or ensure it remains valid",
+        "Open Schedule_Callback_Form",
+        "Set Preferred_Date to the next business day (the first business day after today)",
+        "Ensure Phone_Number is present or enter a valid phone number",
         "Click 'Request Callback'"
       ],
-      "expected_result": "PASS \u2014 Submission succeeds and UI shows the success text 'Callback request submitted.'; no inline validation error about the date is shown.",
+      "expected_result": "PASS: Preferred_Date equal to the next business day is accepted per constraint 'must be at least the next business day' and submission succeeds showing 'Callback request submitted; email confirmation sent'.",
       "priority": "medium"
     },
     {
-      "tc_id": "E-002",
+      "tc_id": "B-002",
       "subcategory": "boundary",
-      "test_case": "Preferred Date = today (should FAIL)",
+      "test_case": "Preferred_Date = today (just before the required next business day) (should fail)",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible"
+        "User is on Schedule_Callback_Form",
+        "Today is any weekday"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to today (the current calendar date)",
-        "Ensure Phone Number is present (prefilled) or valid",
+        "Open Schedule_Callback_Form",
+        "Set Preferred_Date to today",
+        "Ensure Phone_Number is present or enter a valid phone number",
         "Click 'Request Callback'"
       ],
-      "expected_result": "FAIL \u2014 Submission blocked; inline validation shown indicating the Preferred Date is invalid per rule 'date must be at least the next business day'.",
+      "expected_result": "FAIL: Preferred_Date violates constraint 'must be at least the next business day' and submission is blocked; the form shows validation errors inline ('validation errors shown inline').",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "input_edge",
-      "test_case": "Message Body contains only whitespace (should FAIL)",
+      "test_case": "Very long Subject (500+ chars) to exercise 'subject length validated'",
       "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible"
+        "User is on Secure_Message_Form",
+        "Message_Body is filled with valid text (satisfies 'must be present')"
       ],
       "steps": [
-        "Open Secure Message form",
-        "Leave Subject and Category as desired (Subject optional)",
-        "In the Message Body (rich text) enter only whitespace characters and line breaks (e.g., spaces + newlines) and no other content",
+        "In Subject enter a 500-character string (no line breaks)",
+        "Select Category (e.g., 'Technical')",
+        "Attach no files",
         "Click 'Send Message'"
       ],
-      "expected_result": "FAIL \u2014 Submission blocked; inline validation shown indicating 'message body must be present' (message body is treated as empty).",
-      "priority": "medium"
+      "expected_result": "System enforces 'subject length validated'. If the 500-character Subject violates the validation, submission fails and the UI 'displays inline guidance'. If the implementation permits this length, submission succeeds and shows 'Message sent successfully; returns ticket ID'.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Message Body contains only an embedded image (no text) (unclear content-type presence) \u2014 verify acceptance",
+      "test_case": "Subject with leading and trailing whitespace to check trimming + 'subject length validated'",
       "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible",
-        "Image available to embed/upload into rich text editor"
+        "User is on Secure_Message_Form",
+        "Message_Body is filled with valid text"
       ],
       "steps": [
-        "Open Secure Message form",
-        "In the Message Body (rich text) insert/embed a single image or paste an inline image and do NOT add any textual characters",
+        "In Subject enter '    Short subject    ' (leading and trailing spaces)",
+        "Select Category",
         "Click 'Send Message'"
       ],
-      "expected_result": "EXPECTED BEHAVIOR \u2014 Because Message Body is a rich_text field and the system 'ensures a message body is present', the form should treat embedded rich content as a present message body and accept the submission; UI shows 'Message sent successfully.' with a ticket ID. If the implementation requires textual characters, an inline validation error 'message body must be present' is shown. (Test verifies which behavior the system implements.)",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-005",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click 'Send Message' to check duplicate ticket creation",
-      "preconditions": [
-        "User is on Support Center page",
-        "Secure Message form visible",
-        "All required fields filled with valid data (Message Body present)"
-      ],
-      "steps": [
-        "Open Secure Message form and fill Subject/Category/Message Body (valid content)",
-        "Rapidly click or double-click the 'Send Message' button twice in quick succession",
-        "Observe the UI response(s)"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR \u2014 Only a single successful submission result should be shown (one 'Message sent successfully.' message and one ticket ID). The UI should not display two success messages or two different ticket IDs. If duplicate submissions occur, two success messages or multiple ticket IDs will be visible.",
+      "expected_result": "The system's handling of whitespace is validated against 'subject length validated': if implementation trims whitespace and the trimmed length meets validation, submission succeeds with 'Message sent successfully; returns ticket ID'; otherwise, it fails and 'displays inline guidance'.",
       "priority": "low"
     },
     {
-      "tc_id": "E-006",
-      "subcategory": "data_edge",
-      "test_case": "Preferred Date set to next calendar day when that day is not a business day (weekend) \u2014 should FAIL",
+      "tc_id": "E-005",
+      "subcategory": "input_edge",
+      "test_case": "Message_Body contains only whitespace (should fail due to 'must be present')",
       "preconditions": [
-        "User is on Support Center page",
-        "Schedule Callback form visible",
-        "Test executed on a day where tomorrow is a weekend day (execute on a Friday so tomorrow is Saturday)"
+        "User is on Secure_Message_Form",
+        "Subject contains a valid short subject"
       ],
       "steps": [
-        "Open Schedule Callback form",
-        "Set Preferred Date to the next calendar day which is not a business day (e.g., if today is Friday, set date to Saturday)",
+        "In Message_Body enter a string of spaces/newlines only",
+        "Click 'Send Message'"
+      ],
+      "expected_result": "FAIL: Message_Body violates constraint 'must be present'; submission is blocked and the form 'displays inline guidance' indicating the required field error.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click 'Send Message' rapidly to check duplicate ticket creation",
+      "preconditions": [
+        "User is on Secure_Message_Form",
+        "Required fields (Message_Body) and Subject are filled with valid data"
+      ],
+      "steps": [
+        "Click 'Send Message' twice rapidly (double-click)",
+        "Observe UI responses/messages after the second click"
+      ],
+      "expected_result": "The UI should not create duplicate tickets. The user should see a single success outcome 'Message sent successfully; returns ticket ID' (one ticket ID displayed). If the second click triggers validation/failure, the UI should not produce two success messages. Duplicate ticket creation would be a failure of this test.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "input_edge",
+      "test_case": "Attach a zero-byte file of a valid type (exercises 'validates attachment types' without size info)",
+      "preconditions": [
+        "User is on Secure_Message_Form",
+        "Message_Body is filled and Subject provided"
+      ],
+      "steps": [
+        "Attach a zero-byte file whose extension corresponds to a typically allowed type (e.g., .pdf)",
+        "Click 'Send Message'"
+      ],
+      "expected_result": "Because the AST specifies 'validates attachment types' (but not size), two acceptable outcomes are defined: if the attachment type validation passes despite zero-byte size, submission succeeds with 'Message sent successfully; returns ticket ID'; if the system rejects zero-byte files as invalid, it should 'display inline guidance'. The test verifies which behavior occurs and that the UI follows one consistent path.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Clear the prefilled Phone_Number and submit Schedule_Callback_Form (should fail per 'phone number format validation')",
+      "preconditions": [
+        "User is on Schedule_Callback_Form",
+        "Preferred_Date set to a valid next business day"
+      ],
+      "steps": [
+        "Clear the prefilled Phone_Number field so it is empty",
         "Click 'Request Callback'"
       ],
-      "expected_result": "FAIL \u2014 Submission blocked; inline validation shown indicating the Preferred Date is invalid per rule 'date must be at least the next business day' because the selected date is not the next business day.",
+      "expected_result": "FAIL: Empty Phone_Number violates 'phone number format validation' and submission is blocked; the form shows validation errors inline ('validation errors shown inline').",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "data_edge",
+      "test_case": "Preferred_Date set to next calendar day when that day is a weekend (should fail per 'must be at least the next business day')",
+      "preconditions": [
+        "Test is executed on a day where the next calendar day is a weekend (e.g., today = Friday)",
+        "User is on Schedule_Callback_Form"
+      ],
+      "steps": [
+        "Set Preferred_Date to the next calendar day which is a weekend (e.g., Saturday)",
+        "Ensure Phone_Number is present",
+        "Click 'Request Callback'"
+      ],
+      "expected_result": "FAIL: Selecting the next calendar day when it is not a business day violates 'must be at least the next business day' and submission is blocked with 'validation errors shown inline'.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "state_edge",
+      "test_case": "After successful Send Message, use browser Back and attempt to send again without changing fields (verify duplicate prevention)",
+      "preconditions": [
+        "User has successfully submitted Secure_Message_Form and observed 'Message sent successfully; returns ticket ID'",
+        "Browser retains previous form state when navigating back"
+      ],
+      "steps": [
+        "After seeing 'Message sent successfully; returns ticket ID', click browser Back to return to the filled Secure_Message_Form",
+        "Without changing fields, click 'Send Message' again"
+      ],
+      "expected_result": "The system should prevent unintended duplicate tickets. Either the second submission is blocked and the UI indicates the prior success (no new ticket created), or the UI displays a clear duplicate-handling message. At minimum, duplicate ticket creation is considered a failure. The original success message 'Message sent successfully; returns ticket ID' must remain a single authoritative result.",
       "priority": "medium"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 10,
     "boundary": 2,
-    "edge": 4,
-    "medium_priority": 5,
-    "low_priority": 1
+    "edge": 8,
+    "medium_priority": 6,
+    "low_priority": 4
   }
 }

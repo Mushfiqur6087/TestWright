@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.327797
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.152039
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:47] Semantic Critic - SYSTEM PROMPT
+[23:09:23] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[21:54:47] Semantic Critic - USER PROMPT
+[23:09:23] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The Investments page is a multi-section workspace.The portfolio snapshot is a read-only panel that shows current fund holdings, market value, and unrealised gain or loss.The trade funds form includes Action (Buy or Sell), Fund Symbol (autocomplete), Quantity, Funding or Destination Account (dropdown), and an “Execute Trade” button. The system checks that the symbol exists, quantity is greater than zero, and that the customer has sufficient buying power or share balance. A successful submission executes a same-day trade, updates holdings, and displays “Trade executed successfully.” with an order ID; validation failures appear inline.The recurring investment plan form includes Fund Symbol, Contribution Amount, Frequency (Weekly or Monthly), Start Date, Funding Account, and a “Create Plan” button. The system validates that the start date is in the future, the contribution meets the minimum, and that the funding account has adequate balance. Success stores the schedule and shows “Plan created successfully.”; errors highlight the problematic fields (for example, “Start date must be in the future”).
@@ -133,7 +133,7 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Quantity": {
@@ -151,12 +151,15 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
       "submit_actions": [
         {
           "element_name": "Execute Trade",
+          "type": "button",
           "constraints": [
-            "if Action == Buy then customer must have sufficient buying power for the requested Quantity",
-            "if Action == Sell then customer must have sufficient share balance of Fund_Symbol for the requested Quantity"
+            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
+            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
+            "Fund_Symbol must resolve to an existing fund symbol",
+            "Quantity must be greater than 0"
           ],
-          "on_success": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
-          "on_failure": "validation errors appear inline"
+          "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "on_error": "validation failures appear inline"
         }
       ]
     },
@@ -167,14 +170,14 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Contribution_Amount": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must meet the minimum contribution"
+            "must meet the minimum contribution amount"
           ]
         },
         "Frequency": {
@@ -189,24 +192,29 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
           "type": "date",
           "required": true,
           "constraints": [
-            "must be in the future"
+            "must be a future date",
+            "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true
+          "required": true,
+          "constraints": [
+            "Funding_Account must have adequate balance to fund initial contribution"
+          ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
+          "type": "button",
           "constraints": [
-            "start date must be in the future",
-            "contribution amount must meet the minimum contribution",
-            "funding account must have adequate balance at time of creation"
+            "Start_Date must be in the future",
+            "Contribution_Amount must meet the minimum contribution amount",
+            "Funding_Account must have adequate balance"
           ],
-          "on_success": "stores schedule; displays \"Plan created successfully.\"",
-          "on_failure": "errors highlight problematic fields (for example: \"Start date must be in the future\")"
+          "on_success": "stores schedule and shows \"Plan created successfully.\"",
+          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
         }
       ]
     }
@@ -217,22 +225,22 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:55:11] Semantic Critic - LLM RESPONSE
+[23:09:43] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+  "summary": "The AST accurately captures both interactive forms (Trade Funds and Recurring Investment Plan), their fields, validation rules, submit actions, and success/error behaviors as described.",
   "missing": [],
   "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[21:55:11] Semantic Critic - PARSED JSON
+[23:09:43] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+  "summary": "The AST accurately captures both interactive forms (Trade Funds and Recurring Investment Plan), their fields, validation rules, submit actions, and success/error behaviors as described.",
   "missing": [],
   "phantoms": [],
   "fixes": []

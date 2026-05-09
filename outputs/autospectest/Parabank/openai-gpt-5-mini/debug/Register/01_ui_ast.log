@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.313801
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.139070
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - SYSTEM PROMPT
+[23:08:55] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - USER PROMPT
+[23:08:55] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Register
 
@@ -215,7 +215,7 @@ The registration page presents a comprehensive sign-up form with required inputs
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:54:54] UI-AST Agent - LLM RESPONSE
+[23:09:21] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Register",
@@ -247,26 +247,23 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-            "must match regex: ^(\\d{5})(-\\d{4})?$"
+            "must be 5 digits or 5+4 format (12345 or 12345-6789)"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format (123) 456-7890",
-            "must match regex: ^\\(\\d{3}\\) \\d{3}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern (123) 456-7890",
+            "automatic formatting applied to (123) 456-7890 on input"
           ]
         },
         "Social_Security_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format 123-45-6789",
-            "must match regex: ^\\d{3}-\\d{2}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern 123-45-6789",
+            "automatic formatting applied to 123-45-6789 on input"
           ]
         },
         "Username": {
@@ -280,8 +277,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "password",
           "required": true,
           "constraints": [
-            "must be at least 8 characters",
-            "min_length: 8"
+            "minimum length 8 characters"
           ]
         },
         "Confirm_Password": {
@@ -295,15 +291,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Register",
-          "type": "button",
           "constraints": [
-            "validates all required fields are present",
-            "validates field pattern conformance (Phone, ZIP, SSN, Email)",
-            "validates Confirm_Password matches Password"
+            "on submit: validates required fields are present",
+            "on submit: validates each field matches its pattern constraints",
+            "on submit: validates Confirm_Password matches Password"
           ],
           "on_success": "Account created successfully — please sign in",
-          "redirect_to": "Login page",
-          "on_failure": "displays field-level errors for correction"
+          "on_success_redirect": "Login page",
+          "on_failure": "displays specific field-level errors for correction"
         }
       ]
     }
@@ -311,7 +306,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[21:54:54] UI-AST Agent - PARSED JSON
+[23:09:21] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Register",
@@ -343,26 +338,23 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-            "must match regex: ^(\\d{5})(-\\d{4})?$"
+            "must be 5 digits or 5+4 format (12345 or 12345-6789)"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format (123) 456-7890",
-            "must match regex: ^\\(\\d{3}\\) \\d{3}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern (123) 456-7890",
+            "automatic formatting applied to (123) 456-7890 on input"
           ]
         },
         "Social_Security_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format 123-45-6789",
-            "must match regex: ^\\d{3}-\\d{2}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern 123-45-6789",
+            "automatic formatting applied to 123-45-6789 on input"
           ]
         },
         "Username": {
@@ -376,8 +368,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "password",
           "required": true,
           "constraints": [
-            "must be at least 8 characters",
-            "min_length: 8"
+            "minimum length 8 characters"
           ]
         },
         "Confirm_Password": {
@@ -391,15 +382,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Register",
-          "type": "button",
           "constraints": [
-            "validates all required fields are present",
-            "validates field pattern conformance (Phone, ZIP, SSN, Email)",
-            "validates Confirm_Password matches Password"
+            "on submit: validates required fields are present",
+            "on submit: validates each field matches its pattern constraints",
+            "on submit: validates Confirm_Password matches Password"
           ],
           "on_success": "Account created successfully \u2014 please sign in",
-          "redirect_to": "Login page",
-          "on_failure": "displays field-level errors for correction"
+          "on_success_redirect": "Login page",
+          "on_failure": "displays specific field-level errors for correction"
         }
       ]
     }

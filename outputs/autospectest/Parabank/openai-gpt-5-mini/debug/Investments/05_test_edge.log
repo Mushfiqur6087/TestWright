@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573034
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556877
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Investments</module_name>
 
@@ -243,7 +261,7 @@ Categories to consider:
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Quantity": {
@@ -261,12 +279,15 @@ Categories to consider:
       "submit_actions": [
         {
           "element_name": "Execute Trade",
+          "type": "button",
           "constraints": [
-            "if Action == Buy then customer must have sufficient buying power for the requested Quantity",
-            "if Action == Sell then customer must have sufficient share balance of Fund_Symbol for the requested Quantity"
+            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
+            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
+            "Fund_Symbol must resolve to an existing fund symbol",
+            "Quantity must be greater than 0"
           ],
-          "on_success": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
-          "on_failure": "validation errors appear inline"
+          "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "on_error": "validation failures appear inline"
         }
       ]
     },
@@ -277,14 +298,14 @@ Categories to consider:
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Contribution_Amount": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must meet the minimum contribution"
+            "must meet the minimum contribution amount"
           ]
         },
         "Frequency": {
@@ -299,24 +320,29 @@ Categories to consider:
           "type": "date",
           "required": true,
           "constraints": [
-            "must be in the future"
+            "must be a future date",
+            "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true
+          "required": true,
+          "constraints": [
+            "Funding_Account must have adequate balance to fund initial contribution"
+          ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
+          "type": "button",
           "constraints": [
-            "start date must be in the future",
-            "contribution amount must meet the minimum contribution",
-            "funding account must have adequate balance at time of creation"
+            "Start_Date must be in the future",
+            "Contribution_Amount must meet the minimum contribution amount",
+            "Funding_Account must have adequate balance"
           ],
-          "on_success": "stores schedule; displays \"Plan created successfully.\"",
-          "on_failure": "errors highlight problematic fields (for example: \"Start date must be in the future\")"
+          "on_success": "stores schedule and shows \"Plan created successfully.\"",
+          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
         }
       ]
     }
@@ -324,16 +350,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The Investments page is a multi-section workspace.The portfolio snapshot is a read-only panel that shows current fund holdings, market value, and unrealised gain or loss.The trade funds form includes Action (Buy or Sell), Fund Symbol (autocomplete), Quantity, Funding or Destination Account (dropdown), and an “Execute Trade” button. The system checks that the symbol exists, quantity is greater than zero, and that the customer has sufficient buying power or share balance. A successful submission executes a same-day trade, updates holdings, and displays “Trade executed successfully.” with an order ID; validation failures appear inline.The recurring investment plan form includes Fund Symbol, Contribution Amount, Frequency (Weekly or Monthly), Start Date, Funding Account, and a “Create Plan” button. The system validates that the start date is in the future, the contribution meets the minimum, and that the funding account has adequate balance. Success stores the schedule and shows “Plan created successfully.”; errors highlight the problematic fields (for example, “Start date must be in the future”).
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:08] Test-Edge - LLM RESPONSE
+[23:13:45] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Investments",
@@ -342,266 +362,230 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Quantity = 1 passes (Quantity must be greater than 0)",
+      "test_case": "Trade Quantity just-above-zero succeeds (boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select an existing Fund_Symbol (search matches an existing symbol)",
-        "Select Action = Buy",
-        "Funding account selected has clearly more than enough buying power as shown in the UI"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account has ample buying power for the small purchase amount used"
       ],
       "steps": [
-        "Enter Quantity = 1",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity = 0.01",
+        "Select Funding_or_Destination_Account",
         "Click Execute Trade"
       ],
-      "expected_result": "PASS — trade proceeds; UI shows \"Trade executed successfully.\" and an order ID; holdings update in portfolio snapshot (per submit_actions and description).",
+      "expected_result": "Pass: Submit succeeds. Follows on_success for Execute Trade: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Quantity = 0 fails (Quantity must be greater than 0)",
+      "test_case": "Trade Quantity = 0 is rejected (boundary fail for 'must be greater than 0')",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select an existing Fund_Symbol",
-        "Select Action = Buy",
-        "Funding account has adequate buying power (so failure is due to Quantity validation)"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account selected"
       ],
       "steps": [
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
         "Enter Quantity = 0",
+        "Select Funding_or_Destination_Account",
         "Click Execute Trade"
       ],
-      "expected_result": "FAIL — inline validation error appears for Quantity (reflecting \"must be greater than 0\"). No trade executed.",
+      "expected_result": "Fail: Inline validation error shown: \"Quantity must be greater than 0\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "Buy: buying power exactly equals required amount → trade succeeds",
+      "test_case": "Recurring plan Start_Date exactly next calendar day succeeds (future-date boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Buy and an existing Fund_Symbol",
-        "UI displays current price or required cost per share and a funding account's buying power",
-        "Precondition: calculate/select a Quantity so that (Quantity × displayed price) equals the funding account's displayed buying power"
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_Account has adequate balance to fund initial contribution"
       ],
       "steps": [
-        "Enter the calculated Quantity that makes required cost == displayed buying power",
-        "Select that funding account",
-        "Click Execute Trade"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = tomorrow (next calendar day)",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "PASS — per submit_actions constraint \"if Action == Buy then customer must have sufficient buying power...\" the trade executes; UI shows \"Trade executed successfully.\" with one order ID.",
+      "expected_result": "Pass: Submit succeeds. Follows on_success for Create Plan: stores schedule and shows \"Plan created successfully.\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "Buy: buying power just short of required amount → trade fails",
+      "test_case": "Recurring plan Start_Date = today is rejected (future-date boundary fail)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Buy and an existing Fund_Symbol",
-        "UI displays a funding account's buying power and the fund price",
-        "Precondition: select a Quantity where required cost is $0.01 more than the funding account's displayed buying power"
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_Account selected"
       ],
       "steps": [
-        "Enter that Quantity",
-        "Select the funding account with buying power $0.01 short",
-        "Click Execute Trade"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = today",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "FAIL — inline validation prevents execution with an error indicating insufficient buying power (reflecting submit_actions constraint). No trade executed.",
+      "expected_result": "Fail: Inline validation error shown: \"Start date must be in the future\" (and/or constraint: \"must be a future date\")",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Sell: Quantity equal to displayed share balance succeeds",
+      "test_case": "Buy succeeds when Funding_or_Destination_Account balance equals exactly required purchase amount (sufficiency boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Sell and select a Fund_Symbol for which the portfolio snapshot shows a non-zero share balance",
-        "Note the displayed share balance for that Fund_Symbol"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account balance is set equal to the exact total cost of Quantity × price (user-visible balance)",
+        "Quantity chosen such that required purchase amount equals Funding_or_Destination_Account balance"
       ],
       "steps": [
-        "Enter Quantity equal to the displayed share balance",
-        "Select a destination/funding account",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity that results in purchase cost exactly equal to the funding account balance",
+        "Select Funding_or_Destination_Account (the account with exact funds)",
         "Click Execute Trade"
       ],
-      "expected_result": "PASS — per submit_actions constraint \"if Action == Sell then customer must have sufficient share balance...\" trade executes; UI shows \"Trade executed successfully.\" with an order ID and holdings update.",
+      "expected_result": "Pass: Constraint satisfied: \"If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase\" — on_success: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Sell: Quantity one unit greater than displayed share balance fails",
+      "test_case": "Buy rejected when Funding_or_Destination_Account is short by the smallest currency unit (sufficiency boundary fail)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Sell and a Fund_Symbol with displayed share balance N (N ≥ 1)"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account balance is set to required purchase amount minus the smallest currency unit (e.g., $0.01)"
       ],
       "steps": [
-        "Enter Quantity = N + 1 (one unit more than displayed share balance)",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity that results in purchase cost $0.01 greater than the funding account balance",
+        "Select Funding_or_Destination_Account (the underfunded account)",
         "Click Execute Trade"
       ],
-      "expected_result": "FAIL — inline validation error appears indicating insufficient share balance (reflecting the submit_actions constraint). No trade executed.",
+      "expected_result": "Fail: Inline validation prevents submit. Constraint violated: \"If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase\" (error appears inline)",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
-      "subcategory": "boundary",
-      "test_case": "Recurring plan: Contribution_Amount exactly equals displayed minimum contribution → plan created",
+      "subcategory": "input_edge",
+      "test_case": "Clearing Fund_Symbol after selecting a resolved suggestion triggers fund-resolution validation",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "UI displays the plan's minimum contribution amount (per constraint \"must meet the minimum contribution\")",
-        "Start_Date set to a valid future date and Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "User can search and resolve Fund_Symbol suggestions"
       ],
       "steps": [
-        "Enter Contribution_Amount equal to the displayed minimum contribution",
-        "Fill remaining required fields",
-        "Click Create Plan"
+        "Begin typing a Fund_Symbol that resolves to an existing fund symbol and select that suggestion",
+        "After selection, clear the Fund_Symbol field to blank",
+        "Fill remaining required fields (Action, Quantity, Funding_or_Destination_Account) with valid values",
+        "Click Execute Trade"
       ],
-      "expected_result": "PASS — plan is created; UI shows \"Plan created successfully.\" (per submit_actions on_success).",
-      "priority": "medium"
+      "expected_result": "Fail: Inline validation shown for Fund_Symbol: \"must resolve to an existing fund symbol\" (field is required and must resolve)",
+      "priority": "low"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "boundary",
-      "test_case": "Recurring plan: Contribution_Amount one cent below displayed minimum → creation fails",
+      "subcategory": "state_edge",
+      "test_case": "Sell succeeds when Quantity equals customer's exact share balance (edge of share-balance sufficiency)",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "UI displays the plan's minimum contribution amount",
-        "Start_Date set to a valid future date and Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "Action = Sell",
+        "Customer holds X.XX shares of the Fund_Symbol (known, UI-displayed share balance)",
+        "Quantity set equal to the customer's exact share balance"
       ],
       "steps": [
-        "Enter Contribution_Amount = displayed minimum contribution - $0.01",
-        "Click Create Plan"
+        "Select Action = Sell",
+        "Enter Fund_Symbol that resolves to an existing fund symbol (the one customer holds)",
+        "Enter Quantity equal to the exact displayed share balance",
+        "Select Funding_or_Destination_Account (destination for sale proceeds)",
+        "Click Execute Trade"
       ],
-      "expected_result": "FAIL — inline validation error appears for Contribution_Amount (reflecting \"must meet the minimum contribution\"); plan not created.",
+      "expected_result": "Pass: Constraint satisfied: \"If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity\" — on_success: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "boundary",
-      "test_case": "Start_Date = tomorrow passes (Start date must be in the future)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of Execute Trade does not create duplicate orders",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
-        "Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "All fields valid and populated (Action, Fund_Symbol resolves, Quantity > 0, Funding_or_Destination_Account)",
+        "User has network latency causing delayed button response"
       ],
       "steps": [
-        "Set Start_Date to tomorrow's date",
-        "Fill remaining required fields",
-        "Click Create Plan"
+        "Click Execute Trade twice in rapid succession (double-click)",
+        "Observe success/error messages and any displayed order ID(s)"
       ],
-      "expected_result": "PASS — plan is created; UI shows \"Plan created successfully.\" Start date accepted because it is in the future (matches description and constraint).",
-      "priority": "medium"
+      "expected_result": "Pass: Only a single success completion. The UI displays a single occurrence of the on_success text: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID — no duplicate order messages shown",
+      "priority": "low"
     },
     {
       "tc_id": "E-010",
-      "subcategory": "boundary",
-      "test_case": "Start_Date = today fails (Start date must be in the future)",
+      "subcategory": "data_edge",
+      "test_case": "Recurring plan Start_Date set to Feb 29 on upcoming leap year (date edge)",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
+        "Today is before the target leap-day Start_Date",
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
         "Funding_Account has adequate balance"
       ],
       "steps": [
-        "Set Start_Date to today's date",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = February 29 of the next leap year",
+        "Select Funding_Account",
         "Click Create Plan"
       ],
-      "expected_result": "FAIL — inline validation error appears saying \"Start date must be in the future\" (explicit example from description); plan not created.",
-      "priority": "medium"
+      "expected_result": "Pass if Start_Date is a valid future date: Create Plan succeeds and follows on_success: stores schedule and shows \"Plan created successfully.\"; otherwise, if the date picker disallows the date, an inline date validation/error aligned with \"Start date must be in the future\" appears",
+      "priority": "low"
     },
     {
       "tc_id": "E-011",
       "subcategory": "input_edge",
-      "test_case": "Fund_Symbol search with leading/trailing whitespace is trimmed and matches existing symbol",
+      "test_case": "Recurring plan Contribution_Amount entered with high decimal precision",
       "preconditions": [
-        "Open either form's Fund_Symbol search field",
-        "There exists a known fund symbol 'ABC' visible via search"
-      ],
-      "steps": [
-        "Type '  ABC  ' (leading and trailing spaces) into Fund_Symbol search",
-        "Observe autocomplete results and select the matching symbol",
-        "Attempt to submit the form (Execute Trade or Create Plan depending on form)"
-      ],
-      "expected_result": "The search should successfully match and allow selection of the existing symbol (the UI effectively trims whitespace). Submission proceeds to the form-level checks (e.g., buying power or minimum contribution).",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-012",
-      "subcategory": "input_edge",
-      "test_case": "Fund_Symbol search with non-alphanumeric characters / emoji returns no results and triggers 'symbol must exist' validation on submit",
-      "preconditions": [
-        "Open either form's Fund_Symbol search field"
-      ],
-      "steps": [
-        "Enter an unusual string containing emoji and punctuation (e.g. '🚀✨!!!') into Fund_Symbol search",
-        "Attempt to select a result (none expected) and click the form's submit button"
-      ],
-      "expected_result": "No autocomplete hits; on submit the form shows inline validation referencing the constraint \"symbol must exist\" and blocks submission.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-013",
-      "subcategory": "interaction_edge",
-      "test_case": "Double-click Execute Trade rapidly should not create duplicate trades",
-      "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action, existing Fund_Symbol, Quantity (>0), and a funding/destination account that would allow execution",
-        "Ensure UI displays order success message on normal execution"
-      ],
-      "steps": [
-        "Rapidly double-click (or double-tap) the Execute Trade button",
-        "Observe UI for success messages and order IDs"
-      ],
-      "expected_result": "Only one trade is executed: UI shows a single \"Trade executed successfully.\" message and a single order ID. The Execute Trade action becomes disabled/indicates progress to prevent duplicate submissions (behavior visible in UI).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-014",
-      "subcategory": "data_edge",
-      "test_case": "Recurring plan with Start_Date far in the future (e.g., year 2099) is accepted if in the future",
-      "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
         "Funding_Account has adequate balance"
       ],
       "steps": [
-        "Set Start_Date to a distant future date (e.g., 2099-01-01)",
-        "Fill remaining required fields and click Create Plan"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount = 100.0000001 (high precision decimal)",
+        "Select Frequency",
+        "Set Start_Date to a valid future date",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "PASS — since the constraint is only \"must be in the future\", the system accepts a far-future date and shows \"Plan created successfully.\"; schedule is stored per description.",
+      "expected_result": "Either: Pass — plan is created (stores schedule and shows \"Plan created successfully.\") if the amount meets the constraint \"Contribution_Amount must meet the minimum contribution amount\" when rounded/accepted; or Fail — inline validation referencing \"Contribution_Amount must meet the minimum contribution amount\" if the precision causes the minimum-check to fail. Test documents which behavior occurs.",
       "priority": "low"
-    },
-    {
-      "tc_id": "E-015",
-      "subcategory": "interaction_edge",
-      "test_case": "Change selected Fund_Symbol immediately before submit; system validates against the final selection",
-      "preconditions": [
-        "Open Trade Funds Form",
-        "Start with Fund_Symbol 'X' selected and Action = Sell (so share balance is relevant)",
-        "User also has holdings in a different fund 'Y'"
-      ],
-      "steps": [
-        "While the form is filled (e.g., Quantity entered), change the Fund_Symbol selection from 'X' to 'Y' immediately before clicking Execute Trade",
-        "Click Execute Trade"
-      ],
-      "expected_result": "System validates and executes (or rejects) the trade based on the final selected Fund_Symbol 'Y' (i.e., checks share balance/buying power for 'Y'), not the previously-selected 'X'. If 'Y' lacks sufficient shares/buying power, inline validation appears; otherwise, trade executes for 'Y'.",
-      "priority": "medium"
     }
   ],
   "summary": {
-    "total": 15,
-    "boundary": 10,
+    "total": 11,
+    "boundary": 6,
     "edge": 5,
-    "medium_priority": 12,
-    "low_priority": 3
+    "medium_priority": 6,
+    "low_priority": 5
   }
 }
 
 ------------------------------------------------------------
-[22:01:08] Test-Edge - PARSED JSON
+[23:13:45] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Investments",
@@ -610,260 +594,224 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Quantity = 1 passes (Quantity must be greater than 0)",
+      "test_case": "Trade Quantity just-above-zero succeeds (boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select an existing Fund_Symbol (search matches an existing symbol)",
-        "Select Action = Buy",
-        "Funding account selected has clearly more than enough buying power as shown in the UI"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account has ample buying power for the small purchase amount used"
       ],
       "steps": [
-        "Enter Quantity = 1",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity = 0.01",
+        "Select Funding_or_Destination_Account",
         "Click Execute Trade"
       ],
-      "expected_result": "PASS \u2014 trade proceeds; UI shows \"Trade executed successfully.\" and an order ID; holdings update in portfolio snapshot (per submit_actions and description).",
+      "expected_result": "Pass: Submit succeeds. Follows on_success for Execute Trade: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Quantity = 0 fails (Quantity must be greater than 0)",
+      "test_case": "Trade Quantity = 0 is rejected (boundary fail for 'must be greater than 0')",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select an existing Fund_Symbol",
-        "Select Action = Buy",
-        "Funding account has adequate buying power (so failure is due to Quantity validation)"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account selected"
       ],
       "steps": [
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
         "Enter Quantity = 0",
+        "Select Funding_or_Destination_Account",
         "Click Execute Trade"
       ],
-      "expected_result": "FAIL \u2014 inline validation error appears for Quantity (reflecting \"must be greater than 0\"). No trade executed.",
+      "expected_result": "Fail: Inline validation error shown: \"Quantity must be greater than 0\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
       "subcategory": "boundary",
-      "test_case": "Buy: buying power exactly equals required amount \u2192 trade succeeds",
+      "test_case": "Recurring plan Start_Date exactly next calendar day succeeds (future-date boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Buy and an existing Fund_Symbol",
-        "UI displays current price or required cost per share and a funding account's buying power",
-        "Precondition: calculate/select a Quantity so that (Quantity \u00d7 displayed price) equals the funding account's displayed buying power"
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_Account has adequate balance to fund initial contribution"
       ],
       "steps": [
-        "Enter the calculated Quantity that makes required cost == displayed buying power",
-        "Select that funding account",
-        "Click Execute Trade"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = tomorrow (next calendar day)",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "PASS \u2014 per submit_actions constraint \"if Action == Buy then customer must have sufficient buying power...\" the trade executes; UI shows \"Trade executed successfully.\" with one order ID.",
+      "expected_result": "Pass: Submit succeeds. Follows on_success for Create Plan: stores schedule and shows \"Plan created successfully.\"",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "boundary",
-      "test_case": "Buy: buying power just short of required amount \u2192 trade fails",
+      "test_case": "Recurring plan Start_Date = today is rejected (future-date boundary fail)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Buy and an existing Fund_Symbol",
-        "UI displays a funding account's buying power and the fund price",
-        "Precondition: select a Quantity where required cost is $0.01 more than the funding account's displayed buying power"
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_Account selected"
       ],
       "steps": [
-        "Enter that Quantity",
-        "Select the funding account with buying power $0.01 short",
-        "Click Execute Trade"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = today",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "FAIL \u2014 inline validation prevents execution with an error indicating insufficient buying power (reflecting submit_actions constraint). No trade executed.",
+      "expected_result": "Fail: Inline validation error shown: \"Start date must be in the future\" (and/or constraint: \"must be a future date\")",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "boundary",
-      "test_case": "Sell: Quantity equal to displayed share balance succeeds",
+      "test_case": "Buy succeeds when Funding_or_Destination_Account balance equals exactly required purchase amount (sufficiency boundary pass)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Sell and select a Fund_Symbol for which the portfolio snapshot shows a non-zero share balance",
-        "Note the displayed share balance for that Fund_Symbol"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account balance is set equal to the exact total cost of Quantity \u00d7 price (user-visible balance)",
+        "Quantity chosen such that required purchase amount equals Funding_or_Destination_Account balance"
       ],
       "steps": [
-        "Enter Quantity equal to the displayed share balance",
-        "Select a destination/funding account",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity that results in purchase cost exactly equal to the funding account balance",
+        "Select Funding_or_Destination_Account (the account with exact funds)",
         "Click Execute Trade"
       ],
-      "expected_result": "PASS \u2014 per submit_actions constraint \"if Action == Sell then customer must have sufficient share balance...\" trade executes; UI shows \"Trade executed successfully.\" with an order ID and holdings update.",
+      "expected_result": "Pass: Constraint satisfied: \"If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase\" \u2014 on_success: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "boundary",
-      "test_case": "Sell: Quantity one unit greater than displayed share balance fails",
+      "test_case": "Buy rejected when Funding_or_Destination_Account is short by the smallest currency unit (sufficiency boundary fail)",
       "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action = Sell and a Fund_Symbol with displayed share balance N (N \u2265 1)"
+        "User is on Trade_Funds_Form",
+        "Action = Buy",
+        "Fund_Symbol resolves to an existing fund symbol",
+        "Funding_or_Destination_Account balance is set to required purchase amount minus the smallest currency unit (e.g., $0.01)"
       ],
       "steps": [
-        "Enter Quantity = N + 1 (one unit more than displayed share balance)",
+        "Select Action = Buy",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Quantity that results in purchase cost $0.01 greater than the funding account balance",
+        "Select Funding_or_Destination_Account (the underfunded account)",
         "Click Execute Trade"
       ],
-      "expected_result": "FAIL \u2014 inline validation error appears indicating insufficient share balance (reflecting the submit_actions constraint). No trade executed.",
+      "expected_result": "Fail: Inline validation prevents submit. Constraint violated: \"If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase\" (error appears inline)",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
-      "subcategory": "boundary",
-      "test_case": "Recurring plan: Contribution_Amount exactly equals displayed minimum contribution \u2192 plan created",
+      "subcategory": "input_edge",
+      "test_case": "Clearing Fund_Symbol after selecting a resolved suggestion triggers fund-resolution validation",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "UI displays the plan's minimum contribution amount (per constraint \"must meet the minimum contribution\")",
-        "Start_Date set to a valid future date and Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "User can search and resolve Fund_Symbol suggestions"
       ],
       "steps": [
-        "Enter Contribution_Amount equal to the displayed minimum contribution",
-        "Fill remaining required fields",
-        "Click Create Plan"
+        "Begin typing a Fund_Symbol that resolves to an existing fund symbol and select that suggestion",
+        "After selection, clear the Fund_Symbol field to blank",
+        "Fill remaining required fields (Action, Quantity, Funding_or_Destination_Account) with valid values",
+        "Click Execute Trade"
       ],
-      "expected_result": "PASS \u2014 plan is created; UI shows \"Plan created successfully.\" (per submit_actions on_success).",
-      "priority": "medium"
+      "expected_result": "Fail: Inline validation shown for Fund_Symbol: \"must resolve to an existing fund symbol\" (field is required and must resolve)",
+      "priority": "low"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "boundary",
-      "test_case": "Recurring plan: Contribution_Amount one cent below displayed minimum \u2192 creation fails",
+      "subcategory": "state_edge",
+      "test_case": "Sell succeeds when Quantity equals customer's exact share balance (edge of share-balance sufficiency)",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "UI displays the plan's minimum contribution amount",
-        "Start_Date set to a valid future date and Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "Action = Sell",
+        "Customer holds X.XX shares of the Fund_Symbol (known, UI-displayed share balance)",
+        "Quantity set equal to the customer's exact share balance"
       ],
       "steps": [
-        "Enter Contribution_Amount = displayed minimum contribution - $0.01",
-        "Click Create Plan"
+        "Select Action = Sell",
+        "Enter Fund_Symbol that resolves to an existing fund symbol (the one customer holds)",
+        "Enter Quantity equal to the exact displayed share balance",
+        "Select Funding_or_Destination_Account (destination for sale proceeds)",
+        "Click Execute Trade"
       ],
-      "expected_result": "FAIL \u2014 inline validation error appears for Contribution_Amount (reflecting \"must meet the minimum contribution\"); plan not created.",
+      "expected_result": "Pass: Constraint satisfied: \"If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity\" \u2014 on_success: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
       "priority": "medium"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "boundary",
-      "test_case": "Start_Date = tomorrow passes (Start date must be in the future)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of Execute Trade does not create duplicate orders",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
-        "Funding_Account has adequate balance"
+        "User is on Trade_Funds_Form",
+        "All fields valid and populated (Action, Fund_Symbol resolves, Quantity > 0, Funding_or_Destination_Account)",
+        "User has network latency causing delayed button response"
       ],
       "steps": [
-        "Set Start_Date to tomorrow's date",
-        "Fill remaining required fields",
-        "Click Create Plan"
+        "Click Execute Trade twice in rapid succession (double-click)",
+        "Observe success/error messages and any displayed order ID(s)"
       ],
-      "expected_result": "PASS \u2014 plan is created; UI shows \"Plan created successfully.\" Start date accepted because it is in the future (matches description and constraint).",
-      "priority": "medium"
+      "expected_result": "Pass: Only a single success completion. The UI displays a single occurrence of the on_success text: executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID \u2014 no duplicate order messages shown",
+      "priority": "low"
     },
     {
       "tc_id": "E-010",
-      "subcategory": "boundary",
-      "test_case": "Start_Date = today fails (Start date must be in the future)",
+      "subcategory": "data_edge",
+      "test_case": "Recurring plan Start_Date set to Feb 29 on upcoming leap year (date edge)",
       "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
+        "Today is before the target leap-day Start_Date",
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
         "Funding_Account has adequate balance"
       ],
       "steps": [
-        "Set Start_Date to today's date",
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount that meets the minimum contribution amount",
+        "Select Frequency",
+        "Set Start_Date = February 29 of the next leap year",
+        "Select Funding_Account",
         "Click Create Plan"
       ],
-      "expected_result": "FAIL \u2014 inline validation error appears saying \"Start date must be in the future\" (explicit example from description); plan not created.",
-      "priority": "medium"
+      "expected_result": "Pass if Start_Date is a valid future date: Create Plan succeeds and follows on_success: stores schedule and shows \"Plan created successfully.\"; otherwise, if the date picker disallows the date, an inline date validation/error aligned with \"Start date must be in the future\" appears",
+      "priority": "low"
     },
     {
       "tc_id": "E-011",
       "subcategory": "input_edge",
-      "test_case": "Fund_Symbol search with leading/trailing whitespace is trimmed and matches existing symbol",
+      "test_case": "Recurring plan Contribution_Amount entered with high decimal precision",
       "preconditions": [
-        "Open either form's Fund_Symbol search field",
-        "There exists a known fund symbol 'ABC' visible via search"
-      ],
-      "steps": [
-        "Type '  ABC  ' (leading and trailing spaces) into Fund_Symbol search",
-        "Observe autocomplete results and select the matching symbol",
-        "Attempt to submit the form (Execute Trade or Create Plan depending on form)"
-      ],
-      "expected_result": "The search should successfully match and allow selection of the existing symbol (the UI effectively trims whitespace). Submission proceeds to the form-level checks (e.g., buying power or minimum contribution).",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-012",
-      "subcategory": "input_edge",
-      "test_case": "Fund_Symbol search with non-alphanumeric characters / emoji returns no results and triggers 'symbol must exist' validation on submit",
-      "preconditions": [
-        "Open either form's Fund_Symbol search field"
-      ],
-      "steps": [
-        "Enter an unusual string containing emoji and punctuation (e.g. '\ud83d\ude80\u2728!!!') into Fund_Symbol search",
-        "Attempt to select a result (none expected) and click the form's submit button"
-      ],
-      "expected_result": "No autocomplete hits; on submit the form shows inline validation referencing the constraint \"symbol must exist\" and blocks submission.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-013",
-      "subcategory": "interaction_edge",
-      "test_case": "Double-click Execute Trade rapidly should not create duplicate trades",
-      "preconditions": [
-        "Open Trade Funds Form",
-        "Select Action, existing Fund_Symbol, Quantity (>0), and a funding/destination account that would allow execution",
-        "Ensure UI displays order success message on normal execution"
-      ],
-      "steps": [
-        "Rapidly double-click (or double-tap) the Execute Trade button",
-        "Observe UI for success messages and order IDs"
-      ],
-      "expected_result": "Only one trade is executed: UI shows a single \"Trade executed successfully.\" message and a single order ID. The Execute Trade action becomes disabled/indicates progress to prevent duplicate submissions (behavior visible in UI).",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-014",
-      "subcategory": "data_edge",
-      "test_case": "Recurring plan with Start_Date far in the future (e.g., year 2099) is accepted if in the future",
-      "preconditions": [
-        "Open Recurring Investment Plan Form",
-        "Fund_Symbol selected exists",
-        "Contribution_Amount meets minimum",
+        "User is on Recurring_Investment_Plan_Form",
+        "Fund_Symbol resolves to an existing fund symbol",
         "Funding_Account has adequate balance"
       ],
       "steps": [
-        "Set Start_Date to a distant future date (e.g., 2099-01-01)",
-        "Fill remaining required fields and click Create Plan"
+        "Enter Fund_Symbol that resolves to an existing fund symbol",
+        "Enter Contribution_Amount = 100.0000001 (high precision decimal)",
+        "Select Frequency",
+        "Set Start_Date to a valid future date",
+        "Select Funding_Account",
+        "Click Create Plan"
       ],
-      "expected_result": "PASS \u2014 since the constraint is only \"must be in the future\", the system accepts a far-future date and shows \"Plan created successfully.\"; schedule is stored per description.",
+      "expected_result": "Either: Pass \u2014 plan is created (stores schedule and shows \"Plan created successfully.\") if the amount meets the constraint \"Contribution_Amount must meet the minimum contribution amount\" when rounded/accepted; or Fail \u2014 inline validation referencing \"Contribution_Amount must meet the minimum contribution amount\" if the precision causes the minimum-check to fail. Test documents which behavior occurs.",
       "priority": "low"
-    },
-    {
-      "tc_id": "E-015",
-      "subcategory": "interaction_edge",
-      "test_case": "Change selected Fund_Symbol immediately before submit; system validates against the final selection",
-      "preconditions": [
-        "Open Trade Funds Form",
-        "Start with Fund_Symbol 'X' selected and Action = Sell (so share balance is relevant)",
-        "User also has holdings in a different fund 'Y'"
-      ],
-      "steps": [
-        "While the form is filled (e.g., Quantity entered), change the Fund_Symbol selection from 'X' to 'Y' immediately before clicking Execute Trade",
-        "Click Execute Trade"
-      ],
-      "expected_result": "System validates and executes (or rejects) the trade based on the final selected Fund_Symbol 'Y' (i.e., checks share balance/buying power for 'Y'), not the previously-selected 'X'. If 'Y' lacks sufficient shares/buying power, inline validation appears; otherwise, trade executes for 'Y'.",
-      "priority": "medium"
     }
   ],
   "summary": {
-    "total": 15,
-    "boundary": 10,
+    "total": 11,
+    "boundary": 6,
     "edge": 5,
-    "medium_priority": 12,
-    "low_priority": 3
+    "medium_priority": 6,
+    "low_priority": 5
   }
 }

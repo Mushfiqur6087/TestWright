@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572799
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556425
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Update Contact Info</module_name>
 
@@ -228,73 +246,74 @@ Categories to consider:
 {
   "module_name": "Update Contact Info",
   "components": {
-    "Update_Contact_Info_Form": {
+    "Update_Contact_Form": {
       "type": "form",
       "fields": {
         "First_Name": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match expected format"
           ]
         },
         "Last_Name": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match expected format"
           ]
         },
         "Street_Address": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected street address format"
+            "must match expected format"
           ]
         },
         "City": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected city name format"
+            "must match expected format"
           ]
         },
         "State": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must be a valid state/region value"
+            "must match expected format"
           ]
         },
         "ZIP_Code": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match ZIP/postal code format (e.g., 5 digits or 5+4)"
+            "must match expected format"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match phone number format (e.g., 10-digit or E.164)"
+            "must match expected format"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Update Profile",
-          "type": "button",
-          "on_submit": "validates each field for format and completeness",
-          "on_success": "Profile updated successfully and refreshes the data",
-          "on_failure": "highlights invalid fields and displays inline error banner"
+          "constraints": [
+            "validates all fields for format and completeness before submitting"
+          ],
+          "on_success": "Profile updated successfully.; refreshes the data",
+          "on_failure": "highlights invalid fields and displays an inline error banner"
         }
       ]
     }
@@ -302,16 +321,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:00:06] Test-Edge - LLM RESPONSE
+[23:13:15] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Update Contact Info",
@@ -319,127 +332,117 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "ZIP Code: exactly 5 digits (boundary pass)",
+      "subcategory": "input_edge",
+      "test_case": "Whitespace-only First_Name triggers completeness validation",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded with prefilled values",
+        "Field referenced: First_Name",
+        "Submit action referenced: Update Profile"
       ],
       "steps": [
-        "In ZIP_Code field enter a 5-digit ZIP (e.g., 12345)",
+        "Clear the First_Name field and enter only whitespace characters (e.g. three spaces)",
+        "Leave other fields as prefilled valid values",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "PASS — Submission succeeds: shows 'Profile updated successfully.' and refreshes the data",
+      "expected_result": "Form submission runs 'validates all fields for format and completeness before submitting' and must follow on_failure: 'highlights invalid fields and displays an inline error banner'. (Exact text checked: \"highlights invalid fields and displays an inline error banner\")",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "ZIP Code: 4 digits (just past boundary fail)",
+      "subcategory": "input_edge",
+      "test_case": "Phone_Number with international format (+44 ...) — observed acceptance vs rejection",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: Phone_Number",
+        "Submit action referenced: Update Profile",
+        "Constraint referenced: 'must match expected format'"
       ],
       "steps": [
-        "In ZIP_Code field enter 4 digits (e.g., 1234)",
+        "Replace the prefilled Phone_Number with an international-format example: '+44 20 7946 0958'",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "FAIL — Validation fails: highlights ZIP_Code field and displays inline error banner (as per 'must match ZIP/postal code format')",
+      "expected_result": "The UI validates Phone_Number per 'must match expected format'. Two observable, explicit outcomes are acceptable: either (A) validation passes and the UI shows the on_success text \"Profile updated successfully.; refreshes the data\"; or (B) validation fails and the UI performs on_failure: \"highlights invalid fields and displays an inline error banner\". Test must record which outcome occurs and that the UI shows one of these exact messages.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Phone Number: exactly 10 digits (boundary pass)",
+      "subcategory": "input_edge",
+      "test_case": "Very long Street_Address (300+ characters) -- observe format/completeness handling",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: Street_Address",
+        "Submit action referenced: Update Profile",
+        "Constraint referenced: 'must match expected format'"
       ],
       "steps": [
-        "In Phone_Number field enter exactly 10 digits with no formatting (e.g., 4155551234)",
+        "Paste a 300-character freeform string into Street_Address",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "PASS — Submission succeeds: shows 'Profile updated successfully.' and refreshes the data (meets '10-digit' phone format constraint)",
-      "priority": "medium"
+      "expected_result": "The system validates Street_Address per 'must match expected format'. Either: (A) it accepts the long input and displays exactly \"Profile updated successfully.; refreshes the data\"; or (B) it rejects it and \"highlights invalid fields and displays an inline error banner\". Record which exact on_success/on_failure text appears.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Phone Number: 9 digits (just past boundary fail)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Update Profile' results in single success notification and single refresh",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded with valid values for all fields",
+        "Submit action referenced: Update Profile",
+        "on_success text: 'Profile updated successfully.; refreshes the data'"
       ],
       "steps": [
-        "In Phone_Number field enter 9 digits (e.g., 415555123)",
-        "Click the 'Update Profile' button"
+        "Ensure all fields validate (use known-valid prefilled values or valid edits)",
+        "Rapidly click (double-click) the 'Update Profile' button twice within 300 ms"
       ],
-      "expected_result": "FAIL — Validation fails: highlights Phone_Number field and displays inline error banner (violates '10-digit or E.164' constraint)",
+      "expected_result": "When fields are valid, the UI must not produce duplicate success notifications. Exactly one occurrence of the on_success text \"Profile updated successfully.; refreshes the data\" should be displayed and the data should be refreshed only once. No duplicate inline success banners should be present.",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "First Name contains only whitespace (presence edge)",
+      "subcategory": "state_edge",
+      "test_case": "After successful update, browser Back then Forward retains the refreshed data",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Have a deterministic change ready (e.g., change First_Name to a distinct value)",
+        "on_success text: 'Profile updated successfully.; refreshes the data'"
       ],
       "steps": [
-        "Replace First_Name field value with only spaces (e.g., '    ')",
-        "Click the 'Update Profile' button"
+        "Change First_Name to a distinct value and click 'Update Profile'",
+        "Verify the UI shows the exact on_success text \"Profile updated successfully.; refreshes the data\"",
+        "Immediately press the browser Back button, then press Forward to return to the form"
       ],
-      "expected_result": "FAIL — Validation treats missing meaningful input as not present: highlights First_Name and displays inline error banner (per 'must be present')",
+      "expected_result": "After observing the on_success text, navigating Back then Forward should show the form with the refreshed data (the changed First_Name) present. The test verifies the result of the 'refreshes the data' behavior after navigation.",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "input_edge",
-      "test_case": "Last Name with emoji/special characters (format edge)",
+      "test_case": "Unicode/emoji in City field — observe format validation",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: City",
+        "Constraint referenced: 'must match expected format'",
+        "Submit action referenced: Update Profile"
       ],
       "steps": [
-        "In Last_Name field enter a name containing emoji/symbols (e.g., 'Doe🙂' or 'O'Connor©')",
+        "Replace City with a value containing Unicode and emoji, e.g. 'São Paulo 🚀'",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "FAIL — Validation flags Last_Name as invalid and displays inline error banner (per 'must match expected name format')",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-007",
-      "subcategory": "input_edge",
-      "test_case": "Phone Number entered with common formatting characters (parentheses/spaces/dashes)",
-      "preconditions": [
-        "Customer profile page is open and form is pre-filled"
-      ],
-      "steps": [
-        "In Phone_Number field enter a formatted 10-digit number with separators (e.g., '(415) 555-1234')",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "FAIL — Validation fails if formatting characters are not accepted: highlights Phone_Number and displays inline error banner (constraint requires '10-digit or E.164')",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-008",
-      "subcategory": "interaction_edge",
-      "test_case": "Submit without making any changes (no-op submit)",
-      "preconditions": [
-        "Customer profile page is open and form is pre-filled with existing data"
-      ],
-      "steps": [
-        "Without changing any field values, click the 'Update Profile' button"
-      ],
-      "expected_result": "PASS — The form validates current values; on success shows 'Profile updated successfully.' and refreshes the data (per description: submission triggers validation and on_success refreshes the data)",
+      "expected_result": "The UI validates City per 'must match expected format'. Either: (A) the input is accepted and the UI displays \"Profile updated successfully.; refreshes the data\"; or (B) the input is rejected and the UI \"highlights invalid fields and displays an inline error banner\". The test must record which exact on_success/on_failure text is displayed.",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
-    "boundary": 4,
-    "edge": 4,
-    "medium_priority": 7,
-    "low_priority": 1
+    "total": 6,
+    "boundary": 0,
+    "edge": 6,
+    "medium_priority": 4,
+    "low_priority": 2
   }
 }
 
 ------------------------------------------------------------
-[22:00:06] Test-Edge - PARSED JSON
+[23:13:15] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Update Contact Info",
@@ -447,121 +450,111 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "ZIP Code: exactly 5 digits (boundary pass)",
+      "subcategory": "input_edge",
+      "test_case": "Whitespace-only First_Name triggers completeness validation",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded with prefilled values",
+        "Field referenced: First_Name",
+        "Submit action referenced: Update Profile"
       ],
       "steps": [
-        "In ZIP_Code field enter a 5-digit ZIP (e.g., 12345)",
+        "Clear the First_Name field and enter only whitespace characters (e.g. three spaces)",
+        "Leave other fields as prefilled valid values",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "PASS \u2014 Submission succeeds: shows 'Profile updated successfully.' and refreshes the data",
+      "expected_result": "Form submission runs 'validates all fields for format and completeness before submitting' and must follow on_failure: 'highlights invalid fields and displays an inline error banner'. (Exact text checked: \"highlights invalid fields and displays an inline error banner\")",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "ZIP Code: 4 digits (just past boundary fail)",
+      "subcategory": "input_edge",
+      "test_case": "Phone_Number with international format (+44 ...) \u2014 observed acceptance vs rejection",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: Phone_Number",
+        "Submit action referenced: Update Profile",
+        "Constraint referenced: 'must match expected format'"
       ],
       "steps": [
-        "In ZIP_Code field enter 4 digits (e.g., 1234)",
+        "Replace the prefilled Phone_Number with an international-format example: '+44 20 7946 0958'",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "FAIL \u2014 Validation fails: highlights ZIP_Code field and displays inline error banner (as per 'must match ZIP/postal code format')",
+      "expected_result": "The UI validates Phone_Number per 'must match expected format'. Two observable, explicit outcomes are acceptable: either (A) validation passes and the UI shows the on_success text \"Profile updated successfully.; refreshes the data\"; or (B) validation fails and the UI performs on_failure: \"highlights invalid fields and displays an inline error banner\". Test must record which outcome occurs and that the UI shows one of these exact messages.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Phone Number: exactly 10 digits (boundary pass)",
+      "subcategory": "input_edge",
+      "test_case": "Very long Street_Address (300+ characters) -- observe format/completeness handling",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: Street_Address",
+        "Submit action referenced: Update Profile",
+        "Constraint referenced: 'must match expected format'"
       ],
       "steps": [
-        "In Phone_Number field enter exactly 10 digits with no formatting (e.g., 4155551234)",
+        "Paste a 300-character freeform string into Street_Address",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "PASS \u2014 Submission succeeds: shows 'Profile updated successfully.' and refreshes the data (meets '10-digit' phone format constraint)",
-      "priority": "medium"
+      "expected_result": "The system validates Street_Address per 'must match expected format'. Either: (A) it accepts the long input and displays exactly \"Profile updated successfully.; refreshes the data\"; or (B) it rejects it and \"highlights invalid fields and displays an inline error banner\". Record which exact on_success/on_failure text appears.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Phone Number: 9 digits (just past boundary fail)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Update Profile' results in single success notification and single refresh",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded with valid values for all fields",
+        "Submit action referenced: Update Profile",
+        "on_success text: 'Profile updated successfully.; refreshes the data'"
       ],
       "steps": [
-        "In Phone_Number field enter 9 digits (e.g., 415555123)",
-        "Click the 'Update Profile' button"
+        "Ensure all fields validate (use known-valid prefilled values or valid edits)",
+        "Rapidly click (double-click) the 'Update Profile' button twice within 300 ms"
       ],
-      "expected_result": "FAIL \u2014 Validation fails: highlights Phone_Number field and displays inline error banner (violates '10-digit or E.164' constraint)",
+      "expected_result": "When fields are valid, the UI must not produce duplicate success notifications. Exactly one occurrence of the on_success text \"Profile updated successfully.; refreshes the data\" should be displayed and the data should be refreshed only once. No duplicate inline success banners should be present.",
       "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "First Name contains only whitespace (presence edge)",
+      "subcategory": "state_edge",
+      "test_case": "After successful update, browser Back then Forward retains the refreshed data",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Have a deterministic change ready (e.g., change First_Name to a distinct value)",
+        "on_success text: 'Profile updated successfully.; refreshes the data'"
       ],
       "steps": [
-        "Replace First_Name field value with only spaces (e.g., '    ')",
-        "Click the 'Update Profile' button"
+        "Change First_Name to a distinct value and click 'Update Profile'",
+        "Verify the UI shows the exact on_success text \"Profile updated successfully.; refreshes the data\"",
+        "Immediately press the browser Back button, then press Forward to return to the form"
       ],
-      "expected_result": "FAIL \u2014 Validation treats missing meaningful input as not present: highlights First_Name and displays inline error banner (per 'must be present')",
+      "expected_result": "After observing the on_success text, navigating Back then Forward should show the form with the refreshed data (the changed First_Name) present. The test verifies the result of the 'refreshes the data' behavior after navigation.",
       "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "input_edge",
-      "test_case": "Last Name with emoji/special characters (format edge)",
+      "test_case": "Unicode/emoji in City field \u2014 observe format validation",
       "preconditions": [
-        "Customer profile page is open and form is pre-filled"
+        "Update_Contact_Form loaded",
+        "Field referenced: City",
+        "Constraint referenced: 'must match expected format'",
+        "Submit action referenced: Update Profile"
       ],
       "steps": [
-        "In Last_Name field enter a name containing emoji/symbols (e.g., 'Doe\ud83d\ude42' or 'O'Connor\u00a9')",
+        "Replace City with a value containing Unicode and emoji, e.g. 'S\u00e3o Paulo \ud83d\ude80'",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "FAIL \u2014 Validation flags Last_Name as invalid and displays inline error banner (per 'must match expected name format')",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-007",
-      "subcategory": "input_edge",
-      "test_case": "Phone Number entered with common formatting characters (parentheses/spaces/dashes)",
-      "preconditions": [
-        "Customer profile page is open and form is pre-filled"
-      ],
-      "steps": [
-        "In Phone_Number field enter a formatted 10-digit number with separators (e.g., '(415) 555-1234')",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "FAIL \u2014 Validation fails if formatting characters are not accepted: highlights Phone_Number and displays inline error banner (constraint requires '10-digit or E.164')",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "E-008",
-      "subcategory": "interaction_edge",
-      "test_case": "Submit without making any changes (no-op submit)",
-      "preconditions": [
-        "Customer profile page is open and form is pre-filled with existing data"
-      ],
-      "steps": [
-        "Without changing any field values, click the 'Update Profile' button"
-      ],
-      "expected_result": "PASS \u2014 The form validates current values; on success shows 'Profile updated successfully.' and refreshes the data (per description: submission triggers validation and on_success refreshes the data)",
+      "expected_result": "The UI validates City per 'must match expected format'. Either: (A) the input is accepted and the UI displays \"Profile updated successfully.; refreshes the data\"; or (B) the input is rejected and the UI \"highlights invalid fields and displays an inline error banner\". The test must record which exact on_success/on_failure text is displayed.",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
-    "boundary": 4,
-    "edge": 4,
-    "medium_priority": 7,
-    "low_priority": 1
+    "total": 6,
+    "boundary": 0,
+    "edge": 6,
+    "medium_priority": 4,
+    "low_priority": 2
   }
 }

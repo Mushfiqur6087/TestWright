@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573249
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557273
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Security Settings</module_name>
 
@@ -230,8 +248,7 @@ Categories to consider:
   "components": {
     "Change_Password_Panel": {
       "type": "collapsible_panel",
-      "fields": {},
-      "contains": {
+      "fields": {
         "Change_Password_Form": {
           "type": "form",
           "fields": {
@@ -239,14 +256,14 @@ Categories to consider:
               "type": "password",
               "required": true,
               "constraints": [
-                "will be verified by the system against existing credentials"
+                "must be validated by the system against the user's existing password"
               ]
             },
             "New_Password": {
               "type": "password",
               "required": true,
               "constraints": [
-                "must meet strong-password policy"
+                "must satisfy strong-password policy"
               ]
             },
             "Confirm_New_Password": {
@@ -262,10 +279,10 @@ Categories to consider:
               "element_name": "Change Password",
               "type": "button",
               "preconditions": [
-                "Current_Password must be verified"
+                "Current_Password must match the user's existing password"
               ],
-              "on_success": "Password changed successfully and credentials updated",
-              "on_failure": "validation errors highlight corresponding fields and display messages"
+              "on_success": "updates credentials and returns 'Password changed successfully.'",
+              "on_error": "validation errors highlight the appropriate fields"
             }
           ]
         }
@@ -275,16 +292,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The Security Settings page contains a single form under a collapsible panel.The change password form contains Current Password, New Password, Confirm New Password, and a “Change Password” button. The system verifies the current password, enforces a strong-password policy, checks the match, and updates credentials, returning “Password changed successfully.”. Validation errors highlight the appropriate fields.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:02:13] Test-Edge - LLM RESPONSE
+[23:13:57] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Security Settings",
@@ -292,158 +303,181 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "Change succeeds when Current_Password verified and Confirm_New_Password exactly matches New_Password",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_New_Password differs only by case (should fail match)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel containing the Change Password form is expanded",
-        "User knows their correct current password (system will verify)"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "In Current Password enter the user's correct password",
-        "In New Password enter a password that meets the strong-password policy (example: Str0ng!Pass)",
-        "In Confirm New Password enter the exact same value as New Password (byte-for-byte identical)",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'NewPass123!' into New_Password",
+        "Enter Confirm_New_Password = 'newpass123!' (same characters, different case) into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "PASS: System verifies Current_Password, New and Confirm are identical, credentials are updated and the UI displays \"Password changed successfully.\" No validation highlights should be shown.",
-      "priority": "medium"
+      "expected_result": "Fail: Confirm_New_Password must match New_Password — validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
+      "priority": "low"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Change fails when Confirm_New_Password differs by a single character from New_Password",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_New_Password has leading/trailing whitespace (should fail exact match)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter a valid New Password (example: Str0ng!Pass)",
-        "Enter Confirm New Password that differs by exactly one character (example: Str0ng!PasX)",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'Secure!234' into New_Password",
+        "Enter Confirm_New_Password = ' Secure!234' (leading space) into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: The form should not succeed; validation errors highlight the Confirm New Password field and display a message indicating it \"must match New_Password\" (and no \"Password changed successfully.\" message appears).",
-      "priority": "medium"
+      "expected_result": "Fail: Confirm_New_Password does not exactly match New_Password — validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Change fails when Current_Password verification fails even if New and Confirm match",
+      "subcategory": "input_edge",
+      "test_case": "Pasted Current_Password with trailing whitespace (precondition mismatch)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User does NOT enter the correct current password"
+        "User is authenticated"
       ],
       "steps": [
-        "In Current Password enter an incorrect password",
-        "In New Password enter a value that meets the strong-password policy (example: Str0ng!Pass)",
-        "In Confirm New Password enter the same New Password exactly",
-        "Click the Change Password button"
+        "Paste the user's correct password plus a trailing space into Current_Password (e.g., 'CorrectPass ')",
+        "Enter a New_Password and matching Confirm_New_Password that would otherwise satisfy constraints",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: The system should verify Current_Password and reject the submission; validation errors highlight the Current Password field (per the precondition \"Current_Password must be verified\") and display an appropriate verification error. No \"Password changed successfully.\" message should appear.",
+      "expected_result": "Fail: Current_Password must match the user's existing password — precondition not satisfied; validation errors highlight Current_Password (references precondition: 'Current_Password must match the user's existing password')",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Invisible/zero-width character inserted into Confirm_New_Password produces mismatch",
+      "test_case": "New_Password identical to Current_Password (allowed if it meets strong policy)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter New Password (example: Str0ng!Pass)",
-        "In Confirm New Password enter the exact same visible characters but insert a zero-width space (ZWSP) somewhere inside the value",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter the same value into New_Password",
+        "Enter the same value into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Confirm New Password should be treated as not matching New Password; validation errors highlight the Confirm New Password field with a message indicating it \"must match New_Password\". No success message is shown.",
-      "priority": "low"
+      "expected_result": "Pass if the chosen password satisfies 'must satisfy strong-password policy': on_success 'updates credentials and returns 'Password changed successfully.''; otherwise New_Password validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "input_edge",
-      "test_case": "Leading or trailing whitespace in Confirm_New_Password causes mismatch when New_Password has no extra whitespace",
+      "test_case": "Very long New_Password (5000 characters) — acceptance depends on strong-password policy",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter New Password without surrounding spaces (example: Str0ng!Pass)",
-        "Enter Confirm New Password with leading and/or trailing spaces (example: \" Str0ng!Pass \")",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter a 5000-character string into New_Password and the identical 5000-character string into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Because Confirm New Password does not exactly match New Password, the form shows validation errors highlighting the Confirm New Password field (and/or New Password) with messaging per the \"must match New_Password\" constraint. No \"Password changed successfully.\" message appears.",
-      "priority": "low"
+      "expected_result": "If the 5000-char value satisfies 'must satisfy strong-password policy' then on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "input_edge",
-      "test_case": "New Password identical to Current Password — accepted unless a policy explicitly forbids reuse",
+      "test_case": "Unicode and emoji in New_Password and Confirm_New_Password (match + strength)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter Current Password with value X",
-        "Enter New Password with the exact same value X",
-        "Enter Confirm New Password with the exact same value X",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'Pässw😊rd123!' into New_Password",
+        "Enter Confirm_New_Password = 'Pässw😊rd123!' into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "PASS: The description does not state a prohibition on reusing the current password. If the system enforces only the described checks (verification, strong-password policy, and match) and the password satisfies the strong-password policy, the system should update credentials and display \"Password changed successfully.\" If the system has an additional (not-specified) policy disallowing reuse, it should instead show a validation error highlighting New Password — such a rejection is outside the current spec.",
-      "priority": "low"
+      "expected_result": "If the Unicode/emoji value satisfies 'must satisfy strong-password policy' then on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "interaction_edge",
-      "test_case": "Collapsing and reopening the panel preserves entered form values (no loss on collapse)",
+      "test_case": "Double-click the 'Change Password' button rapidly (should not produce duplicated success messages)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel containing the Change Password form is expanded"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter values into Current Password, New Password, and Confirm New Password fields (do not submit)",
-        "Collapse the Change Password panel",
-        "Re-open the Change Password panel"
+        "Enter a valid Current_Password into Current_Password",
+        "Enter a New_Password that satisfies 'must satisfy strong-password policy' into New_Password",
+        "Enter the identical value into Confirm_New_Password",
+        "Double-click the 'Change Password' button rapidly"
       ],
-      "expected_result": "PASS: After reopening the panel the form fields should retain the values the user entered (no unexpected clearing). If fields are cleared, it should be considered a UI-state loss bug (the AST identifies the form as being inside a collapsible panel).",
-      "priority": "low"
+      "expected_result": "UI shows a single on_success result: exactly one 'Password changed successfully.' message (references on_success text 'updates credentials and returns 'Password changed successfully.'') and no duplicated success messages",
+      "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "interaction_edge",
-      "test_case": "Pasting Confirm_New_Password with a trailing newline causes mismatch and validation",
+      "test_case": "Password manager autofills New_Password and Confirm_New_Password out-of-order before user interaction",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value into Current Password",
-        "Enter New Password (example: Str0ng!Pass)",
-        "Paste into Confirm New Password the same visible text but with an extra trailing newline character (e.g., \"Str0ng!Pass\\n\")",
-        "Click the Change Password button"
+        "Allow a password manager/autofill to populate New_Password and Confirm_New_Password (fields become populated without manual typing)",
+        "Ensure Current_Password is entered correctly",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Confirm New Password should be treated as not matching New Password; validation errors highlight Confirm New Password indicating it \"must match New_Password\". No \"Password changed successfully.\" message appears.",
+      "expected_result": "If autofilled values satisfy 'must satisfy strong-password policy' and Confirm_New_Password matches New_Password, on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight the appropriate field(s) (references constraint 'must satisfy strong-password policy', 'must match New_Password', and on_success text)",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "state_edge",
+      "test_case": "Attempt second change immediately using the old Current_Password after a successful change (precondition changes)",
+      "preconditions": [
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
+      ],
+      "steps": [
+        "Perform a successful password change: enter correct Current_Password, a valid New_Password and matching Confirm_New_Password, click 'Change Password' and observe on_success 'Password changed successfully.'",
+        "Immediately attempt another change using the original (now-previous) Current_Password as Current_Password and different New_Password/Confirm_New_Password values",
+        "Click the 'Change Password' button"
+      ],
+      "expected_result": "Fail: second attempt should fail because Current_Password must match the user's existing password (after the first success the existing password has changed); validation errors highlight Current_Password (references precondition 'Current_Password must match the user's existing password' and on_success text from the first action)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "data_edge",
+      "test_case": "Confirm_New_Password uses different Unicode normalization form than New_Password (should fail exact match)",
+      "preconditions": [
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
+      ],
+      "steps": [
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password containing a composed character (e.g., 'é' in NFC) into New_Password",
+        "Enter Confirm_New_Password containing the visually identical but differently normalized character (e.g., 'é' in NFD) into Confirm_New_Password",
+        "Click the 'Change Password' button"
+      ],
+      "expected_result": "Fail: Confirm_New_Password must match New_Password exactly — validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
-    "boundary": 3,
-    "edge": 5,
-    "medium_priority": 3,
+    "total": 10,
+    "boundary": 0,
+    "edge": 10,
+    "medium_priority": 5,
     "low_priority": 5
   }
 }
 
 ------------------------------------------------------------
-[22:02:13] Test-Edge - PARSED JSON
+[23:13:57] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Security Settings",
@@ -451,152 +485,175 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "Change succeeds when Current_Password verified and Confirm_New_Password exactly matches New_Password",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_New_Password differs only by case (should fail match)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel containing the Change Password form is expanded",
-        "User knows their correct current password (system will verify)"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "In Current Password enter the user's correct password",
-        "In New Password enter a password that meets the strong-password policy (example: Str0ng!Pass)",
-        "In Confirm New Password enter the exact same value as New Password (byte-for-byte identical)",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'NewPass123!' into New_Password",
+        "Enter Confirm_New_Password = 'newpass123!' (same characters, different case) into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "PASS: System verifies Current_Password, New and Confirm are identical, credentials are updated and the UI displays \"Password changed successfully.\" No validation highlights should be shown.",
-      "priority": "medium"
+      "expected_result": "Fail: Confirm_New_Password must match New_Password \u2014 validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
+      "priority": "low"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Change fails when Confirm_New_Password differs by a single character from New_Password",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_New_Password has leading/trailing whitespace (should fail exact match)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter a valid New Password (example: Str0ng!Pass)",
-        "Enter Confirm New Password that differs by exactly one character (example: Str0ng!PasX)",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'Secure!234' into New_Password",
+        "Enter Confirm_New_Password = ' Secure!234' (leading space) into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: The form should not succeed; validation errors highlight the Confirm New Password field and display a message indicating it \"must match New_Password\" (and no \"Password changed successfully.\" message appears).",
-      "priority": "medium"
+      "expected_result": "Fail: Confirm_New_Password does not exactly match New_Password \u2014 validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Change fails when Current_Password verification fails even if New and Confirm match",
+      "subcategory": "input_edge",
+      "test_case": "Pasted Current_Password with trailing whitespace (precondition mismatch)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User does NOT enter the correct current password"
+        "User is authenticated"
       ],
       "steps": [
-        "In Current Password enter an incorrect password",
-        "In New Password enter a value that meets the strong-password policy (example: Str0ng!Pass)",
-        "In Confirm New Password enter the same New Password exactly",
-        "Click the Change Password button"
+        "Paste the user's correct password plus a trailing space into Current_Password (e.g., 'CorrectPass ')",
+        "Enter a New_Password and matching Confirm_New_Password that would otherwise satisfy constraints",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: The system should verify Current_Password and reject the submission; validation errors highlight the Current Password field (per the precondition \"Current_Password must be verified\") and display an appropriate verification error. No \"Password changed successfully.\" message should appear.",
+      "expected_result": "Fail: Current_Password must match the user's existing password \u2014 precondition not satisfied; validation errors highlight Current_Password (references precondition: 'Current_Password must match the user's existing password')",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Invisible/zero-width character inserted into Confirm_New_Password produces mismatch",
+      "test_case": "New_Password identical to Current_Password (allowed if it meets strong policy)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter New Password (example: Str0ng!Pass)",
-        "In Confirm New Password enter the exact same visible characters but insert a zero-width space (ZWSP) somewhere inside the value",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter the same value into New_Password",
+        "Enter the same value into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Confirm New Password should be treated as not matching New Password; validation errors highlight the Confirm New Password field with a message indicating it \"must match New_Password\". No success message is shown.",
-      "priority": "low"
+      "expected_result": "Pass if the chosen password satisfies 'must satisfy strong-password policy': on_success 'updates credentials and returns 'Password changed successfully.''; otherwise New_Password validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-005",
       "subcategory": "input_edge",
-      "test_case": "Leading or trailing whitespace in Confirm_New_Password causes mismatch when New_Password has no extra whitespace",
+      "test_case": "Very long New_Password (5000 characters) \u2014 acceptance depends on strong-password policy",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value in Current Password",
-        "Enter New Password without surrounding spaces (example: Str0ng!Pass)",
-        "Enter Confirm New Password with leading and/or trailing spaces (example: \" Str0ng!Pass \")",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter a 5000-character string into New_Password and the identical 5000-character string into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Because Confirm New Password does not exactly match New Password, the form shows validation errors highlighting the Confirm New Password field (and/or New Password) with messaging per the \"must match New_Password\" constraint. No \"Password changed successfully.\" message appears.",
-      "priority": "low"
+      "expected_result": "If the 5000-char value satisfies 'must satisfy strong-password policy' then on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "input_edge",
-      "test_case": "New Password identical to Current Password \u2014 accepted unless a policy explicitly forbids reuse",
+      "test_case": "Unicode and emoji in New_Password and Confirm_New_Password (match + strength)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter Current Password with value X",
-        "Enter New Password with the exact same value X",
-        "Enter Confirm New Password with the exact same value X",
-        "Click the Change Password button"
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password = 'P\u00e4ssw\ud83d\ude0ard123!' into New_Password",
+        "Enter Confirm_New_Password = 'P\u00e4ssw\ud83d\ude0ard123!' into Confirm_New_Password",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "PASS: The description does not state a prohibition on reusing the current password. If the system enforces only the described checks (verification, strong-password policy, and match) and the password satisfies the strong-password policy, the system should update credentials and display \"Password changed successfully.\" If the system has an additional (not-specified) policy disallowing reuse, it should instead show a validation error highlighting New Password \u2014 such a rejection is outside the current spec.",
-      "priority": "low"
+      "expected_result": "If the Unicode/emoji value satisfies 'must satisfy strong-password policy' then on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight New_Password (references constraint: 'must satisfy strong-password policy' and on_success text)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "interaction_edge",
-      "test_case": "Collapsing and reopening the panel preserves entered form values (no loss on collapse)",
+      "test_case": "Double-click the 'Change Password' button rapidly (should not produce duplicated success messages)",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel containing the Change Password form is expanded"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter values into Current Password, New Password, and Confirm New Password fields (do not submit)",
-        "Collapse the Change Password panel",
-        "Re-open the Change Password panel"
+        "Enter a valid Current_Password into Current_Password",
+        "Enter a New_Password that satisfies 'must satisfy strong-password policy' into New_Password",
+        "Enter the identical value into Confirm_New_Password",
+        "Double-click the 'Change Password' button rapidly"
       ],
-      "expected_result": "PASS: After reopening the panel the form fields should retain the values the user entered (no unexpected clearing). If fields are cleared, it should be considered a UI-state loss bug (the AST identifies the form as being inside a collapsible panel).",
-      "priority": "low"
+      "expected_result": "UI shows a single on_success result: exactly one 'Password changed successfully.' message (references on_success text 'updates credentials and returns 'Password changed successfully.'') and no duplicated success messages",
+      "priority": "medium"
     },
     {
       "tc_id": "E-008",
       "subcategory": "interaction_edge",
-      "test_case": "Pasting Confirm_New_Password with a trailing newline causes mismatch and validation",
+      "test_case": "Password manager autofills New_Password and Confirm_New_Password out-of-order before user interaction",
       "preconditions": [
-        "User is on the Security Settings page",
-        "Collapsible panel is expanded",
-        "User knows their correct current password"
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter correct value into Current Password",
-        "Enter New Password (example: Str0ng!Pass)",
-        "Paste into Confirm New Password the same visible text but with an extra trailing newline character (e.g., \"Str0ng!Pass\\n\")",
-        "Click the Change Password button"
+        "Allow a password manager/autofill to populate New_Password and Confirm_New_Password (fields become populated without manual typing)",
+        "Ensure Current_Password is entered correctly",
+        "Click the 'Change Password' button"
       ],
-      "expected_result": "FAIL: Confirm New Password should be treated as not matching New Password; validation errors highlight Confirm New Password indicating it \"must match New_Password\". No \"Password changed successfully.\" message appears.",
+      "expected_result": "If autofilled values satisfy 'must satisfy strong-password policy' and Confirm_New_Password matches New_Password, on_success 'updates credentials and returns 'Password changed successfully.''; otherwise validation errors highlight the appropriate field(s) (references constraint 'must satisfy strong-password policy', 'must match New_Password', and on_success text)",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "state_edge",
+      "test_case": "Attempt second change immediately using the old Current_Password after a successful change (precondition changes)",
+      "preconditions": [
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
+      ],
+      "steps": [
+        "Perform a successful password change: enter correct Current_Password, a valid New_Password and matching Confirm_New_Password, click 'Change Password' and observe on_success 'Password changed successfully.'",
+        "Immediately attempt another change using the original (now-previous) Current_Password as Current_Password and different New_Password/Confirm_New_Password values",
+        "Click the 'Change Password' button"
+      ],
+      "expected_result": "Fail: second attempt should fail because Current_Password must match the user's existing password (after the first success the existing password has changed); validation errors highlight Current_Password (references precondition 'Current_Password must match the user's existing password' and on_success text from the first action)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "data_edge",
+      "test_case": "Confirm_New_Password uses different Unicode normalization form than New_Password (should fail exact match)",
+      "preconditions": [
+        "User is authenticated",
+        "Current_Password must match the user's existing password"
+      ],
+      "steps": [
+        "Enter the user's correct Current_Password into Current_Password",
+        "Enter New_Password containing a composed character (e.g., 'e\u0301' in NFC) into New_Password",
+        "Enter Confirm_New_Password containing the visually identical but differently normalized character (e.g., 'e\u0301' in NFD) into Confirm_New_Password",
+        "Click the 'Change Password' button"
+      ],
+      "expected_result": "Fail: Confirm_New_Password must match New_Password exactly \u2014 validation errors highlight Confirm_New_Password (references constraint: 'must match New_Password')",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
-    "boundary": 3,
-    "edge": 5,
-    "medium_priority": 3,
+    "total": 10,
+    "boundary": 0,
+    "edge": 10,
+    "medium_priority": 5,
     "low_priority": 5
   }
 }

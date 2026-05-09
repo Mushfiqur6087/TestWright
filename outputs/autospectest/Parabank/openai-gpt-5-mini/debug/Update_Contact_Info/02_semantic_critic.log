@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.324667
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.149547
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:45] Semantic Critic - SYSTEM PROMPT
+[23:09:17] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[21:54:45] Semantic Critic - USER PROMPT
+[23:09:17] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
@@ -118,15 +118,16 @@ The customer profile page offers an editable form pre-filled with First Name, La
 {
   "module_name": "Update Contact Info",
   "components": {
-    "Update_Contact_Info_Form": {
+    "Update_Contact_Form": {
       "type": "form",
+      "validation_trigger": "on_submit",
       "fields": {
         "First_Name": {
           "type": "unspecified",
           "required": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match name format (letters, spaces, hyphens allowed)"
           ]
         },
         "Last_Name": {
@@ -134,7 +135,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match name format (letters, spaces, hyphens allowed)"
           ]
         },
         "Street_Address": {
@@ -142,7 +143,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must match expected street address format"
+            "must match address format"
           ]
         },
         "City": {
@@ -150,7 +151,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must match expected city name format"
+            "must match city name format (letters, spaces, hyphens allowed)"
           ]
         },
         "State": {
@@ -158,7 +159,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must be a valid state/region value"
+            "must be a valid state value"
           ]
         },
         "ZIP_Code": {
@@ -166,7 +167,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must match ZIP/postal code format (e.g., 5 digits or 5+4)"
+            "must match ZIP/postal code format (e.g., 5 or 9 digits)"
           ]
         },
         "Phone_Number": {
@@ -174,7 +175,7 @@ The customer profile page offers an editable form pre-filled with First Name, La
           "required": true,
           "constraints": [
             "must be present",
-            "must match phone number format (e.g., 10-digit or E.164)"
+            "must match phone number format"
           ]
         }
       },
@@ -182,9 +183,11 @@ The customer profile page offers an editable form pre-filled with First Name, La
         {
           "element_name": "Update Profile",
           "type": "button",
-          "on_submit": "validates each field for format and completeness",
           "on_success": "Profile updated successfully and refreshes the data",
-          "on_failure": "highlights invalid fields and displays inline error banner"
+          "on_failure": "highlights invalid fields and displays an inline error banner",
+          "constraints": [
+            "triggers format and completeness validation for all fields"
+          ]
         }
       ]
     }
@@ -195,27 +198,161 @@ The customer profile page offers an editable form pre-filled with First Name, La
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:55:14] Semantic Critic - LLM RESPONSE
+[23:09:44] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "The AST contains several field-level constraint details that are not explicitly specified in the description (phantoms); regenerate with more faithful/generic validation text.",
+  "missing": [],
+  "phantoms": [
+    "components.Update_Contact_Form.fields.First_Name.constraints[1] (specific name-format detail not in description)",
+    "components.Update_Contact_Form.fields.Last_Name.constraints[1] (specific name-format detail not in description)",
+    "components.Update_Contact_Form.fields.City.constraints[1] (specific city-format detail not in description)",
+    "components.Update_Contact_Form.fields.ZIP_Code.constraints[1] (specific ZIP example '5 or 9 digits' not in description)",
+    "components.Update_Contact_Form.fields.State.constraints[1] (specific 'valid state value' constraint inferred)"
+  ],
+  "fixes": [
+    "components.Update_Contact_Form.fields.First_Name.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present' to reflect completeness validation.",
+    "components.Update_Contact_Form.fields.Last_Name.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.City.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.ZIP_Code.constraints: replace the second constraint string with a generic 'must match expected format' (do not add example digit counts) or remove the example; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.State.constraints: replace the second constraint string with a generic 'must match expected format' or remove the inferred 'valid state value' wording; keep 'must be present' if completeness is intended.",
+    "Optional: If more specificity is desired in a regenerated AST, include only those format details that are explicitly present in the description; otherwise keep all format constraints generic (e.g., 'must match expected format')."
+  ]
+}
+
+------------------------------------------------------------
+[23:09:44] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "The AST contains several field-level constraint details that are not explicitly specified in the description (phantoms); regenerate with more faithful/generic validation text.",
+  "missing": [],
+  "phantoms": [
+    "components.Update_Contact_Form.fields.First_Name.constraints[1] (specific name-format detail not in description)",
+    "components.Update_Contact_Form.fields.Last_Name.constraints[1] (specific name-format detail not in description)",
+    "components.Update_Contact_Form.fields.City.constraints[1] (specific city-format detail not in description)",
+    "components.Update_Contact_Form.fields.ZIP_Code.constraints[1] (specific ZIP example '5 or 9 digits' not in description)",
+    "components.Update_Contact_Form.fields.State.constraints[1] (specific 'valid state value' constraint inferred)"
+  ],
+  "fixes": [
+    "components.Update_Contact_Form.fields.First_Name.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present' to reflect completeness validation.",
+    "components.Update_Contact_Form.fields.Last_Name.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.City.constraints: replace the second constraint string with a generic 'must match expected format' or remove the pattern-specific text; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.ZIP_Code.constraints: replace the second constraint string with a generic 'must match expected format' (do not add example digit counts) or remove the example; keep 'must be present'.",
+    "components.Update_Contact_Form.fields.State.constraints: replace the second constraint string with a generic 'must match expected format' or remove the inferred 'valid state value' wording; keep 'must be present' if completeness is intended.",
+    "Optional: If more specificity is desired in a regenerated AST, include only those format details that are explicitly present in the description; otherwise keep all format constraints generic (e.g., 'must match expected format')."
+  ]
+}
+
+------------------------------------------------------------
+[23:10:09] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Update Contact Info",
+  "components": {
+    "Update_Contact_Form": {
+      "type": "form",
+      "fields": {
+        "First_Name": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "Last_Name": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "City": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "State": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "prefilled": true,
+          "constraints": [
+            "must be present",
+            "must match expected format"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Update Profile",
+          "constraints": [
+            "validates all fields for format and completeness before submitting"
+          ],
+          "on_success": "Profile updated successfully.; refreshes the data",
+          "on_failure": "highlights invalid fields and displays an inline error banner"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[23:10:14] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
-  "missing": [
-    "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
-  ],
+  "summary": "AST includes the editable form with all seven prefilled fields, the 'Update Profile' submit action, per-field validation constraints, and success/failure behaviors, matching the description.",
+  "missing": [],
   "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[21:55:14] Semantic Critic - PARSED JSON
+[23:10:14] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
-  "missing": [
-    "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
-  ],
+  "summary": "AST includes the editable form with all seven prefilled fields, the 'Update Profile' submit action, per-field validation constraints, and success/failure behaviors, matching the description.",
+  "missing": [],
   "phantoms": [],
   "fixes": []
 }

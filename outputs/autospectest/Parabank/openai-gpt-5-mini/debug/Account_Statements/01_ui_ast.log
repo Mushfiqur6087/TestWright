@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.328934
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.153281
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - SYSTEM PROMPT
+[23:08:55] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - USER PROMPT
+[23:08:55] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Account Statements
 
@@ -215,158 +215,170 @@ The Statements page provides two coordinated forms displayed side by side.The ge
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:55:18] UI-AST Agent - LLM RESPONSE
+[23:09:37] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Account Statements",
   "components": {
-    "Generate_Statement_Form": {
-      "type": "form",
-      "fields": {
-        "Statement_Period_Mode": {
-          "type": "dropdown",
-          "required": false,
-          "options": ["Month-and-Year", "Custom Range"]
-        },
-        "Month_Year": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Month-and-Year",
-          "constraints": ["must specify month and year (day ignored)"]
-        },
-        "Start_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "End_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "Account": {
-          "type": "dropdown",
-          "required": true
-        }
-      },
-      "constraints": [
-        "if Statement_Period_Mode == Custom Range then Start_Date <= End_Date",
-        "dates must be valid calendar dates"
-      ],
-      "submit_actions": [
-        {
-          "element_name": "Generate Statement",
-          "on_success": "Statement generated successfully; retrieves relevant transactions",
-          "on_failure": "Unable to generate statement — please try again later.",
+    "Statements_Page": {
+      "type": "container",
+      "components": {
+        "Generate_Statement_Form": {
+          "type": "form",
+          "fields": {
+            "Statement_Period_Mode": {
+              "type": "dropdown",
+              "required": true,
+              "options": ["Month-and-Year", "Custom Date Range"]
+            },
+            "Month_Year": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Month-and-Year",
+              "constraints": ["must represent a month-and-year value (month granularity)"]
+            },
+            "Start_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "End_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "Account": {
+              "type": "dropdown",
+              "required": false
+            }
+          },
           "constraints": [
-            "validates date inputs according to Statement_Period_Mode",
-            "Start_Date <= End_Date when Custom Range is selected"
+            "if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date",
+            "if Statement_Period_Mode == Month-and-Year then Month_Year must be set",
+            "dates must be valid and within retrievable transaction history"
+          ],
+          "submit_actions": [
+            {
+              "element_name": "Generate Statement",
+              "preconditions": ["date fields must satisfy form constraints"],
+              "on_success": "Statement generated successfully; retrieves relevant transactions",
+              "on_failure": "Unable to generate statement — please try again later."
+            }
+          ]
+        },
+        "EStatement_Preference_Form": {
+          "type": "form",
+          "fields": {
+            "Paperless_Opt_in": {
+              "type": "checkbox",
+              "required": false
+            },
+            "Email_Address": {
+              "type": "email",
+              "required_when": "Paperless_Opt_in == true",
+              "constraints": ["must be a valid email address"]
+            }
+          },
+          "submit_actions": [
+            {
+              "element_name": "Save Preference",
+              "preconditions": ["if opting into paperless statements, Email_Address must be present and valid"],
+              "on_success": "e-Statement preference updated.",
+              "on_failure": "validation failed; highlights Email_Address with guidance"
+            }
           ]
         }
-      ]
-    },
-    "EStatement_Preference_Form": {
-      "type": "form",
-      "fields": {
-        "Paperless": {
-          "type": "checkbox",
-          "required": false
-        },
-        "Email_Address": {
-          "type": "email",
-          "required_when": "Paperless == true",
-          "constraints": ["must be a valid email address"]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Save Preference",
-          "on_success": "e-Statement preference updated.",
-          "on_failure": "highlights Email Address field with guidance",
-          "constraints": [
-            "if Paperless == true then Email_Address must be a valid email address"
-          ]
-        }
-      ]
+      }
     }
   }
 }
 
 ------------------------------------------------------------
-[21:55:18] UI-AST Agent - PARSED JSON
+[23:09:37] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Account Statements",
   "components": {
-    "Generate_Statement_Form": {
-      "type": "form",
-      "fields": {
-        "Statement_Period_Mode": {
-          "type": "dropdown",
-          "required": false,
-          "options": [
-            "Month-and-Year",
-            "Custom Range"
-          ]
-        },
-        "Month_Year": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Month-and-Year",
+    "Statements_Page": {
+      "type": "container",
+      "components": {
+        "Generate_Statement_Form": {
+          "type": "form",
+          "fields": {
+            "Statement_Period_Mode": {
+              "type": "dropdown",
+              "required": true,
+              "options": [
+                "Month-and-Year",
+                "Custom Date Range"
+              ]
+            },
+            "Month_Year": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Month-and-Year",
+              "constraints": [
+                "must represent a month-and-year value (month granularity)"
+              ]
+            },
+            "Start_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "End_Date": {
+              "type": "date",
+              "required": true,
+              "visible_when": "Statement_Period_Mode == Custom Date Range"
+            },
+            "Account": {
+              "type": "dropdown",
+              "required": false
+            }
+          },
           "constraints": [
-            "must specify month and year (day ignored)"
+            "if Statement_Period_Mode == Custom Date Range then End_Date >= Start_Date",
+            "if Statement_Period_Mode == Month-and-Year then Month_Year must be set",
+            "dates must be valid and within retrievable transaction history"
+          ],
+          "submit_actions": [
+            {
+              "element_name": "Generate Statement",
+              "preconditions": [
+                "date fields must satisfy form constraints"
+              ],
+              "on_success": "Statement generated successfully; retrieves relevant transactions",
+              "on_failure": "Unable to generate statement \u2014 please try again later."
+            }
           ]
         },
-        "Start_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "End_Date": {
-          "type": "date",
-          "required_when": "Statement_Period_Mode == Custom Range"
-        },
-        "Account": {
-          "type": "dropdown",
-          "required": true
-        }
-      },
-      "constraints": [
-        "if Statement_Period_Mode == Custom Range then Start_Date <= End_Date",
-        "dates must be valid calendar dates"
-      ],
-      "submit_actions": [
-        {
-          "element_name": "Generate Statement",
-          "on_success": "Statement generated successfully; retrieves relevant transactions",
-          "on_failure": "Unable to generate statement \u2014 please try again later.",
-          "constraints": [
-            "validates date inputs according to Statement_Period_Mode",
-            "Start_Date <= End_Date when Custom Range is selected"
+        "EStatement_Preference_Form": {
+          "type": "form",
+          "fields": {
+            "Paperless_Opt_in": {
+              "type": "checkbox",
+              "required": false
+            },
+            "Email_Address": {
+              "type": "email",
+              "required_when": "Paperless_Opt_in == true",
+              "constraints": [
+                "must be a valid email address"
+              ]
+            }
+          },
+          "submit_actions": [
+            {
+              "element_name": "Save Preference",
+              "preconditions": [
+                "if opting into paperless statements, Email_Address must be present and valid"
+              ],
+              "on_success": "e-Statement preference updated.",
+              "on_failure": "validation failed; highlights Email_Address with guidance"
+            }
           ]
         }
-      ]
-    },
-    "EStatement_Preference_Form": {
-      "type": "form",
-      "fields": {
-        "Paperless": {
-          "type": "checkbox",
-          "required": false
-        },
-        "Email_Address": {
-          "type": "email",
-          "required_when": "Paperless == true",
-          "constraints": [
-            "must be a valid email address"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Save Preference",
-          "on_success": "e-Statement preference updated.",
-          "on_failure": "highlights Email Address field with guidance",
-          "constraints": [
-            "if Paperless == true then Email_Address must be a valid email address"
-          ]
-        }
-      ]
+      }
     }
   }
 }

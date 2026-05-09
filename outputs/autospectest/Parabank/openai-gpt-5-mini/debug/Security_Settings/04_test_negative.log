@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573225
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557231
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Security Settings</module_name>
 
@@ -306,8 +307,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
   "components": {
     "Change_Password_Panel": {
       "type": "collapsible_panel",
-      "fields": {},
-      "contains": {
+      "fields": {
         "Change_Password_Form": {
           "type": "form",
           "fields": {
@@ -315,14 +315,14 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
               "type": "password",
               "required": true,
               "constraints": [
-                "will be verified by the system against existing credentials"
+                "must be validated by the system against the user's existing password"
               ]
             },
             "New_Password": {
               "type": "password",
               "required": true,
               "constraints": [
-                "must meet strong-password policy"
+                "must satisfy strong-password policy"
               ]
             },
             "Confirm_New_Password": {
@@ -338,10 +338,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
               "element_name": "Change Password",
               "type": "button",
               "preconditions": [
-                "Current_Password must be verified"
+                "Current_Password must match the user's existing password"
               ],
-              "on_success": "Password changed successfully and credentials updated",
-              "on_failure": "validation errors highlight corresponding fields and display messages"
+              "on_success": "updates credentials and returns 'Password changed successfully.'",
+              "on_error": "validation errors highlight the appropriate fields"
             }
           ]
         }
@@ -351,16 +351,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-The Security Settings page contains a single form under a collapsible panel.The change password form contains Current Password, New Password, Confirm New Password, and a “Change Password” button. The system verifies the current password, enforces a strong-password policy, checks the match, and updates credentials, returning “Password changed successfully.”. Validation errors highlight the appropriate fields.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:11] Test-Negative - LLM RESPONSE
+[23:13:43] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Security Settings",
@@ -368,95 +362,87 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all fields empty",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
-      ],
+      "test_case": "Submit form with all required password fields empty",
+      "preconditions": [],
       "steps": [
-        "Leave Current Password, New Password, and Confirm New Password all blank",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Leave Current_Password blank",
+        "Leave New_Password blank",
+        "Leave Confirm_New_Password blank",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation errors displayed for Current Password, New Password, and Confirm New Password indicating each field is required; each empty field is highlighted and no password change occurs",
+      "expected_result": "Validation errors displayed for Current_Password, New_Password and Confirm_New_Password indicating they are required; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Current Password (required) left blank while other fields filled",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
-      ],
+      "test_case": "Representative required field missing: Current_Password empty",
+      "preconditions": [],
       "steps": [
-        "Leave Current Password blank (representative required-field for password type)",
-        "Enter a valid strong value into New Password",
-        "Enter the same value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Leave Current_Password blank",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter the same value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Current Password indicating it is required; Current Password field highlighted and submission blocked",
+      "expected_result": "Validation error displayed for Current_Password indicating it is required; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Submit with incorrect Current Password (precondition verification fails)",
+      "test_case": "Attempt change when Current_Password does not match existing password (precondition violation)",
       "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter an incorrect value into Current Password (does not match user's real password)",
-        "Enter a valid strong value into New Password",
-        "Enter the same value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter an incorrect value into Current_Password (does not match existing password)",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter the same value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Current Password indicating the current password is incorrect; fields highlighted and password is not changed",
+      "expected_result": "Action blocked because precondition 'Current_Password must match the user's existing password' is not met; validation error displayed for Current_Password indicating it does not match the user's existing password; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "New Password fails strong-password policy",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded",
-        "User knows the correct Current Password"
-      ],
+      "test_case": "New_Password violates strong-password policy",
+      "preconditions": [],
       "steps": [
-        "Enter the correct Current Password",
-        "Enter a weak New Password that does not meet the strong-password policy (e.g., 'abc')",
-        "Enter the same weak value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter the user's correct Current_Password",
+        "Enter 'password123' (or another weak password) into New_Password (does not satisfy strong-password policy)",
+        "Enter the same weak value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for New Password indicating it does not meet the strong-password policy; New Password field highlighted and password is not changed",
+      "expected_result": "Validation error displayed for New_Password: 'must satisfy strong-password policy'; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Confirm New Password does not match New Password",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded",
-        "User knows the correct Current Password"
-      ],
+      "test_case": "Confirm_New_Password does not match New_Password (cross-field constraint)",
+      "preconditions": [],
       "steps": [
-        "Enter the correct Current Password",
-        "Enter a valid strong value into New Password",
-        "Enter a different value into Confirm New Password so it does not match",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter the user's correct Current_Password",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter a different value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Confirm New Password indicating it must match New Password; Confirm New Password field highlighted and password is not changed",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Confirm_New_Password: 'must match New_Password'; validation errors highlight the appropriate fields",
+      "priority": "high"
     }
   ],
   "summary": {
     "total": 5,
-    "high_priority": 4,
-    "medium_priority": 1,
+    "high_priority": 5,
+    "medium_priority": 0,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[22:01:11] Test-Negative - PARSED JSON
+[23:13:43] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Security Settings",
@@ -464,89 +450,81 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all fields empty",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
-      ],
+      "test_case": "Submit form with all required password fields empty",
+      "preconditions": [],
       "steps": [
-        "Leave Current Password, New Password, and Confirm New Password all blank",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Leave Current_Password blank",
+        "Leave New_Password blank",
+        "Leave Confirm_New_Password blank",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation errors displayed for Current Password, New Password, and Confirm New Password indicating each field is required; each empty field is highlighted and no password change occurs",
+      "expected_result": "Validation errors displayed for Current_Password, New_Password and Confirm_New_Password indicating they are required; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Current Password (required) left blank while other fields filled",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
-      ],
+      "test_case": "Representative required field missing: Current_Password empty",
+      "preconditions": [],
       "steps": [
-        "Leave Current Password blank (representative required-field for password type)",
-        "Enter a valid strong value into New Password",
-        "Enter the same value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Leave Current_Password blank",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter the same value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Current Password indicating it is required; Current Password field highlighted and submission blocked",
+      "expected_result": "Validation error displayed for Current_Password indicating it is required; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "Submit with incorrect Current Password (precondition verification fails)",
+      "test_case": "Attempt change when Current_Password does not match existing password (precondition violation)",
       "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded"
+        "Current_Password must match the user's existing password"
       ],
       "steps": [
-        "Enter an incorrect value into Current Password (does not match user's real password)",
-        "Enter a valid strong value into New Password",
-        "Enter the same value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter an incorrect value into Current_Password (does not match existing password)",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter the same value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Current Password indicating the current password is incorrect; fields highlighted and password is not changed",
+      "expected_result": "Action blocked because precondition 'Current_Password must match the user's existing password' is not met; validation error displayed for Current_Password indicating it does not match the user's existing password; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "New Password fails strong-password policy",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded",
-        "User knows the correct Current Password"
-      ],
+      "test_case": "New_Password violates strong-password policy",
+      "preconditions": [],
       "steps": [
-        "Enter the correct Current Password",
-        "Enter a weak New Password that does not meet the strong-password policy (e.g., 'abc')",
-        "Enter the same weak value into Confirm New Password",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter the user's correct Current_Password",
+        "Enter 'password123' (or another weak password) into New_Password (does not satisfy strong-password policy)",
+        "Enter the same weak value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for New Password indicating it does not meet the strong-password policy; New Password field highlighted and password is not changed",
+      "expected_result": "Validation error displayed for New_Password: 'must satisfy strong-password policy'; validation errors highlight the appropriate fields",
       "priority": "high"
     },
     {
       "tc_id": "N-005",
-      "test_case": "Confirm New Password does not match New Password",
-      "preconditions": [
-        "User is authenticated and on the Security Settings page",
-        "Change Password panel is expanded",
-        "User knows the correct Current Password"
-      ],
+      "test_case": "Confirm_New_Password does not match New_Password (cross-field constraint)",
+      "preconditions": [],
       "steps": [
-        "Enter the correct Current Password",
-        "Enter a valid strong value into New Password",
-        "Enter a different value into Confirm New Password so it does not match",
-        "Click the 'Change Password' button"
+        "Open Change Password panel",
+        "Enter the user's correct Current_Password",
+        "Enter a valid New_Password that satisfies strong-password policy",
+        "Enter a different value into Confirm_New_Password",
+        "Click 'Change Password' button"
       ],
-      "expected_result": "Validation error displayed for Confirm New Password indicating it must match New Password; Confirm New Password field highlighted and password is not changed",
-      "priority": "medium"
+      "expected_result": "Validation error displayed for Confirm_New_Password: 'must match New_Password'; validation errors highlight the appropriate fields",
+      "priority": "high"
     }
   ],
   "summary": {
     "total": 5,
-    "high_priority": 4,
-    "medium_priority": 1,
+    "high_priority": 5,
+    "medium_priority": 0,
     "low_priority": 0
   }
 }

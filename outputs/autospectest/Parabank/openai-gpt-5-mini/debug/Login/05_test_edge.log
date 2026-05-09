@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.571972
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.554516
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Login</module_name>
 
@@ -232,17 +250,17 @@ Categories to consider:
       "type": "form",
       "fields": {
         "Email_Username": {
-          "type": "email",
+          "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be valid email format"
+            "must be a valid email format"
           ]
         },
         "Password": {
           "type": "password",
           "required": true,
           "constraints": [
-            "minimum length 8",
+            "minimum length 8 characters",
             "must include at least one uppercase letter",
             "must include at least one lowercase letter",
             "must include at least one number",
@@ -253,37 +271,25 @@ Categories to consider:
       "submit_actions": [
         {
           "element_name": "Sign In",
-          "type": "button",
-          "server_side_validation": "securely validates credentials against registered-user database",
-          "on_success": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
-          "on_failure": {
-            "message": "Incorrect email or password. Please try again",
-            "effects": [
-              "clears Password field",
-              "allows another attempt"
-            ]
-          }
+          "on_submit": "securely validates provided credentials against the registered-user database",
+          "on_success": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
+          "on_failure": "shows 'Incorrect email or password. Please try again', clears Password field, allows another attempt"
         }
       ]
     },
     "Forgot_Password_Link": {
       "type": "link",
-      "element_name": "Forgot Password?"
+      "element_name": "Forgot Password?",
+      "on_click": "navigates to password reset flow"
     }
   }
 }
 </ast>
 
-<description>
-The login page contains a login form with two required input fields—Email/Username and Password—along with a "Sign In" button and a "Forgot Password?" link. Email must be a valid email format and password must be at least 8 characters with uppercase, lowercase, number, and special character. When the user submits the form, the system securely validates the provided credentials against the registered-user database. If authentication succeeds, the system flashes "Signed in successfully." and redirects the user to the Accounts Overview page; if it fails, it shows "Incorrect email or password. Please try again," clears the password field, and allows another attempt.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:57:49] Test-Edge - LLM RESPONSE
+[23:12:08] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Login",
@@ -292,108 +298,139 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Password minimum length accepted (exactly 8 chars) with required character classes",
+      "test_case": "Password minimum length = 8 characters (boundary pass)",
       "preconditions": [
-        "Login page is loaded"
+        "A registered test user exists with Email_Username = 'user@example.com' and Password = 'Aa1!aaaa'"
       ],
       "steps": [
-        "Enter a registered user's Email/Username (valid email format) in the Email field",
-        "Enter a password of exactly 8 characters that contains at least one uppercase letter, one lowercase letter, one number and one special character (example: Aa1!bcd2)",
-        "Click the \"Sign In\" button"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter 'Aa1!aaaa' (8 characters satisfying: uppercase, lowercase, number, special)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "PASS: Authentication proceeds. On success the system flashes \"Signed in successfully.\" and redirects to the Accounts Overview page as described (satisfies \"minimum length 8\" constraint).",
+      "expected_result": "PASS: Client accepts the Password (satisfies constraint 'minimum length 8 characters' and other composition constraints); on_submit validates credentials and, for this registered user, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Password just below minimum length (7 chars) is rejected by validation",
+      "test_case": "Password length = 7 characters (boundary fail)",
       "preconditions": [
-        "Login page is loaded"
+        "A registered test user exists with Email_Username = 'user@example.com' (password not relevant because client-side constraint should block)"
       ],
       "steps": [
-        "Enter a registered user's Email/Username (valid email format) in the Email field",
-        "Enter a password of 7 characters that otherwise includes uppercase, lowercase, number and special character if possible (example: Aa1!bbb)",
-        "Click the \"Sign In\" button"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter 'Aa1!aaa' (7 characters, otherwise containing uppercase, lowercase, number, special)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "FAIL: Client- or server-side validation prevents authentication because password violates the \"minimum length 8\" constraint. The system should present an error (do not proceed to successful sign-in).",
+      "expected_result": "FAIL: Client-side validation prevents submission and shows a validation error referencing the constraint 'minimum length 8 characters' (submission is blocked until Password meets the minimum length)",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click Sign In with incorrect credentials results in single failure flow and password cleared once",
+      "subcategory": "input_edge",
+      "test_case": "Password meets length but missing uppercase letter",
       "preconditions": [
-        "Login page is loaded",
-        "Enter an Email/Username that is registered or unregistered (use credentials that will cause authentication to fail)"
+        "Login page loaded"
       ],
       "steps": [
-        "Enter the email in the Email field",
-        "Enter an incorrect password",
-        "Rapidly double-click the \"Sign In\" button (two quick clicks)",
-        "Observe visible messages and the Password field"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'aa1!aaaa' (8 characters, contains lowercase, number, special, but NO uppercase)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "The UI should follow the described failure behavior exactly once: show the message \"Incorrect email or password. Please try again\", clear the Password field, and allow another attempt. There should be a single visible failure message/indication (no duplicate messages) and the password input must be emptied.",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one uppercase letter' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Email input with leading and trailing whitespace fails email-format validation",
+      "test_case": "Password meets length but missing numeric character",
       "preconditions": [
-        "Login page is loaded"
+        "Login page loaded"
       ],
       "steps": [
-        "In the Email field enter a syntactically valid email but with leading and trailing spaces (for example: \" user@example.com \")",
-        "Enter a password that meets the minimum constraints",
-        "Click the \"Sign In\" button"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'Aa!aaaaa' (8 characters, contains uppercase, lowercase, special, but NO number)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "FAIL: The Email field does not meet \"must be valid email format\" (whitespace makes the input invalid). The form should not accept this as a valid email format and should present an email-format validation error rather than proceeding to authenticate.",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one number' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "data_edge",
-      "test_case": "Forgot Password? link is present and keyboard-focusable with exact label",
+      "subcategory": "input_edge",
+      "test_case": "Password meets length but missing special character",
       "preconditions": [
-        "Login page is loaded"
+        "Login page loaded"
       ],
       "steps": [
-        "Tab through interactive elements until reaching the link labeled exactly \"Forgot Password?\"",
-        "Verify the link text reads \"Forgot Password?\" and that it receives keyboard focus (tab focus) and is clickable"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'Aa1aaaaa' (8 characters, contains uppercase, lowercase, number, but NO special character)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "The UI contains a link element with element_name \"Forgot Password?\" (per AST). The link should be visible, labeled exactly \"Forgot Password?\", and keyboard-focusable (user can reach it via Tab).",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one special character' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "state_edge",
-      "test_case": "After a failed authentication the user can immediately enter a new password and attempt another sign-in",
+      "subcategory": "state_edge | interaction_edge",
+      "test_case": "Incorrect credentials triggers on_failure: message shown, Password cleared, then allows another attempt",
       "preconditions": [
-        "Login page is loaded",
-        "Use credentials that will cause the first authentication attempt to fail"
+        "A registered test user exists with Email_Username = 'user@example.com' and Password = 'Aa1!aaaa'"
       ],
       "steps": [
-        "Enter the Email/Username",
-        "Enter an incorrect password and click \"Sign In\"",
-        "Confirm the failure message \"Incorrect email or password. Please try again\" appears and that the Password field was cleared",
-        "Enter a new password into the Password field (meeting length/character constraints as needed) and click \"Sign In\" again"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter an incorrect password 'Wrong1!x'",
+        "Click button 'Sign In'",
+        "Observe failure behavior",
+        "After failure, re-enter field 'Password' with the correct password 'Aa1!aaaa' and click 'Sign In' again"
       ],
-      "expected_result": "The UI allows another attempt as specified by \"allows another attempt\": after the failure message and password clear, the user is able to type a new password and submit again (Sign In button is actionable and the form accepts the new input).",
+      "expected_result": "On the failed attempt, on_failure fires: shows exact message 'Incorrect email or password. Please try again', clears the 'Password' field (Password becomes empty) and allows another attempt; on the subsequent correct attempt, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
       "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "interaction_edge",
+      "test_case": "Click 'Forgot Password?' navigates to password reset flow",
+      "preconditions": [
+        "Login page loaded"
+      ],
+      "steps": [
+        "Click link element 'Forgot Password?'"
+      ],
+      "expected_result": "The link's on_click behavior executes and the UI navigates to the password reset flow (as specified by 'navigates to password reset flow')",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Password with minimal single occurrences of required classes at edges (composition placement edge)",
+      "preconditions": [
+        "A registered test user exists with Email_Username = 'edge_user@example.com' and Password = 'Aaaaaa1!'"
+      ],
+      "steps": [
+        "Open Login page",
+        "In field 'Email_Username' enter 'edge_user@example.com'",
+        "In field 'Password' enter 'Aaaaaa1!' (8 characters: single uppercase 'A' at start, single number '1' near end, single special '!' at end, remaining lowercase)",
+        "Click button 'Sign In'"
+      ],
+      "expected_result": "PASS: Password satisfies constraints ('minimum length 8 characters', 'must include at least one uppercase letter', 'must include at least one lowercase letter', 'must include at least one number', 'must include at least one special character'); on_submit validates credentials and, for this registered user, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
+      "priority": "low"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 8,
     "boundary": 2,
-    "edge": 4,
+    "edge": 6,
     "medium_priority": 3,
-    "low_priority": 3
+    "low_priority": 5
   }
 }
 
 ------------------------------------------------------------
-[21:57:49] Test-Edge - PARSED JSON
+[23:12:08] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Login",
@@ -402,102 +439,133 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Password minimum length accepted (exactly 8 chars) with required character classes",
+      "test_case": "Password minimum length = 8 characters (boundary pass)",
       "preconditions": [
-        "Login page is loaded"
+        "A registered test user exists with Email_Username = 'user@example.com' and Password = 'Aa1!aaaa'"
       ],
       "steps": [
-        "Enter a registered user's Email/Username (valid email format) in the Email field",
-        "Enter a password of exactly 8 characters that contains at least one uppercase letter, one lowercase letter, one number and one special character (example: Aa1!bcd2)",
-        "Click the \"Sign In\" button"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter 'Aa1!aaaa' (8 characters satisfying: uppercase, lowercase, number, special)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "PASS: Authentication proceeds. On success the system flashes \"Signed in successfully.\" and redirects to the Accounts Overview page as described (satisfies \"minimum length 8\" constraint).",
+      "expected_result": "PASS: Client accepts the Password (satisfies constraint 'minimum length 8 characters' and other composition constraints); on_submit validates credentials and, for this registered user, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Password just below minimum length (7 chars) is rejected by validation",
+      "test_case": "Password length = 7 characters (boundary fail)",
       "preconditions": [
-        "Login page is loaded"
+        "A registered test user exists with Email_Username = 'user@example.com' (password not relevant because client-side constraint should block)"
       ],
       "steps": [
-        "Enter a registered user's Email/Username (valid email format) in the Email field",
-        "Enter a password of 7 characters that otherwise includes uppercase, lowercase, number and special character if possible (example: Aa1!bbb)",
-        "Click the \"Sign In\" button"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter 'Aa1!aaa' (7 characters, otherwise containing uppercase, lowercase, number, special)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "FAIL: Client- or server-side validation prevents authentication because password violates the \"minimum length 8\" constraint. The system should present an error (do not proceed to successful sign-in).",
+      "expected_result": "FAIL: Client-side validation prevents submission and shows a validation error referencing the constraint 'minimum length 8 characters' (submission is blocked until Password meets the minimum length)",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click Sign In with incorrect credentials results in single failure flow and password cleared once",
+      "subcategory": "input_edge",
+      "test_case": "Password meets length but missing uppercase letter",
       "preconditions": [
-        "Login page is loaded",
-        "Enter an Email/Username that is registered or unregistered (use credentials that will cause authentication to fail)"
+        "Login page loaded"
       ],
       "steps": [
-        "Enter the email in the Email field",
-        "Enter an incorrect password",
-        "Rapidly double-click the \"Sign In\" button (two quick clicks)",
-        "Observe visible messages and the Password field"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'aa1!aaaa' (8 characters, contains lowercase, number, special, but NO uppercase)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "The UI should follow the described failure behavior exactly once: show the message \"Incorrect email or password. Please try again\", clear the Password field, and allow another attempt. There should be a single visible failure message/indication (no duplicate messages) and the password input must be emptied.",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one uppercase letter' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "Email input with leading and trailing whitespace fails email-format validation",
+      "test_case": "Password meets length but missing numeric character",
       "preconditions": [
-        "Login page is loaded"
+        "Login page loaded"
       ],
       "steps": [
-        "In the Email field enter a syntactically valid email but with leading and trailing spaces (for example: \" user@example.com \")",
-        "Enter a password that meets the minimum constraints",
-        "Click the \"Sign In\" button"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'Aa!aaaaa' (8 characters, contains uppercase, lowercase, special, but NO number)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "FAIL: The Email field does not meet \"must be valid email format\" (whitespace makes the input invalid). The form should not accept this as a valid email format and should present an email-format validation error rather than proceeding to authenticate.",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one number' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "data_edge",
-      "test_case": "Forgot Password? link is present and keyboard-focusable with exact label",
+      "subcategory": "input_edge",
+      "test_case": "Password meets length but missing special character",
       "preconditions": [
-        "Login page is loaded"
+        "Login page loaded"
       ],
       "steps": [
-        "Tab through interactive elements until reaching the link labeled exactly \"Forgot Password?\"",
-        "Verify the link text reads \"Forgot Password?\" and that it receives keyboard focus (tab focus) and is clickable"
+        "In field 'Email_Username' enter any valid-format email (e.g. 'user@example.com')",
+        "In field 'Password' enter 'Aa1aaaaa' (8 characters, contains uppercase, lowercase, number, but NO special character)",
+        "Click button 'Sign In'"
       ],
-      "expected_result": "The UI contains a link element with element_name \"Forgot Password?\" (per AST). The link should be visible, labeled exactly \"Forgot Password?\", and keyboard-focusable (user can reach it via Tab).",
+      "expected_result": "FAIL: Validation should flag the Password field for violating the constraint 'must include at least one special character' and prevent successful submission",
       "priority": "low"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "state_edge",
-      "test_case": "After a failed authentication the user can immediately enter a new password and attempt another sign-in",
+      "subcategory": "state_edge | interaction_edge",
+      "test_case": "Incorrect credentials triggers on_failure: message shown, Password cleared, then allows another attempt",
       "preconditions": [
-        "Login page is loaded",
-        "Use credentials that will cause the first authentication attempt to fail"
+        "A registered test user exists with Email_Username = 'user@example.com' and Password = 'Aa1!aaaa'"
       ],
       "steps": [
-        "Enter the Email/Username",
-        "Enter an incorrect password and click \"Sign In\"",
-        "Confirm the failure message \"Incorrect email or password. Please try again\" appears and that the Password field was cleared",
-        "Enter a new password into the Password field (meeting length/character constraints as needed) and click \"Sign In\" again"
+        "Open Login page",
+        "In field 'Email_Username' enter 'user@example.com'",
+        "In field 'Password' enter an incorrect password 'Wrong1!x'",
+        "Click button 'Sign In'",
+        "Observe failure behavior",
+        "After failure, re-enter field 'Password' with the correct password 'Aa1!aaaa' and click 'Sign In' again"
       ],
-      "expected_result": "The UI allows another attempt as specified by \"allows another attempt\": after the failure message and password clear, the user is able to type a new password and submit again (Sign In button is actionable and the form accepts the new input).",
+      "expected_result": "On the failed attempt, on_failure fires: shows exact message 'Incorrect email or password. Please try again', clears the 'Password' field (Password becomes empty) and allows another attempt; on the subsequent correct attempt, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
       "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "interaction_edge",
+      "test_case": "Click 'Forgot Password?' navigates to password reset flow",
+      "preconditions": [
+        "Login page loaded"
+      ],
+      "steps": [
+        "Click link element 'Forgot Password?'"
+      ],
+      "expected_result": "The link's on_click behavior executes and the UI navigates to the password reset flow (as specified by 'navigates to password reset flow')",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Password with minimal single occurrences of required classes at edges (composition placement edge)",
+      "preconditions": [
+        "A registered test user exists with Email_Username = 'edge_user@example.com' and Password = 'Aaaaaa1!'"
+      ],
+      "steps": [
+        "Open Login page",
+        "In field 'Email_Username' enter 'edge_user@example.com'",
+        "In field 'Password' enter 'Aaaaaa1!' (8 characters: single uppercase 'A' at start, single number '1' near end, single special '!' at end, remaining lowercase)",
+        "Click button 'Sign In'"
+      ],
+      "expected_result": "PASS: Password satisfies constraints ('minimum length 8 characters', 'must include at least one uppercase letter', 'must include at least one lowercase letter', 'must include at least one number', 'must include at least one special character'); on_submit validates credentials and, for this registered user, on_success fires: flashes 'Signed in successfully.' and redirects to Accounts Overview page",
+      "priority": "low"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 8,
     "boundary": 2,
-    "edge": 4,
+    "edge": 6,
     "medium_priority": 3,
-    "low_priority": 3
+    "low_priority": 5
   }
 }

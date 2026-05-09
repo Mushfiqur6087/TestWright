@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572446
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.555710
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Transfer Funds</module_name>
 
@@ -243,42 +261,45 @@ Categories to consider:
           "type": "number",
           "required": true,
           "constraints": [
-            "validate transfer amount"
+            "validated by system"
           ]
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true,
-          "options_filter": "account_type in [Checking, Savings]"
+          "constraints": [
+            "account selection filtered to account_type in [Checking, Savings]"
+          ]
         },
         "Destination_Account_Internal": {
           "type": "dropdown",
           "visible_when": "Transfer_Type == My ParaBank Account",
-          "required": true
+          "required_when": "Transfer_Type == My ParaBank Account"
         },
-        "External_Account_Number": {
+        "Destination_Account_External_Number": {
           "type": "unspecified",
           "visible_when": "Transfer_Type == External Account",
-          "required": true
+          "required_when": "Transfer_Type == External Account"
         },
-        "Confirm_External_Account_Number": {
+        "Destination_Account_External_Confirm": {
           "type": "unspecified",
           "visible_when": "Transfer_Type == External Account",
-          "required": true,
+          "required_when": "Transfer_Type == External Account",
           "constraints": [
-            "must match External_Account_Number"
+            "must match Destination_Account_External_Number"
           ]
         }
       },
       "submit_actions": [
         {
-          "on_success": "Transfer completed successfully; returns transaction ID.",
+          "element_name": "Submit Transfer",
+          "on_success": "Transfer completed successfully. Returns transaction ID",
           "on_failure_messages": [
             "Insufficient funds",
             "Account numbers do not match."
           ],
           "constraints": [
-            "sufficient funds"
+            "system checks sufficient funds before completing transfer"
           ]
         }
       ]
@@ -287,16 +308,10 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:59:06] Test-Edge - LLM RESPONSE
+[23:12:41] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -305,174 +320,162 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Transfer amount exactly equals available balance (should PASS)",
+      "test_case": "Transfer amount exactly equals Source_Account available balance — should succeed",
       "preconditions": [
-        "User is authenticated",
-        "Source Account (Checking) with available balance $1,000.00 exists",
-        "Destination is an internal ParaBank account different from Source"
+        "Source_Account A is present in Source_Account dropdown (account_type Checking or Savings) and shows available balance B",
+        "Transfer_Type set to My ParaBank Account",
+        "Destination_Account_Internal is selectable"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account = Checking account with $1,000.00",
-        "Select Destination_Account_Internal = another own account",
-        "Enter Transfer_Amount = 1000.00",
-        "Submit the transfer form"
+        "Select Source_Account = Source_Account A (balance displayed as B)",
+        "Enter Transfer_Amount = B (exactly the displayed available balance)",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer' (element_name: Submit Transfer)"
       ],
-      "expected_result": "PASS — Transfer completes. UI shows \"Transfer completed successfully.\" and a transaction ID is returned (per submit_actions on_success).",
+      "expected_result": "PASS — Submission succeeds; UI shows 'Transfer completed successfully. Returns transaction ID' and a single transaction ID (use on_success text). This verifies the constraint 'system checks sufficient funds before completing transfer' permits amount == available balance.",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Transfer amount exceeds available balance by smallest currency unit (should FAIL)",
+      "test_case": "Transfer amount exceeds available balance by smallest currency unit — should fail with Insufficient funds",
       "preconditions": [
-        "User is authenticated",
-        "Source Account (Savings) with available balance $1,000.00 exists",
-        "Destination is an internal ParaBank account different from Source"
+        "Source_Account A is present with available balance B",
+        "Transfer_Type = My ParaBank Account",
+        "Destination_Account_Internal is selectable"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account = Savings account with $1,000.00",
-        "Select Destination_Account_Internal = another own account",
-        "Enter Transfer_Amount = 1000.01",
-        "Submit the transfer form"
+        "Select Source_Account = Source_Account A (balance displayed as B)",
+        "Enter Transfer_Amount = B + 0.01 (one smallest currency unit more than displayed balance)",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer' (element_name: Submit Transfer)"
       ],
-      "expected_result": "FAIL — Submission is blocked with the contextual error \"Insufficient funds\" (matches submit_actions constraint \"sufficient funds\").",
+      "expected_result": "FAIL — Submission blocked/failed and UI shows failure related to funds, specifically the on_failure_messages entry 'Insufficient funds'. This verifies enforcement of 'system checks sufficient funds before completing transfer' at the boundary.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "input_edge",
-      "test_case": "External account confirmation has extra leading/trailing whitespace (should FAIL match)",
+      "subcategory": "interaction_edge",
+      "test_case": "Fill External account fields, then switch Transfer_Type to My ParaBank Account — external fields hidden and should not block submit",
       "preconditions": [
-        "User is authenticated",
-        "Selectable Source Account (Checking) exists",
-        "Transfer_Type = External Account"
+        "Transfer_Type initially set to External Account",
+        "Destination_Account_External_Number and Destination_Account_External_Confirm visible_when Transfer_Type == External Account",
+        "Source_Account has sufficient funds for amount to be entered"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"123456789\"",
-        "Enter Confirm_External_Account_Number = \" 123456789 \" (same digits but with leading/trailing spaces)",
-        "Enter a Transfer_Amount that is <= source balance",
-        "Submit the transfer form"
+        "Enter Destination_Account_External_Number = 'EXT-12345'",
+        "Enter Destination_Account_External_Confirm = 'EXT-12345' (matches per constraint 'must match Destination_Account_External_Number')",
+        "Enter Transfer_Amount <= available balance",
+        "Change Transfer_Type to My ParaBank Account",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "FAIL — Validation triggers the external account matching constraint; UI shows \"Account numbers do not match.\" because Confirm_External_Account_Number does not exactly match External_Account_Number.",
-      "priority": "medium"
+      "expected_result": "PASS — External fields become hidden (per visible_when) and are not required after switching; submission succeeds and shows 'Transfer completed successfully. Returns transaction ID'. This verifies the visible_when / required_when behavior for Destination_Account_External_* vs Destination_Account_Internal.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "External account numbers include formatting characters but match exactly (should PASS)",
+      "test_case": "Destination_Account_External_Confirm differs by one digit — should fail with 'Account numbers do not match.'",
       "preconditions": [
-        "User is authenticated",
-        "Select-able Source Account exists",
-        "Transfer_Type = External Account"
+        "Transfer_Type = External Account",
+        "Destination_Account_External_Number and Destination_Account_External_Confirm visible and required (visible_when/required_when applies)",
+        "Transfer_Amount <= source available balance"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"123-456-789\"",
-        "Enter Confirm_External_Account_Number = \"123-456-789\" (same formatting)",
-        "Enter a Transfer_Amount that is <= source balance",
-        "Submit the transfer form"
+        "Enter Destination_Account_External_Number = '1234567890'",
+        "Enter Destination_Account_External_Confirm = '1234567891' (one digit different)",
+        "Select a Source_Account with sufficient funds",
+        "Enter Transfer_Amount",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "PASS — Because the two external account fields match, submission succeeds and UI shows \"Transfer completed successfully.\" with a transaction ID (matching the AST constraint \"must match External_Account_Number\").",
+      "expected_result": "FAIL — Submission fails client-side or server-side with the on_failure_messages entry 'Account numbers do not match.' This verifies the constraint 'must match Destination_Account_External_Number'.",
       "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "data_edge",
-      "test_case": "Source_Account dropdown when user has no Checking or Savings accounts (filter edge)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click on 'Submit Transfer' — only one transfer should complete and one transaction ID returned",
       "preconditions": [
-        "User is authenticated",
-        "User has accounts but none with account_type Checking or Savings (e.g., only Investment accounts)"
+        "Form filled validly: Transfer_Type, Source_Account, Destination (internal or external with matching confirm), Transfer_Amount <= available balance",
+        "Submit button is the element 'Submit Transfer' with on_success text 'Transfer completed successfully. Returns transaction ID'"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Observe Source_Account dropdown options"
+        "Ensure form is fully filled and valid",
+        "Double-click the 'Submit Transfer' button rapidly (two clicks within 500ms)",
+        "Observe success/failure messages and any transaction ID(s) shown"
       ],
-      "expected_result": "UI shows no selectable options for Source_Account (dropdown empty or shows a clear \"No eligible accounts\" / placeholder), reflecting options_filter: account_type in [Checking, Savings].",
-      "priority": "low"
+      "expected_result": "PASS — Only one successful transfer completes; UI displays the on_success text 'Transfer completed successfully. Returns transaction ID' once and shows a single transaction ID (no duplicate transaction success messages). This verifies idempotent handling of rapid double-submit at the UI level.",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "interaction_edge",
-      "test_case": "External confirm field left blank while External_Account_Number filled (should FAIL match)",
+      "subcategory": "data_edge",
+      "test_case": "Source_Account dropdown only shows accounts filtered to account_type in [Checking, Savings]",
       "preconditions": [
-        "User is authenticated",
-        "Transfer_Type = External Account",
-        "Source Account with sufficient balance exists"
+        "AST constraint: 'account selection filtered to account_type in [Checking, Savings]' applies to Source_Account dropdown"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"987654321\"",
-        "Leave Confirm_External_Account_Number blank",
-        "Enter Transfer_Amount <= source balance",
-        "Submit the transfer form"
+        "Open the Source_Account dropdown",
+        "Inspect the visible account options in the dropdown list"
       ],
-      "expected_result": "FAIL — Required/ matching constraint triggers; UI displays \"Account numbers do not match.\" (Confirm_External_Account_Number is required and must match External_Account_Number per AST).",
-      "priority": "medium"
+      "expected_result": "PASS — Every account option displayed in Source_Account has account_type either 'Checking' or 'Savings'; no accounts of other types are present. This verifies the constraint 'account selection filtered to account_type in [Checking, Savings]'.",
+      "priority": "low"
     },
     {
       "tc_id": "E-007",
       "subcategory": "input_edge",
-      "test_case": "External account fields contain invisible/non-printable characters causing mismatch (should FAIL)",
+      "test_case": "Selecting My ParaBank Account but leaving Destination_Account_Internal empty — required_when prevents submission",
       "preconditions": [
-        "User is authenticated",
-        "Transfer_Type = External Account",
-        "Source Account with sufficient balance exists"
+        "Transfer_Type set to My ParaBank Account",
+        "Destination_Account_Internal field has 'required_when' = 'Transfer_Type == My ParaBank Account'",
+        "Source_Account has sufficient funds for the intended Transfer_Amount"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number by pasting digits with a zero-width space inserted (e.g., \"123\u0009123\")",
-        "Enter Confirm_External_Account_Number = \"123123\" (visible digits only)",
-        "Enter Transfer_Amount <= source balance",
-        "Submit the transfer form"
+        "Select Transfer_Type = My ParaBank Account",
+        "Select Source_Account with sufficient funds",
+        "Enter Transfer_Amount <= available balance",
+        "Leave Destination_Account_Internal unselected/empty",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "FAIL — The system enforces exact matching per AST constraint; UI shows \"Account numbers do not match.\" because the invisible character makes the two fields differ.",
-      "priority": "medium"
+      "expected_result": "FAIL — Form prevents submission due to required Destination_Account_Internal (field validation triggered). No on_success 'Transfer completed successfully. Returns transaction ID' message appears. This verifies enforcement of 'required_when' for Destination_Account_Internal.",
+      "priority": "low"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Attempt transfer with Transfer_Amount = 0.00 (validate transfer amount edge)",
+      "subcategory": "state_edge",
+      "test_case": "Switch Source_Account immediately before submit to ensure sufficiency check uses the currently selected Source_Account",
       "preconditions": [
-        "User is authenticated",
-        "Source Account with balance >= 0.00 exists",
-        "Destination internal account exists"
+        "Two Source_Account options are available: Source_Account A (balance low) and Source_Account B (balance high); both are of account_type Checking or Savings",
+        "AST constraint: 'system checks sufficient funds before completing transfer'"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account",
+        "Select Source_Account = Source_Account A (insufficient for planned amount)",
+        "Enter Transfer_Amount = amount X that is greater than Source_Account A balance but ≤ Source_Account B balance",
+        "Immediately switch Source_Account selection to Source_Account B",
         "Select Destination_Account_Internal",
-        "Enter Transfer_Amount = 0.00",
-        "Submit the transfer form"
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Edge behavior — Because AST lists \"validate transfer amount\" but provides no minimum in the description, UI must enforce validation. Expected: submission is blocked with a transfer-amount validation error (i.e., the form does not proceed). The UI should show a clear validation message for invalid transfer amount.",
-      "priority": "low"
+      "expected_result": "PASS — Because the currently selected Source_Account (Source_Account B) has sufficient funds, submission succeeds and UI shows 'Transfer completed successfully. Returns transaction ID'. This verifies that the 'system checks sufficient funds before completing transfer' constraint is evaluated against the Source_Account selected at the moment of submission.",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 8,
     "boundary": 2,
     "edge": 6,
-    "medium_priority": 5,
-    "low_priority": 3
+    "medium_priority": 3,
+    "low_priority": 5
   }
 }
 
 ------------------------------------------------------------
-[21:59:06] Test-Edge - PARSED JSON
+[23:12:41] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -481,168 +484,156 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
     {
       "tc_id": "E-001",
       "subcategory": "boundary",
-      "test_case": "Transfer amount exactly equals available balance (should PASS)",
+      "test_case": "Transfer amount exactly equals Source_Account available balance \u2014 should succeed",
       "preconditions": [
-        "User is authenticated",
-        "Source Account (Checking) with available balance $1,000.00 exists",
-        "Destination is an internal ParaBank account different from Source"
+        "Source_Account A is present in Source_Account dropdown (account_type Checking or Savings) and shows available balance B",
+        "Transfer_Type set to My ParaBank Account",
+        "Destination_Account_Internal is selectable"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account = Checking account with $1,000.00",
-        "Select Destination_Account_Internal = another own account",
-        "Enter Transfer_Amount = 1000.00",
-        "Submit the transfer form"
+        "Select Source_Account = Source_Account A (balance displayed as B)",
+        "Enter Transfer_Amount = B (exactly the displayed available balance)",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer' (element_name: Submit Transfer)"
       ],
-      "expected_result": "PASS \u2014 Transfer completes. UI shows \"Transfer completed successfully.\" and a transaction ID is returned (per submit_actions on_success).",
+      "expected_result": "PASS \u2014 Submission succeeds; UI shows 'Transfer completed successfully. Returns transaction ID' and a single transaction ID (use on_success text). This verifies the constraint 'system checks sufficient funds before completing transfer' permits amount == available balance.",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
       "subcategory": "boundary",
-      "test_case": "Transfer amount exceeds available balance by smallest currency unit (should FAIL)",
+      "test_case": "Transfer amount exceeds available balance by smallest currency unit \u2014 should fail with Insufficient funds",
       "preconditions": [
-        "User is authenticated",
-        "Source Account (Savings) with available balance $1,000.00 exists",
-        "Destination is an internal ParaBank account different from Source"
+        "Source_Account A is present with available balance B",
+        "Transfer_Type = My ParaBank Account",
+        "Destination_Account_Internal is selectable"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account = Savings account with $1,000.00",
-        "Select Destination_Account_Internal = another own account",
-        "Enter Transfer_Amount = 1000.01",
-        "Submit the transfer form"
+        "Select Source_Account = Source_Account A (balance displayed as B)",
+        "Enter Transfer_Amount = B + 0.01 (one smallest currency unit more than displayed balance)",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer' (element_name: Submit Transfer)"
       ],
-      "expected_result": "FAIL \u2014 Submission is blocked with the contextual error \"Insufficient funds\" (matches submit_actions constraint \"sufficient funds\").",
+      "expected_result": "FAIL \u2014 Submission blocked/failed and UI shows failure related to funds, specifically the on_failure_messages entry 'Insufficient funds'. This verifies enforcement of 'system checks sufficient funds before completing transfer' at the boundary.",
       "priority": "medium"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "input_edge",
-      "test_case": "External account confirmation has extra leading/trailing whitespace (should FAIL match)",
+      "subcategory": "interaction_edge",
+      "test_case": "Fill External account fields, then switch Transfer_Type to My ParaBank Account \u2014 external fields hidden and should not block submit",
       "preconditions": [
-        "User is authenticated",
-        "Selectable Source Account (Checking) exists",
-        "Transfer_Type = External Account"
+        "Transfer_Type initially set to External Account",
+        "Destination_Account_External_Number and Destination_Account_External_Confirm visible_when Transfer_Type == External Account",
+        "Source_Account has sufficient funds for amount to be entered"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"123456789\"",
-        "Enter Confirm_External_Account_Number = \" 123456789 \" (same digits but with leading/trailing spaces)",
-        "Enter a Transfer_Amount that is <= source balance",
-        "Submit the transfer form"
+        "Enter Destination_Account_External_Number = 'EXT-12345'",
+        "Enter Destination_Account_External_Confirm = 'EXT-12345' (matches per constraint 'must match Destination_Account_External_Number')",
+        "Enter Transfer_Amount <= available balance",
+        "Change Transfer_Type to My ParaBank Account",
+        "Select Destination_Account_Internal",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "FAIL \u2014 Validation triggers the external account matching constraint; UI shows \"Account numbers do not match.\" because Confirm_External_Account_Number does not exactly match External_Account_Number.",
-      "priority": "medium"
+      "expected_result": "PASS \u2014 External fields become hidden (per visible_when) and are not required after switching; submission succeeds and shows 'Transfer completed successfully. Returns transaction ID'. This verifies the visible_when / required_when behavior for Destination_Account_External_* vs Destination_Account_Internal.",
+      "priority": "low"
     },
     {
       "tc_id": "E-004",
       "subcategory": "input_edge",
-      "test_case": "External account numbers include formatting characters but match exactly (should PASS)",
+      "test_case": "Destination_Account_External_Confirm differs by one digit \u2014 should fail with 'Account numbers do not match.'",
       "preconditions": [
-        "User is authenticated",
-        "Select-able Source Account exists",
-        "Transfer_Type = External Account"
+        "Transfer_Type = External Account",
+        "Destination_Account_External_Number and Destination_Account_External_Confirm visible and required (visible_when/required_when applies)",
+        "Transfer_Amount <= source available balance"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"123-456-789\"",
-        "Enter Confirm_External_Account_Number = \"123-456-789\" (same formatting)",
-        "Enter a Transfer_Amount that is <= source balance",
-        "Submit the transfer form"
+        "Enter Destination_Account_External_Number = '1234567890'",
+        "Enter Destination_Account_External_Confirm = '1234567891' (one digit different)",
+        "Select a Source_Account with sufficient funds",
+        "Enter Transfer_Amount",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "PASS \u2014 Because the two external account fields match, submission succeeds and UI shows \"Transfer completed successfully.\" with a transaction ID (matching the AST constraint \"must match External_Account_Number\").",
+      "expected_result": "FAIL \u2014 Submission fails client-side or server-side with the on_failure_messages entry 'Account numbers do not match.' This verifies the constraint 'must match Destination_Account_External_Number'.",
       "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "data_edge",
-      "test_case": "Source_Account dropdown when user has no Checking or Savings accounts (filter edge)",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click on 'Submit Transfer' \u2014 only one transfer should complete and one transaction ID returned",
       "preconditions": [
-        "User is authenticated",
-        "User has accounts but none with account_type Checking or Savings (e.g., only Investment accounts)"
+        "Form filled validly: Transfer_Type, Source_Account, Destination (internal or external with matching confirm), Transfer_Amount <= available balance",
+        "Submit button is the element 'Submit Transfer' with on_success text 'Transfer completed successfully. Returns transaction ID'"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Observe Source_Account dropdown options"
+        "Ensure form is fully filled and valid",
+        "Double-click the 'Submit Transfer' button rapidly (two clicks within 500ms)",
+        "Observe success/failure messages and any transaction ID(s) shown"
       ],
-      "expected_result": "UI shows no selectable options for Source_Account (dropdown empty or shows a clear \"No eligible accounts\" / placeholder), reflecting options_filter: account_type in [Checking, Savings].",
-      "priority": "low"
+      "expected_result": "PASS \u2014 Only one successful transfer completes; UI displays the on_success text 'Transfer completed successfully. Returns transaction ID' once and shows a single transaction ID (no duplicate transaction success messages). This verifies idempotent handling of rapid double-submit at the UI level.",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
-      "subcategory": "interaction_edge",
-      "test_case": "External confirm field left blank while External_Account_Number filled (should FAIL match)",
+      "subcategory": "data_edge",
+      "test_case": "Source_Account dropdown only shows accounts filtered to account_type in [Checking, Savings]",
       "preconditions": [
-        "User is authenticated",
-        "Transfer_Type = External Account",
-        "Source Account with sufficient balance exists"
+        "AST constraint: 'account selection filtered to account_type in [Checking, Savings]' applies to Source_Account dropdown"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number = \"987654321\"",
-        "Leave Confirm_External_Account_Number blank",
-        "Enter Transfer_Amount <= source balance",
-        "Submit the transfer form"
+        "Open the Source_Account dropdown",
+        "Inspect the visible account options in the dropdown list"
       ],
-      "expected_result": "FAIL \u2014 Required/ matching constraint triggers; UI displays \"Account numbers do not match.\" (Confirm_External_Account_Number is required and must match External_Account_Number per AST).",
-      "priority": "medium"
+      "expected_result": "PASS \u2014 Every account option displayed in Source_Account has account_type either 'Checking' or 'Savings'; no accounts of other types are present. This verifies the constraint 'account selection filtered to account_type in [Checking, Savings]'.",
+      "priority": "low"
     },
     {
       "tc_id": "E-007",
       "subcategory": "input_edge",
-      "test_case": "External account fields contain invisible/non-printable characters causing mismatch (should FAIL)",
+      "test_case": "Selecting My ParaBank Account but leaving Destination_Account_Internal empty \u2014 required_when prevents submission",
       "preconditions": [
-        "User is authenticated",
-        "Transfer_Type = External Account",
-        "Source Account with sufficient balance exists"
+        "Transfer_Type set to My ParaBank Account",
+        "Destination_Account_Internal field has 'required_when' = 'Transfer_Type == My ParaBank Account'",
+        "Source_Account has sufficient funds for the intended Transfer_Amount"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
-        "Select Transfer_Type = External Account",
-        "Select Source_Account",
-        "Enter External_Account_Number by pasting digits with a zero-width space inserted (e.g., \"123\t123\")",
-        "Enter Confirm_External_Account_Number = \"123123\" (visible digits only)",
-        "Enter Transfer_Amount <= source balance",
-        "Submit the transfer form"
+        "Select Transfer_Type = My ParaBank Account",
+        "Select Source_Account with sufficient funds",
+        "Enter Transfer_Amount <= available balance",
+        "Leave Destination_Account_Internal unselected/empty",
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "FAIL \u2014 The system enforces exact matching per AST constraint; UI shows \"Account numbers do not match.\" because the invisible character makes the two fields differ.",
-      "priority": "medium"
+      "expected_result": "FAIL \u2014 Form prevents submission due to required Destination_Account_Internal (field validation triggered). No on_success 'Transfer completed successfully. Returns transaction ID' message appears. This verifies enforcement of 'required_when' for Destination_Account_Internal.",
+      "priority": "low"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Attempt transfer with Transfer_Amount = 0.00 (validate transfer amount edge)",
+      "subcategory": "state_edge",
+      "test_case": "Switch Source_Account immediately before submit to ensure sufficiency check uses the currently selected Source_Account",
       "preconditions": [
-        "User is authenticated",
-        "Source Account with balance >= 0.00 exists",
-        "Destination internal account exists"
+        "Two Source_Account options are available: Source_Account A (balance low) and Source_Account B (balance high); both are of account_type Checking or Savings",
+        "AST constraint: 'system checks sufficient funds before completing transfer'"
       ],
       "steps": [
-        "Navigate to Transfer Funds page",
         "Select Transfer_Type = My ParaBank Account",
-        "Select Source_Account",
+        "Select Source_Account = Source_Account A (insufficient for planned amount)",
+        "Enter Transfer_Amount = amount X that is greater than Source_Account A balance but \u2264 Source_Account B balance",
+        "Immediately switch Source_Account selection to Source_Account B",
         "Select Destination_Account_Internal",
-        "Enter Transfer_Amount = 0.00",
-        "Submit the transfer form"
+        "Click 'Submit Transfer'"
       ],
-      "expected_result": "Edge behavior \u2014 Because AST lists \"validate transfer amount\" but provides no minimum in the description, UI must enforce validation. Expected: submission is blocked with a transfer-amount validation error (i.e., the form does not proceed). The UI should show a clear validation message for invalid transfer amount.",
-      "priority": "low"
+      "expected_result": "PASS \u2014 Because the currently selected Source_Account (Source_Account B) has sufficient funds, submission succeeds and UI shows 'Transfer completed successfully. Returns transaction ID'. This verifies that the 'system checks sufficient funds before completing transfer' constraint is evaluated against the Source_Account selected at the moment of submission.",
+      "priority": "medium"
     }
   ],
   "summary": {
     "total": 8,
     "boundary": 2,
     "edge": 6,
-    "medium_priority": 5,
-    "low_priority": 3
+    "medium_priority": 3,
+    "low_priority": 5
   }
 }

@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572772
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.556384
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Update Contact Info</module_name>
 
@@ -304,73 +305,74 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 {
   "module_name": "Update Contact Info",
   "components": {
-    "Update_Contact_Info_Form": {
+    "Update_Contact_Form": {
       "type": "form",
       "fields": {
         "First_Name": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match expected format"
           ]
         },
         "Last_Name": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected name format"
+            "must match expected format"
           ]
         },
         "Street_Address": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected street address format"
+            "must match expected format"
           ]
         },
         "City": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match expected city name format"
+            "must match expected format"
           ]
         },
         "State": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must be a valid state/region value"
+            "must match expected format"
           ]
         },
         "ZIP_Code": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match ZIP/postal code format (e.g., 5 digits or 5+4)"
+            "must match expected format"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
-          "required": true,
+          "prefilled": true,
           "constraints": [
             "must be present",
-            "must match phone number format (e.g., 10-digit or E.164)"
+            "must match expected format"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Update Profile",
-          "type": "button",
-          "on_submit": "validates each field for format and completeness",
-          "on_success": "Profile updated successfully and refreshes the data",
-          "on_failure": "highlights invalid fields and displays inline error banner"
+          "constraints": [
+            "validates all fields for format and completeness before submitting"
+          ],
+          "on_success": "Profile updated successfully.; refreshes the data",
+          "on_failure": "highlights invalid fields and displays an inline error banner"
         }
       ]
     }
@@ -378,16 +380,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:59:43] Test-Negative - LLM RESPONSE
+[23:12:44] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Update Contact Info",
@@ -395,106 +391,54 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit with all required fields empty",
+      "test_case": "Clear First_Name and submit — required field validation",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear First Name, Last Name, Street Address, City, State, ZIP Code and Phone Number fields",
+        "Clear the First_Name field (remove its value)",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation errors displayed for First Name, Last Name, Street Address, City, State, ZIP Code and Phone Number indicating they are required; inline error banner displayed and no profile update occurs",
+      "expected_result": "Validation error displayed for First_Name indicating it is required; highlights invalid fields and displays an inline error banner",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Leave required text field (First Name) empty and submit",
+      "test_case": "Clear all fields and submit — all required fields missing",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear the First Name field only",
+        "Clear every field: First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation error displayed for First Name indicating it is required; First Name field highlighted and inline error banner displayed",
+      "expected_result": "Validation errors displayed for all required fields (First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number) indicating they must be present; highlights invalid fields and displays an inline error banner",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "State not selected (invalid/missing state) and submit",
+      "test_case": "Enter invalid Phone_Number format and submit — format validation",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear or set State field to an empty/unselected value",
+        "Set Phone_Number to 'invalid-phone' (a value that does not match the expected format)",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation error displayed for State indicating it must be a valid state/region value (State is required or invalid); inline error banner displayed",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-004",
-      "test_case": "Enter invalid ZIP Code format and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter 'ABC' into ZIP Code field (does not match 5-digit or 5+4 format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for ZIP Code indicating it must match ZIP/postal code format (e.g., 5 digits or 5+4); inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Enter invalid Phone Number format and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter '12345' into Phone Number field (does not match 10-digit or E.164 format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for Phone Number indicating it must match phone number format (e.g., 10-digit or E.164); inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-006",
-      "test_case": "Enter invalid characters in First Name (name format violation)",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter 'J@ne123' into First Name field (contains symbols/numbers that violate expected name format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for First Name indicating it must match the expected name format; First Name field highlighted and inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-007",
-      "test_case": "Select an invalid/unrecognized State value and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Manually enter or select an unrecognized value (e.g., 'InvalidState') into the State field",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for State indicating the selected value is not a valid state/region; inline error banner displayed",
+      "expected_result": "Validation error displayed for Phone_Number stating it 'must match expected format'; highlights invalid fields and displays an inline error banner",
       "priority": "medium"
     }
   ],
   "summary": {
-    "total": 7,
-    "high_priority": 3,
-    "medium_priority": 4,
+    "total": 3,
+    "high_priority": 2,
+    "medium_priority": 1,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[21:59:43] Test-Negative - PARSED JSON
+[23:12:44] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Update Contact Info",
@@ -502,100 +446,48 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit with all required fields empty",
+      "test_case": "Clear First_Name and submit \u2014 required field validation",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear First Name, Last Name, Street Address, City, State, ZIP Code and Phone Number fields",
+        "Clear the First_Name field (remove its value)",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation errors displayed for First Name, Last Name, Street Address, City, State, ZIP Code and Phone Number indicating they are required; inline error banner displayed and no profile update occurs",
+      "expected_result": "Validation error displayed for First_Name indicating it is required; highlights invalid fields and displays an inline error banner",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Leave required text field (First Name) empty and submit",
+      "test_case": "Clear all fields and submit \u2014 all required fields missing",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear the First Name field only",
+        "Clear every field: First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation error displayed for First Name indicating it is required; First Name field highlighted and inline error banner displayed",
+      "expected_result": "Validation errors displayed for all required fields (First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number) indicating they must be present; highlights invalid fields and displays an inline error banner",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
-      "test_case": "State not selected (invalid/missing state) and submit",
+      "test_case": "Enter invalid Phone_Number format and submit \u2014 format validation",
       "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
+        "Update Contact Form is open with all fields prefilled"
       ],
       "steps": [
-        "Clear or set State field to an empty/unselected value",
+        "Set Phone_Number to 'invalid-phone' (a value that does not match the expected format)",
         "Click the 'Update Profile' button"
       ],
-      "expected_result": "Validation error displayed for State indicating it must be a valid state/region value (State is required or invalid); inline error banner displayed",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-004",
-      "test_case": "Enter invalid ZIP Code format and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter 'ABC' into ZIP Code field (does not match 5-digit or 5+4 format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for ZIP Code indicating it must match ZIP/postal code format (e.g., 5 digits or 5+4); inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Enter invalid Phone Number format and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter '12345' into Phone Number field (does not match 10-digit or E.164 format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for Phone Number indicating it must match phone number format (e.g., 10-digit or E.164); inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-006",
-      "test_case": "Enter invalid characters in First Name (name format violation)",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Enter 'J@ne123' into First Name field (contains symbols/numbers that violate expected name format)",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for First Name indicating it must match the expected name format; First Name field highlighted and inline error banner displayed",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "N-007",
-      "test_case": "Select an invalid/unrecognized State value and submit",
-      "preconditions": [
-        "Customer Profile page is open and form is pre-filled with current contact info"
-      ],
-      "steps": [
-        "Manually enter or select an unrecognized value (e.g., 'InvalidState') into the State field",
-        "Click the 'Update Profile' button"
-      ],
-      "expected_result": "Validation error displayed for State indicating the selected value is not a valid state/region; inline error banner displayed",
+      "expected_result": "Validation error displayed for Phone_Number stating it 'must match expected format'; highlights invalid fields and displays an inline error banner",
       "priority": "medium"
     }
   ],
   "summary": {
-    "total": 7,
-    "high_priority": 3,
-    "medium_priority": 4,
+    "total": 3,
+    "high_priority": 2,
+    "medium_priority": 1,
     "low_priority": 0
   }
 }

@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572088
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.554762
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - SYSTEM PROMPT
+[23:11:21] Test-Negative - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+You are a Negative Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact error text → use it verbatim.
+- When the AST includes exact error text (e.g., in constraint strings or on_failure fields) → use it verbatim.
 - When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
 
 WRONG:   "Validation error shown"
@@ -38,29 +34,24 @@ RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - A precondition in `preconditions: []`
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -100,7 +91,7 @@ Then it is a DISPLAY-ONLY module. For display-only modules:
   - DO NOT invent validation error scenarios — there are no
     form fields to validate
   - DO NOT invent backend data corruption scenarios — the
-    description describes what IS displayed, not what could
+    AST describes what IS displayed, not what could
     go wrong with the data
 
 A display page that "shows a table with columns X, Y, Z"
@@ -207,7 +198,7 @@ For each field TYPE that has format rules:
   - `date` → one test with invalid date (e.g., "99/99/9999")
   - `password` → ONE representative test only (per dedup Layer 2)
 
-Only generate these if the AST or description implies format validation.
+Only generate these if the AST explicitly specifies the field type (e.g., `type: "email"`, `type: "number"`, `type: "date"`) or has a constraint that implies format validation.
 
 **3. Constraint violations:**
 
@@ -228,20 +219,30 @@ For EACH action with `preconditions: []`:
 
 **5. State-bound action violations:**
 
-For each state with `available_actions: []` (empty array):
-  - One test verifying no action buttons are available in that state.
+The `available_actions` array for each state is the AUTHORITATIVE list of what is
+allowed. Use it as ground truth:
+  - Action PRESENT in a state's available_actions → it IS valid in that state
+  - Action ABSENT from a state's available_actions → it IS blocked in that state
 
-For actions available in one state but not another:
-  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+Tests to generate:
+  (a) For each state with an empty available_actions array:
+      → One test confirming no action buttons appear in that state
+  (b) For each action that is ABSENT from a given state's available_actions but
+      PRESENT in another state:
+      → One test attempting that action from the wrong state
 
-**6. Cross-field validation from description:**
+DO NOT generate "invalid transition" tests for any transition that APPEARS in
+available_actions. If State A has action "Freeze" (→ B) AND State B has action
+"Unfreeze" (→ A), both directions are VALID — do not test either as invalid.
 
-If the description mentions field relationships not captured in AST constraints:
+**6. Cross-field validation:**
+
+For cross-field rules captured in AST constraints (e.g., "must match", "must not be same as"):
   - "confirm password must match" → test mismatch
   - "account numbers must match" → test mismatch
   - "end date after start date" → test reversed dates
 
-One test per unique cross-field rule.
+One test per unique cross-field constraint found in the AST.
 
 ---
 
@@ -296,7 +297,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Negative - USER PROMPT
+[23:11:21] Test-Negative - USER PROMPT
 ------------------------------------------------------------
 <module_name>Register</module_name>
 
@@ -331,26 +332,23 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-            "must match regex: ^(\\d{5})(-\\d{4})?$"
+            "must be 5 digits or 5+4 format (12345 or 12345-6789)"
           ]
         },
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format (123) 456-7890",
-            "must match regex: ^\\(\\d{3}\\) \\d{3}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern (123) 456-7890",
+            "automatic formatting applied to (123) 456-7890 on input"
           ]
         },
         "Social_Security_Number": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must follow format 123-45-6789",
-            "must match regex: ^\\d{3}-\\d{2}-\\d{4}$",
-            "autoformat_on_input"
+            "must match pattern 123-45-6789",
+            "automatic formatting applied to 123-45-6789 on input"
           ]
         },
         "Username": {
@@ -364,8 +362,7 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
           "type": "password",
           "required": true,
           "constraints": [
-            "must be at least 8 characters",
-            "min_length: 8"
+            "minimum length 8 characters"
           ]
         },
         "Confirm_Password": {
@@ -379,15 +376,14 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
       "submit_actions": [
         {
           "element_name": "Register",
-          "type": "button",
           "constraints": [
-            "validates all required fields are present",
-            "validates field pattern conformance (Phone, ZIP, SSN, Email)",
-            "validates Confirm_Password matches Password"
+            "on submit: validates required fields are present",
+            "on submit: validates each field matches its pattern constraints",
+            "on submit: validates Confirm_Password matches Password"
           ],
           "on_success": "Account created successfully \u2014 please sign in",
-          "redirect_to": "Login page",
-          "on_failure": "displays field-level errors for correction"
+          "on_success_redirect": "Login page",
+          "on_failure": "displays specific field-level errors for correction"
         }
       ]
     }
@@ -395,16 +391,10 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
 }
 </ast>
 
-<description>
-The registration page presents a comprehensive sign-up form with required inputs for First Name, Last Name, Street Address, City, State (dropdown with all US states), ZIP Code, Phone Number, Social Security Number, Username (email format), Password, and Confirm Password, plus a "Register" button. The system enforces specific validation constraints: Username must be a valid email format, Phone Number must follow the format (123) 456-7890 with automatic formatting, ZIP Code must be 5 digits or 5+4 format (12345 or 12345-6789), SSN must follow the format 123-45-6789 with automatic formatting, Password must be at least 8 characters, and Confirm Password must match the Password field. On submission, the system validates field completeness, pattern conformance, and password match. Success produces "Account created successfully — please sign in," then redirects to the login page, otherwise specific field-level errors are displayed for correction.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:58:24] Test-Negative - LLM RESPONSE
+[23:11:58] Test-Negative - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Register",
@@ -412,126 +402,154 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all required fields empty",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Submit completely empty form",
+      "preconditions": [],
       "steps": [
-        "Leave every field empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Leave all fields blank",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation errors displayed for all required fields (First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Social_Security_Number, Username, Password, Confirm_Password) indicating they are required",
+      "expected_result": "Validation errors displayed for all required fields: First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Social_Security_Number, Username, Password, Confirm_Password indicating each is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Required text field left blank (representative: First_Name)",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Required unspecified text field missing (First_Name)",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except leave First_Name empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Leave First_Name blank",
+        "Fill other required fields with valid values: Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for First_Name indicating it is required",
+      "expected_result": "Validation error displayed for First_Name indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
       "test_case": "Required dropdown not selected (State)",
-      "preconditions": ["User is on the Register page"],
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except do not select a value in State dropdown",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except State (leave State unselected): First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for State indicating a selection is required",
+      "expected_result": "Validation error displayed for State indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Email field left empty (representative for email required)",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Invalid email format for Username",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except leave Username (email) empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Username: set Username='notanemail'",
+        "Ensure Password and Confirm_Password are valid and matching: Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Username indicating it is required",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Invalid email format in Username",
-      "preconditions": ["User is on the Register page"],
-      "steps": [
-        "Fill all required fields with valid data except enter 'notanemail' into Username",
-        "Click the 'Register' button"
-      ],
-      "expected_result": "Validation error displayed for Username indicating it must be a valid email format",
+      "expected_result": "Validation error displayed for Username indicating it \"must be a valid email format\" (on submit: validates each field matches its pattern constraints)",
       "priority": "medium"
     },
     {
-      "tc_id": "N-006",
-      "test_case": "Password shorter than minimum length",
-      "preconditions": ["User is on the Register page"],
+      "tc_id": "N-005",
+      "test_case": "Password below minimum length",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter 'Abc123' (6 characters) into Password and the same into Confirm_Password",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values, set Password='Ab1!x' (shorter than 8 chars) and Confirm_Password='Ab1!x', Username='user@example.com', other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Password indicating it must be at least 8 characters",
+      "expected_result": "Validation error displayed for Password indicating \"minimum length 8 characters\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Confirm_Password does not match Password",
+      "preconditions": [],
+      "steps": [
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values, set Password='Abcd1234' and Confirm_Password='Different123', Username='user@example.com', other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789'",
+        "Click 'Register' submit button"
+      ],
+      "expected_result": "Validation error displayed for Confirm_Password indicating it \"must match Password\" (on submit: validates Confirm_Password matches Password)",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Confirm Password does not match Password (cross-field)",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "ZIP_Code violates format constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data",
-        "Enter a valid Password of at least 8 characters, enter a different value into Confirm_Password",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except ZIP_Code: set ZIP_Code='1234' (invalid format)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Confirm_Password indicating it must match Password",
-      "priority": "high"
+      "expected_result": "Validation error displayed for ZIP_Code indicating it \"must be 5 digits or 5+4 format (12345 or 12345-6789)\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-008",
-      "test_case": "ZIP Code does not match required 5-digit or 5+4 format",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Phone_Number violates pattern constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '1234' into ZIP_Code",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Phone_Number: set Phone_Number='1234567890' (does not match pattern)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for ZIP_Code indicating it must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Phone_Number indicating it \"must match pattern (123) 456-7890\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-009",
-      "test_case": "Phone Number does not match required pattern",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Social_Security_Number violates pattern constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '123-456-7890' (missing parentheses) into Phone_Number",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Social_Security_Number: set Social_Security_Number='123456789' (does not match pattern)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Phone_Number indicating it must follow the format (123) 456-7890",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Social_Security_Number indicating it \"must match pattern 123-45-6789\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-010",
-      "test_case": "Social Security Number does not match required pattern",
-      "preconditions": ["User is on the Register page"],
+      "test_case": "Automatic formatting does not mask invalid phone input (letters in phone)",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '123456789' into Social_Security_Number",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Phone_Number: enter letters 'abcdefg' into Phone_Number field",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Social_Security_Number indicating it must follow the format 123-45-6789",
+      "expected_result": "Validation error displayed for Phone_Number indicating it \"must match pattern (123) 456-7890\" (despite automatic formatting rule, non-numeric/invalid input is rejected)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-011",
+      "test_case": "Required email field missing (Username empty)",
+      "preconditions": [],
+      "steps": [
+        "Navigate to Registration_Form",
+        "Leave Username blank",
+        "Fill other required fields with valid values: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
+      ],
+      "expected_result": "Validation error displayed for Username indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     }
   ],
   "summary": {
-    "total": 10,
-    "high_priority": 9,
-    "medium_priority": 1,
+    "total": 11,
+    "high_priority": 6,
+    "medium_priority": 5,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[21:58:24] Test-Negative - PARSED JSON
+[23:11:58] Test-Negative - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Register",
@@ -539,140 +557,148 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "N-001",
-      "test_case": "Submit form with all required fields empty",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Submit completely empty form",
+      "preconditions": [],
       "steps": [
-        "Leave every field empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Leave all fields blank",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation errors displayed for all required fields (First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Social_Security_Number, Username, Password, Confirm_Password) indicating they are required",
+      "expected_result": "Validation errors displayed for all required fields: First_Name, Last_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Social_Security_Number, Username, Password, Confirm_Password indicating each is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-002",
-      "test_case": "Required text field left blank (representative: First_Name)",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Required unspecified text field missing (First_Name)",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except leave First_Name empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Leave First_Name blank",
+        "Fill other required fields with valid values: Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for First_Name indicating it is required",
+      "expected_result": "Validation error displayed for First_Name indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-003",
       "test_case": "Required dropdown not selected (State)",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except do not select a value in State dropdown",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except State (leave State unselected): First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for State indicating a selection is required",
+      "expected_result": "Validation error displayed for State indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     },
     {
       "tc_id": "N-004",
-      "test_case": "Email field left empty (representative for email required)",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Invalid email format for Username",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except leave Username (email) empty",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Username: set Username='notanemail'",
+        "Ensure Password and Confirm_Password are valid and matching: Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Username indicating it is required",
-      "priority": "high"
-    },
-    {
-      "tc_id": "N-005",
-      "test_case": "Invalid email format in Username",
-      "preconditions": [
-        "User is on the Register page"
-      ],
-      "steps": [
-        "Fill all required fields with valid data except enter 'notanemail' into Username",
-        "Click the 'Register' button"
-      ],
-      "expected_result": "Validation error displayed for Username indicating it must be a valid email format",
+      "expected_result": "Validation error displayed for Username indicating it \"must be a valid email format\" (on submit: validates each field matches its pattern constraints)",
       "priority": "medium"
     },
     {
-      "tc_id": "N-006",
-      "test_case": "Password shorter than minimum length",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "tc_id": "N-005",
+      "test_case": "Password below minimum length",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter 'Abc123' (6 characters) into Password and the same into Confirm_Password",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values, set Password='Ab1!x' (shorter than 8 chars) and Confirm_Password='Ab1!x', Username='user@example.com', other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Password indicating it must be at least 8 characters",
+      "expected_result": "Validation error displayed for Password indicating \"minimum length 8 characters\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Confirm_Password does not match Password",
+      "preconditions": [],
+      "steps": [
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values, set Password='Abcd1234' and Confirm_Password='Different123', Username='user@example.com', other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789'",
+        "Click 'Register' submit button"
+      ],
+      "expected_result": "Validation error displayed for Confirm_Password indicating it \"must match Password\" (on submit: validates Confirm_Password matches Password)",
       "priority": "high"
     },
     {
       "tc_id": "N-007",
-      "test_case": "Confirm Password does not match Password (cross-field)",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "ZIP_Code violates format constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data",
-        "Enter a valid Password of at least 8 characters, enter a different value into Confirm_Password",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except ZIP_Code: set ZIP_Code='1234' (invalid format)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Confirm_Password indicating it must match Password",
-      "priority": "high"
+      "expected_result": "Validation error displayed for ZIP_Code indicating it \"must be 5 digits or 5+4 format (12345 or 12345-6789)\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-008",
-      "test_case": "ZIP Code does not match required 5-digit or 5+4 format",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Phone_Number violates pattern constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '1234' into ZIP_Code",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Phone_Number: set Phone_Number='1234567890' (does not match pattern)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for ZIP_Code indicating it must match 5-digit or 5+4 ZIP format (12345 or 12345-6789)",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Phone_Number indicating it \"must match pattern (123) 456-7890\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-009",
-      "test_case": "Phone Number does not match required pattern",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Social_Security_Number violates pattern constraint",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '123-456-7890' (missing parentheses) into Phone_Number",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Social_Security_Number: set Social_Security_Number='123456789' (does not match pattern)",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Phone_Number indicating it must follow the format (123) 456-7890",
-      "priority": "high"
+      "expected_result": "Validation error displayed for Social_Security_Number indicating it \"must match pattern 123-45-6789\" (on submit: validates each field matches its pattern constraints)",
+      "priority": "medium"
     },
     {
       "tc_id": "N-010",
-      "test_case": "Social Security Number does not match required pattern",
-      "preconditions": [
-        "User is on the Register page"
-      ],
+      "test_case": "Automatic formatting does not mask invalid phone input (letters in phone)",
+      "preconditions": [],
       "steps": [
-        "Fill all required fields with valid data except enter '123456789' into Social_Security_Number",
-        "Click the 'Register' button"
+        "Navigate to Registration_Form",
+        "Fill required fields with valid values except Phone_Number: enter letters 'abcdefg' into Phone_Number field",
+        "Other fields valid: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Social_Security_Number='123-45-6789', Username='user@example.com', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
       ],
-      "expected_result": "Validation error displayed for Social_Security_Number indicating it must follow the format 123-45-6789",
+      "expected_result": "Validation error displayed for Phone_Number indicating it \"must match pattern (123) 456-7890\" (despite automatic formatting rule, non-numeric/invalid input is rejected)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-011",
+      "test_case": "Required email field missing (Username empty)",
+      "preconditions": [],
+      "steps": [
+        "Navigate to Registration_Form",
+        "Leave Username blank",
+        "Fill other required fields with valid values: First_Name='John', Last_Name='Doe', Street_Address='123 Main St', City='Anytown', State='CA', ZIP_Code='12345', Phone_Number='(123) 456-7890', Social_Security_Number='123-45-6789', Password='Abcd1234', Confirm_Password='Abcd1234'",
+        "Click 'Register' submit button"
+      ],
+      "expected_result": "Validation error displayed for Username indicating it is required (on submit: validates required fields are present)",
       "priority": "high"
     }
   ],
   "summary": {
-    "total": 10,
-    "high_priority": 9,
-    "medium_priority": 1,
+    "total": 11,
+    "high_priority": 6,
+    "medium_priority": 5,
     "low_priority": 0
   }
 }

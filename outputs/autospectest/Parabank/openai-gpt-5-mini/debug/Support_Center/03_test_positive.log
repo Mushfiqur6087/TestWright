@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.573302
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.557445
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Positive - SYSTEM PROMPT
+[23:11:21] Test-Positive - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+You are a Positive Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
 
 ---
 
@@ -19,15 +19,11 @@ You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one mo
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- When the description quotes exact success text → use it verbatim.
+- When the AST's `on_success` field provides exact success text → use it verbatim.
 - When generic → write specific assertions describing the visible outcome.
 - Always use `on_success` from the AST when available.
 
@@ -35,29 +31,25 @@ You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one mo
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A field name in `fields: []`
+  - A constraint string in `constraints: []`
+  - An action name in `available_actions: []` or `submit_actions: []`
+  - A state key in `state_bound_action_bar`
+  - An `on_success` value
+  - A step in a wizard
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
+  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
 
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
-
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -117,6 +109,20 @@ Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
   - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
   - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
 
+**PATH vs DATA VARIATION — CRITICAL DISTINCTION:**
+
+A new PATH exercises a different code branch (different conditional, different
+action, different state sequence, different navigation route).
+
+A DATA VARIATION exercises the SAME code branch with different input values:
+  ✗ Different email addresses (same authentication code path)
+  ✗ Different names or phone number formats (same text field handling)
+  ✗ Different account numbers (same numeric field code path)
+
+Path A + Path B + Path C exhaust all meaningful code paths for a single-action
+form. If you are about to generate TC-004+, ask: "Does this exercise a code
+branch not exercised by Path A/B/C?" If no, stop.
+
 **2. State transition tests:**
 
 For EACH state in a `state_bound_action_bar`:
@@ -138,7 +144,7 @@ that transitions back to State A — test both transitions.
 For checkboxes and toggles: test check → submit, then
 uncheck → submit.
 
-**3. End-to-end lifecycle flows (from description context):**
+**3. End-to-end lifecycle flows:**
 
 If the module has multiple states, produce:
   - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
@@ -164,19 +170,19 @@ For each `data_table`:
 For each field with `options: []`:
   - One test verifying all listed options are present and selectable
 
-**7. Search and filter (from description):**
+**7. Search and filter:**
 
-If description mentions search or filter:
+If AST contains a `search_input` or filter component:
   - One test: search/filter with matching criteria → correct results shown
 
-**8. Navigation and redirect (from description):**
+**8. Navigation and redirect:**
 
-If description mentions "redirected to X" or "opens Y page":
+If AST has an `on_success` containing "redirect", "navigates to", or "opens":
   - One test per unique redirect verifying navigation occurs
 
-**9. Pre-population (from description):**
+**9. Pre-population:**
 
-If description mentions "pre-filled", "auto-populated", "defaults to":
+If AST has a field with `default` or `pre_filled` attribute:
   - One test verifying pre-fill behavior
 
 ---
@@ -222,7 +228,7 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Positive - USER PROMPT
+[23:11:21] Test-Positive - USER PROMPT
 ------------------------------------------------------------
 <module_name>Support Center</module_name>
 
@@ -235,14 +241,12 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
       "fields": {
         "Subject": {
           "type": "unspecified",
-          "required": false,
           "constraints": [
-            "must meet subject length limits (system checks subject length)"
+            "subject length validated"
           ]
         },
         "Category": {
           "type": "dropdown",
-          "required": false,
           "options": [
             "Account",
             "Technical",
@@ -252,25 +256,25 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
         },
         "Message_Body": {
           "type": "unspecified",
-          "format": "rich_text",
           "required": true,
           "constraints": [
-            "message body must be present"
+            "must be present"
           ]
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "must be an allowed attachment type (system validates attachment types)"
+            "validates attachment types"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline validation guidance"
+          "type": "button",
+          "on_success": "Message sent successfully; returns ticket ID",
+          "on_failure": "displays inline guidance"
         }
       ]
     },
@@ -278,33 +282,31 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
       "type": "form",
       "fields": {
         "Reason_for_Call": {
-          "type": "dropdown",
-          "required": false
+          "type": "dropdown"
         },
         "Preferred_Date": {
           "type": "date",
-          "required": true,
           "constraints": [
-            "date must be at least the next business day"
+            "must be at least the next business day"
           ]
         },
         "Preferred_Time_Window": {
-          "type": "unspecified",
-          "required": false
+          "type": "unspecified"
         },
         "Phone_Number": {
           "type": "unspecified",
-          "required": true,
           "prefilled": true,
+          "editable": true,
           "constraints": [
-            "must match phone number format"
+            "phone number format validation"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "on_success": "Callback request submitted; sends email confirmation",
+          "type": "button",
+          "on_success": "Callback request submitted; email confirmation sent",
           "on_failure": "validation errors shown inline"
         }
       ]
@@ -313,16 +315,10 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 }
 </ast>
 
-<description>
-
-The Support Center page integrates two communication forms.The secure message form includes Subject, Category (dropdown: Account, Technical, Security, Other), Message Body (rich text), optional Attachment, and a “Send Message” button. The system checks subject length, ensures a message body is present, and validates attachment types. On success it shows “Message sent successfully.” with a ticket ID; failures display inline guidance. The schedule callback form includes Reason for Call (dropdown), Preferred Date, Preferred Time Window, Phone Number (pre-filled but editable), and a “Request Callback” button. The system ensures the date is at least the next business day and validates the phone number format. Success returns “Callback request submitted.” and sends an email confirmation; validation errors are shown inline.
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[22:01:47] Test-Positive - LLM RESPONSE
+[23:13:47] Test-Positive - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Support Center",
@@ -330,131 +326,144 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Secure Message — Path A: Complete data (subject, category, body, allowed attachment)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Secure Message form",
-        "Enter Subject: 'Unable to access billing details - account XYZ'",
-        "Select Category: 'Account'",
-        "Enter Message Body (rich text): 'Detailed description of the billing access issue and steps already taken.'",
-        "Attach a valid file type (e.g., 'screenshot.png') using the Attachment control",
-        "Click the 'Send Message' button"
+      "test_case": "Secure Message - Path A (Complete data including attachment)",
+      "preconditions": [
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
+      "steps": [
+        "In Secure_Message_Form, type a valid Subject that satisfies 'subject length validated' into the Subject field",
+        "Open Category dropdown and select 'Technical' (field: Category, options present in AST)",
+        "Type a message into Message_Body (field Message_Body is required)",
+        "Attach a valid file (e.g., valid.pdf) to Attachment (Attachment validates attachment types)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
+      ],
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Secure Message — Path B: Minimum viable (only required field Message Body)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Secure Message form",
-        "Leave Subject blank",
-        "Leave Category at default/unselected",
-        "Enter Message Body (rich text): 'Short message describing the issue.'",
-        "Leave Attachment empty",
-        "Click the 'Send Message' button"
+      "test_case": "Secure Message - Path B (Minimum viable: only required fields)",
+      "preconditions": [
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
+      "steps": [
+        "Leave Subject blank",
+        "Leave Attachment empty",
+        "Leave Category at its default/unselected value",
+        "Type a message into Message_Body (only required field per AST)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
+      ],
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Secure Message — Path C: Alternative route (different Category, no Subject, no attachment)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Secure Message form",
-        "Leave Subject blank",
-        "Select Category: 'Technical' (different from Path A)",
-        "Enter Message Body (rich text): 'Reporting a technical error observed on the dashboard.'",
-        "Do not attach a file",
-        "Click the 'Send Message' button"
+      "test_case": "Secure Message - Path C (Alternative route: different Category option)",
+      "preconditions": [
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-004",
-      "test_case": "Schedule Callback — Path A: Complete data (reason, preferred next-business-day date, time window, edited prefilled phone)",
-      "preconditions": ["User logged in", "Support Center page open"],
       "steps": [
-        "Open the Schedule Callback form",
-        "Select a Reason for Call option (choose any available option)",
-        "Set Preferred Date to the next business day or later per system rules",
-        "Enter Preferred Time Window: '10:00 AM - 12:00 PM'",
-        "Verify Phone Number is prefilled, optionally edit it to a valid format (e.g., '555-123-4567')",
-        "Click the 'Request Callback' button"
+        "Type a valid Subject meeting 'subject length validated' into Subject",
+        "Open Category dropdown and select 'Security' (a different option than other paths)",
+        "Type a message into Message_Body",
+        "Do not attach a file (Attachment optional)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
       ],
-      "expected_result": "Callback request submitted; sends email confirmation",
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
-      "tc_id": "P-005",
-      "test_case": "Schedule Callback — Path B: Minimum viable (only required fields Preferred Date and Phone Number)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Schedule Callback form",
-        "Leave Reason for Call blank",
-        "Set Preferred Date to the next business day or later per system rules",
-        "Leave Preferred Time Window blank",
-        "Ensure Phone Number is present (use prefilled value) and in valid format",
-        "Click the 'Request Callback' button"
+      "tc_id": "P-004",
+      "test_case": "Secure Message - Category dropdown options are present and selectable",
+      "preconditions": [
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
-      "expected_result": "Callback request submitted; sends email confirmation",
+      "steps": [
+        "Open the Category dropdown in Secure_Message_Form (field: Category)",
+        "Verify the following options are shown and selectable: 'Account', 'Technical', 'Security', 'Other'"
+      ],
+      "expected_result": "Category dropdown displays and allows selection of options: Account, Technical, Security, Other",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Schedule Callback - Path A (Complete data including Preferred_Date constraint)",
+      "preconditions": [
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible"
+      ],
+      "steps": [
+        "Select a Reason_for_Call value from the dropdown (field: Reason_for_Call)",
+        "Select a Preferred_Date that satisfies the constraint 'must be at least the next business day' (field: Preferred_Date)",
+        "Enter a Preferred_Time_Window (field: Preferred_Time_Window)",
+        "Confirm Phone_Number is present in the Phone_Number field (field has 'prefilled': true) and leave or edit as needed",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
+      ],
+      "expected_result": "Callback request submitted; email confirmation sent",
       "priority": "high"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Schedule Callback — Path C: Alternative route (edit prefilled phone number and choose a later valid date)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Schedule Callback form",
-        "Select a Reason for Call option (if available)",
-        "Set Preferred Date to a valid business day later than the next business day",
-        "Leave Preferred Time Window blank or enter a different time window than Path A",
-        "Edit the prefilled Phone Number to a different valid phone number (e.g., '555-987-6543')",
-        "Click the 'Request Callback' button"
+      "test_case": "Schedule Callback - Path B (Minimum viable: use only prefilled Phone_Number)",
+      "preconditions": [
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible",
+        "Phone_Number field is prefilled (prefilled: true)"
       ],
-      "expected_result": "Callback request submitted; sends email confirmation",
-      "priority": "medium"
+      "steps": [
+        "Do not change Reason_for_Call, Preferred_Date, or Preferred_Time_Window (leave blank/default)",
+        "Confirm the prefilled Phone_Number is present and valid-looking, leave it unchanged",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
+      ],
+      "expected_result": "Callback request submitted; email confirmation sent",
+      "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Category dropdown options verification (Account, Technical, Security, Other are present and selectable)",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Secure Message form",
-        "Open the Category dropdown",
-        "Verify the dropdown lists the options: 'Account', 'Technical', 'Security', 'Other'",
-        "Select each option in turn and confirm the selection is applied"
+      "test_case": "Schedule Callback - Path C (Alternative route: edit prefilled Phone_Number and provide date)",
+      "preconditions": [
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible",
+        "Phone_Number field is prefilled and editable (prefilled: true, editable: true)"
       ],
-      "expected_result": "Category dropdown shows and allows selection of Account, Technical, Security, Other",
-      "priority": "medium"
+      "steps": [
+        "Edit the Phone_Number field to a different valid phone number format (exercise 'phone number format validation')",
+        "Select a Preferred_Date that satisfies 'must be at least the next business day' (field: Preferred_Date)",
+        "Optionally select or change Preferred_Time_Window",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
+      ],
+      "expected_result": "Callback request submitted; email confirmation sent",
+      "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "Schedule Callback — Phone Number pre-filled verification and editability",
-      "preconditions": ["User logged in", "Support Center page open"],
-      "steps": [
-        "Open the Schedule Callback form",
-        "Observe the Phone Number field on form load",
-        "Confirm the Phone Number field contains the user's phone number (pre-filled)",
-        "Attempt to edit the Phone Number field and change it to a valid alternate number"
+      "test_case": "Schedule Callback - Phone_Number is prefilled and editable on load",
+      "preconditions": [
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible"
       ],
-      "expected_result": "Phone Number field is pre-filled with the user's number and is editable",
+      "steps": [
+        "Observe the Phone_Number field on Schedule_Callback_Form (field: Phone_Number)",
+        "Verify the field shows a prefilled value (prefilled: true) and that it is editable (editable: true)"
+      ],
+      "expected_result": "Phone_Number field displays a prefilled value and is editable",
       "priority": "medium"
     }
   ],
   "summary": {
     "total": 8,
-    "high_priority": 3,
-    "medium_priority": 5,
+    "high_priority": 6,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[22:01:47] Test-Positive - PARSED JSON
+[23:13:47] Test-Positive - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Support Center",
@@ -462,149 +471,138 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Secure Message \u2014 Path A: Complete data (subject, category, body, allowed attachment)",
+      "test_case": "Secure Message - Path A (Complete data including attachment)",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
       "steps": [
-        "Open the Secure Message form",
-        "Enter Subject: 'Unable to access billing details - account XYZ'",
-        "Select Category: 'Account'",
-        "Enter Message Body (rich text): 'Detailed description of the billing access issue and steps already taken.'",
-        "Attach a valid file type (e.g., 'screenshot.png') using the Attachment control",
-        "Click the 'Send Message' button"
+        "In Secure_Message_Form, type a valid Subject that satisfies 'subject length validated' into the Subject field",
+        "Open Category dropdown and select 'Technical' (field: Category, options present in AST)",
+        "Type a message into Message_Body (field Message_Body is required)",
+        "Attach a valid file (e.g., valid.pdf) to Attachment (Attachment validates attachment types)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Secure Message \u2014 Path B: Minimum viable (only required field Message Body)",
+      "test_case": "Secure Message - Path B (Minimum viable: only required fields)",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
       "steps": [
-        "Open the Secure Message form",
         "Leave Subject blank",
-        "Leave Category at default/unselected",
-        "Enter Message Body (rich text): 'Short message describing the issue.'",
         "Leave Attachment empty",
-        "Click the 'Send Message' button"
+        "Leave Category at its default/unselected value",
+        "Type a message into Message_Body (only required field per AST)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Secure Message \u2014 Path C: Alternative route (different Category, no Subject, no attachment)",
+      "test_case": "Secure Message - Path C (Alternative route: different Category option)",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
       "steps": [
-        "Open the Secure Message form",
-        "Leave Subject blank",
-        "Select Category: 'Technical' (different from Path A)",
-        "Enter Message Body (rich text): 'Reporting a technical error observed on the dashboard.'",
-        "Do not attach a file",
-        "Click the 'Send Message' button"
+        "Type a valid Subject meeting 'subject length validated' into Subject",
+        "Open Category dropdown and select 'Security' (a different option than other paths)",
+        "Type a message into Message_Body",
+        "Do not attach a file (Attachment optional)",
+        "Click the 'Send Message' button (submit_action.element_name: Send Message)"
       ],
-      "expected_result": "Message sent successfully with ticket ID",
-      "priority": "medium"
-    },
-    {
-      "tc_id": "P-004",
-      "test_case": "Schedule Callback \u2014 Path A: Complete data (reason, preferred next-business-day date, time window, edited prefilled phone)",
-      "preconditions": [
-        "User logged in",
-        "Support Center page open"
-      ],
-      "steps": [
-        "Open the Schedule Callback form",
-        "Select a Reason for Call option (choose any available option)",
-        "Set Preferred Date to the next business day or later per system rules",
-        "Enter Preferred Time Window: '10:00 AM - 12:00 PM'",
-        "Verify Phone Number is prefilled, optionally edit it to a valid format (e.g., '555-123-4567')",
-        "Click the 'Request Callback' button"
-      ],
-      "expected_result": "Callback request submitted; sends email confirmation",
+      "expected_result": "Message sent successfully; returns ticket ID",
       "priority": "high"
     },
     {
-      "tc_id": "P-005",
-      "test_case": "Schedule Callback \u2014 Path B: Minimum viable (only required fields Preferred Date and Phone Number)",
+      "tc_id": "P-004",
+      "test_case": "Secure Message - Category dropdown options are present and selectable",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Secure_Message_Form is visible"
       ],
       "steps": [
-        "Open the Schedule Callback form",
-        "Leave Reason for Call blank",
-        "Set Preferred Date to the next business day or later per system rules",
-        "Leave Preferred Time Window blank",
-        "Ensure Phone Number is present (use prefilled value) and in valid format",
-        "Click the 'Request Callback' button"
+        "Open the Category dropdown in Secure_Message_Form (field: Category)",
+        "Verify the following options are shown and selectable: 'Account', 'Technical', 'Security', 'Other'"
       ],
-      "expected_result": "Callback request submitted; sends email confirmation",
+      "expected_result": "Category dropdown displays and allows selection of options: Account, Technical, Security, Other",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Schedule Callback - Path A (Complete data including Preferred_Date constraint)",
+      "preconditions": [
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible"
+      ],
+      "steps": [
+        "Select a Reason_for_Call value from the dropdown (field: Reason_for_Call)",
+        "Select a Preferred_Date that satisfies the constraint 'must be at least the next business day' (field: Preferred_Date)",
+        "Enter a Preferred_Time_Window (field: Preferred_Time_Window)",
+        "Confirm Phone_Number is present in the Phone_Number field (field has 'prefilled': true) and leave or edit as needed",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
+      ],
+      "expected_result": "Callback request submitted; email confirmation sent",
       "priority": "high"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Schedule Callback \u2014 Path C: Alternative route (edit prefilled phone number and choose a later valid date)",
+      "test_case": "Schedule Callback - Path B (Minimum viable: use only prefilled Phone_Number)",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible",
+        "Phone_Number field is prefilled (prefilled: true)"
       ],
       "steps": [
-        "Open the Schedule Callback form",
-        "Select a Reason for Call option (if available)",
-        "Set Preferred Date to a valid business day later than the next business day",
-        "Leave Preferred Time Window blank or enter a different time window than Path A",
-        "Edit the prefilled Phone Number to a different valid phone number (e.g., '555-987-6543')",
-        "Click the 'Request Callback' button"
+        "Do not change Reason_for_Call, Preferred_Date, or Preferred_Time_Window (leave blank/default)",
+        "Confirm the prefilled Phone_Number is present and valid-looking, leave it unchanged",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
       ],
-      "expected_result": "Callback request submitted; sends email confirmation",
-      "priority": "medium"
+      "expected_result": "Callback request submitted; email confirmation sent",
+      "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Category dropdown options verification (Account, Technical, Security, Other are present and selectable)",
+      "test_case": "Schedule Callback - Path C (Alternative route: edit prefilled Phone_Number and provide date)",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible",
+        "Phone_Number field is prefilled and editable (prefilled: true, editable: true)"
       ],
       "steps": [
-        "Open the Secure Message form",
-        "Open the Category dropdown",
-        "Verify the dropdown lists the options: 'Account', 'Technical', 'Security', 'Other'",
-        "Select each option in turn and confirm the selection is applied"
+        "Edit the Phone_Number field to a different valid phone number format (exercise 'phone number format validation')",
+        "Select a Preferred_Date that satisfies 'must be at least the next business day' (field: Preferred_Date)",
+        "Optionally select or change Preferred_Time_Window",
+        "Click the 'Request Callback' button (submit_action.element_name: Request Callback)"
       ],
-      "expected_result": "Category dropdown shows and allows selection of Account, Technical, Security, Other",
-      "priority": "medium"
+      "expected_result": "Callback request submitted; email confirmation sent",
+      "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "Schedule Callback \u2014 Phone Number pre-filled verification and editability",
+      "test_case": "Schedule Callback - Phone_Number is prefilled and editable on load",
       "preconditions": [
-        "User logged in",
-        "Support Center page open"
+        "Support Center page is open",
+        "Schedule_Callback_Form is visible"
       ],
       "steps": [
-        "Open the Schedule Callback form",
-        "Observe the Phone Number field on form load",
-        "Confirm the Phone Number field contains the user's phone number (pre-filled)",
-        "Attempt to edit the Phone Number field and change it to a valid alternate number"
+        "Observe the Phone_Number field on Schedule_Callback_Form (field: Phone_Number)",
+        "Verify the field shows a prefilled value (prefilled: true) and that it is editable (editable: true)"
       ],
-      "expected_result": "Phone Number field is pre-filled with the user's number and is editable",
+      "expected_result": "Phone_Number field displays a prefilled value and is editable",
       "priority": "medium"
     }
   ],
   "summary": {
     "total": 8,
-    "high_priority": 3,
-    "medium_priority": 5,
+    "high_priority": 6,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }

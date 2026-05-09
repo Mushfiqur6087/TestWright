@@ -131,7 +131,6 @@ async def generate_tests_node(state: PipelineState) -> Dict[str, Any]:
     ui_ast_results = state.get("ui_ast_results", [])
 
     ast_by_id = {r["module_id"]: r.get("ast", {}) for r in ui_ast_results}
-    desc_by_id = {m["id"]: m["description"] for m in modules}
 
     # Skip modules that failed AST generation (empty ast)
     runnable = [m for m in modules if ast_by_id.get(m["id"])]
@@ -145,16 +144,15 @@ async def generate_tests_node(state: PipelineState) -> Dict[str, Any]:
     async def _process_module(module: Dict[str, Any]) -> Dict[str, Any]:
         title = module["title"]
         ast = ast_by_id[module["id"]]
-        desc = desc_by_id.get(module["id"], "")
         module_dir = _module_debug_dir(state, title)
         pos_agent = TestPositiveAgent(**_agent_kwargs(state, "03_test_positive.log", module_dir))
         neg_agent = TestNegativeAgent(**_agent_kwargs(state, "04_test_negative.log", module_dir))
         edge_agent = TestEdgeAgent(**_agent_kwargs(state, "05_test_edge.log", module_dir))
 
         pos, neg, edge = await asyncio.gather(
-            pos_agent.arun(title, ast, desc),
-            neg_agent.arun(title, ast, desc),
-            edge_agent.arun(title, ast, desc),
+            pos_agent.arun(title, ast),
+            neg_agent.arun(title, ast),
+            edge_agent.arun(title, ast),
             return_exceptions=True,
         )
 

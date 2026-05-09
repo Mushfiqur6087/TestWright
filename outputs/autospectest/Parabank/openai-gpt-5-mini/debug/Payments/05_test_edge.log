@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572551
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.555939
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Payments</module_name>
 
@@ -261,7 +279,10 @@ Categories to consider:
         },
         "Confirm_Account_Number": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": [
+            "must match Payee_Account_Number"
+          ]
         },
         "Payment_Amount": {
           "type": "number",
@@ -276,21 +297,21 @@ Categories to consider:
         }
       },
       "constraints": [
-        "Payee_Account_Number must equal Confirm_Account_Number (error: Account numbers do not match)",
-        "all fields are validated on submit"
+        "Account numbers must match: Payee_Account_Number == Confirm_Account_Number",
+        "all required fields must be present and pass field-level validation on submit"
       ],
       "submit_actions": [
         {
           "element_name": "Pay",
-          "type": "button",
           "preconditions": [
-            "available_funds in Source_Account >= Payment_Amount"
+            "sufficient funds available in selected Source_Account to cover Payment_Amount",
+            "Account numbers must match: Payee_Account_Number == Confirm_Account_Number"
           ],
           "constraints": [
-            "if available_funds < Payment_Amount then error: Insufficient funds"
+            "validates all entries before executing payment"
           ],
-          "on_success": "Payment submitted successfully. Returns reference code and updates balances.",
-          "on_failure": "Displays inline error(s) (e.g., 'Account numbers do not match', 'Insufficient funds'); form remains editable."
+          "on_success": "executes payment; returns \"Payment submitted successfully.\" with a reference code; updates balances",
+          "on_failure": "displays inline errors (e.g., \"Account numbers do not match\", \"Insufficient funds\"); form remains editable"
         }
       ]
     }
@@ -298,312 +319,364 @@ Categories to consider:
 }
 </ast>
 
-<description>
-The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:59:47] Test-Edge - LLM RESPONSE
+[23:12:56] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Payments",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Payment_Amount at minimum positive boundary (0.01) — should succeed",
+      "test_case": "Payment_Amount at tiny positive boundary (should PASS)",
       "preconditions": [
-        "Source_Account exists and available_funds >= 0.01",
-        "All required fields present in the form"
+        "A Source_Account 'Checking-1001' exists with balance $100.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Constraint reference: Payment_Amount field 'must be greater than 0'"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number and Confirm Account Number (matching), select Source_Account with available_funds >= 0.01",
+        "Open Bill_Payment_Form",
+        "Set Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number and Confirm_Account_Number (matching) and select Source_Account 'Checking-1001'",
         "Enter Payment_Amount = 0.01",
-        "Click 'Pay'"
+        "Click the 'Pay' button"
       ],
-      "expected_result": "PASS — Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and balances updated (per description: \"Payment submitted successfully.\" and \"Returns reference code and updates balances.\")",
+      "expected_result": "PASS — Submission succeeds: UI displays 'Payment submitted successfully.' with a reference code (per on_success) and balances for 'Checking-1001' are updated to reflect the 0.01 debit",
       "priority": "medium"
+    },
+    {
+      "tc_id": "B-002",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at zero (just past allowed boundary) (should FAIL)",
+      "preconditions": [
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Constraint reference: Payment_Amount field 'must be greater than 0'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number and Confirm_Account_Number (matching) and select any Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL — Inline validation error referencing constraint 'must be greater than 0' is shown; form remains editable (no 'Payment submitted successfully.' message)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-003",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount equals Source_Account balance (sufficient funds boundary) (should PASS)",
+      "preconditions": [
+        "Source_Account 'Savings-2002' exists with balance $50.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Submit precondition text: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill all required fields with valid values and select Source_Account 'Savings-2002'",
+        "Enter Payment_Amount = 50.00 (exactly the account balance)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "PASS — Submission succeeds: UI displays 'Payment submitted successfully.' with a reference code; 'Savings-2002' balance is updated to $0.00 (per on_success and precondition 'sufficient funds available in selected Source_Account to cover Payment_Amount')",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-004",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount just greater than Source_Account balance (insufficient by smallest unit) (should FAIL)",
+      "preconditions": [
+        "Source_Account 'Savings-2002' exists with balance $50.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Submit precondition text: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill all required fields with valid values and select Source_Account 'Savings-2002'",
+        "Enter Payment_Amount = 50.01 ($0.01 more than the account balance)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL — Submission blocked; inline error shown with text 'Insufficient funds' (per on_failure examples) and form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-001",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_Account_Number matches Payee_Account_Number except for leading/trailing whitespace (should FAIL per exact-match constraint)",
+      "preconditions": [
+        "Constraint reference: Confirm_Account_Number 'must match Payee_Account_Number'",
+        "All other required fields are filled validly",
+        "Payee_Account_Number = '987654321'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Enter Payee_Account_Number = '987654321'",
+        "Enter Confirm_Account_Number = ' 987654321 ' (leading and trailing spaces)",
+        "Fill remaining required fields and enter Payment_Amount = 10.00 (Source_Account with sufficient funds selected)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL — Inline error displayed indicating account numbers do not match (per on_failure example 'Account numbers do not match'); form remains editable. This verifies the system enforces exact match for Confirm_Account_Number against Payee_Account_Number",
+      "priority": "low"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Payment_Amount at zero (0) — should fail validation",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_Account_Number differs by a visually similar character (O vs 0) -> should trigger account-number mismatch",
       "preconditions": [
-        "Source_Account exists with any available_funds",
-        "All other required fields filled with valid values"
+        "Constraint reference: Confirm_Account_Number 'must match Payee_Account_Number'",
+        "All other required fields are filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill all required fields with valid values and select Source_Account",
-        "Enter Payment_Amount = 0",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Enter Payee_Account_Number = 'AC0D12345' (contains digit zero '0')",
+        "Enter Confirm_Account_Number = 'ACO D12345' replacing the '0' with letter 'O' (or create similar single-character difference)",
+        "Fill remaining required fields and enter Payment_Amount = 20.00 (Source_Account with sufficient funds selected)",
+        "Click the 'Pay' button"
       ],
-      "expected_result": "FAIL — Inline validation error shown on submit (form validates all entries on submit) and form remains editable (per AST: \"all fields are validated on submit\" and \"form remains editable\"). The payment is not submitted.",
-      "priority": "medium"
+      "expected_result": "FAIL — Inline error 'Account numbers do not match' is displayed and form remains editable. This verifies equality check is exact and not tolerant of visually similar characters",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Source_Account available_funds exactly equals Payment_Amount — should succeed",
+      "subcategory": "data_edge",
+      "test_case": "High-precision Payment_Amount (many decimal places) — validates 'must be greater than 0' and behavior with fractional cents",
       "preconditions": [
-        "Source_Account has available_funds exactly equal to desired Payment_Amount (set account balance to X)",
-        "All other required fields filled and Payee Account numbers match"
+        "Payment_Amount field constraint: 'must be greater than 0'",
+        "A Source_Account 'Checking-3003' exists with balance $100.0000 or larger",
+        "All other required fields filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill required fields, select Source_Account with available_funds = X",
-        "Enter Payment_Amount = X",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Fill required fields and select Source_Account 'Checking-3003'",
+        "Enter Payment_Amount = 0.0001 (more precision than typical cents)",
+        "Click the 'Pay' button"
       ],
-      "expected_result": "PASS — Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and updates balances (available_funds becomes zero). This exercises the precondition \"available_funds in Source_Account >= Payment_Amount\" at the exact boundary.",
+      "expected_result": "PASS — Since Payment_Amount satisfies constraint 'must be greater than 0', the system validates and proceeds; UI displays 'Payment submitted successfully.' with a reference code and balances update per on_success. This test verifies how the UI accepts high-precision decimal input for Payment_Amount",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Source_Account available_funds just less than Payment_Amount by smallest currency unit — should fail with 'Insufficient funds'",
+      "subcategory": "interaction_edge",
+      "test_case": "Change Source_Account immediately after clicking 'Pay' — submit validates final UI state ('validates all entries before executing payment')",
       "preconditions": [
-        "Source_Account has available_funds = (Payment_Amount - 0.01)",
-        "All other required fields filled and Payee Account numbers match"
+        "Submit action constraint: 'validates all entries before executing payment' (from submit_actions.constraints)",
+        "Two Source_Accounts exist: 'Acct-Full' with $100.00 and 'Acct-Low' with $0.00",
+        "All required fields filled and Payee account numbers matching"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Select Source_Account with available_funds set to Payment_Amount - 0.01",
-        "Enter Payment_Amount greater than available_funds by 0.01",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Select Source_Account = 'Acct-Full' (balance $100.00)",
+        "Enter Payment_Amount = 100.00",
+        "Click the 'Pay' button and IMMEDIATELY (before any visible confirmation) change the Source_Account selection to 'Acct-Low' (balance $0.00)",
+        "Observe resulting UI behavior"
       ],
-      "expected_result": "FAIL — Inline error \"Insufficient funds\" displayed and form remains editable (per AST constraint: \"if available_funds < Payment_Amount then error: Insufficient funds\"). No payment submitted.",
-      "priority": "medium"
+      "expected_result": "FAIL — Because the submit action 'validates all entries before executing payment', the final validated state should reflect the changed Source_Account; submission should be blocked with inline error 'Insufficient funds' and the form remains editable",
+      "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "Payee_Account_Number and Confirm_Account_Number differ only by leading/trailing whitespace — whitespace handling",
-      "preconditions": [
-        "Source_Account has sufficient funds",
-        "All other required fields filled correctly"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee_Account_Number = \"12345678 \" (trailing space)",
-        "Enter Confirm_Account_Number = \"12345678\" (no trailing space)",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): System should trim leading/trailing whitespace for account-number comparison and allow submission (displaying \"Payment submitted successfully.\" and returning a reference code). This test exercises the AST constraint \"Payee_Account_Number must equal Confirm_Account_Number\" to verify whitespace handling. If the system does not trim, it should display the inline error \"Account numbers do not match\" and keep form editable.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-006",
-      "subcategory": "input_edge",
-      "test_case": "Payee_Account_Number formatted with internal spaces vs Confirm_Account_Number compact — formatting-tolerance check",
-      "preconditions": [
-        "Source_Account has sufficient funds",
-        "All other required fields filled correctly"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee_Account_Number = \"1234 5678\" (internal space formatting)",
-        "Enter Confirm_Account_Number = \"12345678\"",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): System should ignore common formatting (spaces) when comparing account numbers and allow submission, satisfying \"Payee_Account_Number must equal Confirm_Account_Number\"; if not, it should display inline error \"Account numbers do not match\" and keep the form editable.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-007",
       "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click of 'Pay' — check for duplicate submissions / single reference code",
+      "test_case": "Double-click the 'Pay' button rapidly to attempt duplicate submissions (observe dedup/idempotency behavior tied to on_success)",
       "preconditions": [
-        "All required fields filled with valid values and Source_Account has sufficient funds"
+        "Submit action element_name is 'Pay' (from submit_actions)",
+        "A Source_Account with sufficient funds exists",
+        "All required fields are filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill all required fields with valid values",
+        "Open Bill_Payment_Form",
+        "Fill all required fields and select a Source_Account with sufficient funds",
         "Rapidly double-click the 'Pay' button (two clicks within short interval)",
-        "Observe UI response and any messages/reference codes shown"
+        "Observe success messages, reference codes, and resulting balance changes"
       ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): Only one successful submission should be processed — user should see a single \"Payment submitted successfully.\" message and a single reference code; balances should be updated once. If the system processes two submissions, two reference codes or duplicated balance changes would appear (indicating a defect). This test stresses the submission behavior described by \"on_success: Payment submitted successfully. Returns reference code and updates balances.\"",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Very long Payee Name (500 characters) — text-length handling",
-      "preconditions": [
-        "All other required fields filled with valid values",
-        "Source_Account has sufficient funds"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee Name with 500 characters (long string)",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): Because AST/description specify Payee Name is required but provide no length constraints, the form should accept a very long Payee Name and submit successfully (showing \"Payment submitted successfully.\" and returning a reference code) unless the UI enforces a client-side length limit; if a client-side length limit exists, an inline validation error should be shown and the form remain editable. This test verifies UI behavior for unexpectedly long text in the required Payee Name field.",
+      "expected_result": "Edge observation: System should not produce two separate successful payments. Expected behavior (based on on_success text 'returns \"Payment submitted successfully.\" with a reference code; updates balances') is a single 'Payment submitted successfully.' result with one reference code and a single balance update. If two success messages or two reference codes appear, that indicates duplicate execution. The test therefore verifies whether the UI prevents duplicate executions when 'Pay' is activated rapidly.",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 9,
     "boundary": 4,
-    "edge": 4,
-    "medium_priority": 4,
+    "edge": 5,
+    "medium_priority": 5,
     "low_priority": 4
   }
 }
 
 ------------------------------------------------------------
-[21:59:47] Test-Edge - PARSED JSON
+[23:12:56] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Payments",
   "category": "edge",
   "test_cases": [
     {
-      "tc_id": "E-001",
+      "tc_id": "B-001",
       "subcategory": "boundary",
-      "test_case": "Payment_Amount at minimum positive boundary (0.01) \u2014 should succeed",
+      "test_case": "Payment_Amount at tiny positive boundary (should PASS)",
       "preconditions": [
-        "Source_Account exists and available_funds >= 0.01",
-        "All required fields present in the form"
+        "A Source_Account 'Checking-1001' exists with balance $100.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Constraint reference: Payment_Amount field 'must be greater than 0'"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number and Confirm Account Number (matching), select Source_Account with available_funds >= 0.01",
+        "Open Bill_Payment_Form",
+        "Set Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number and Confirm_Account_Number (matching) and select Source_Account 'Checking-1001'",
         "Enter Payment_Amount = 0.01",
-        "Click 'Pay'"
+        "Click the 'Pay' button"
       ],
-      "expected_result": "PASS \u2014 Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and balances updated (per description: \"Payment submitted successfully.\" and \"Returns reference code and updates balances.\")",
+      "expected_result": "PASS \u2014 Submission succeeds: UI displays 'Payment submitted successfully.' with a reference code (per on_success) and balances for 'Checking-1001' are updated to reflect the 0.01 debit",
       "priority": "medium"
+    },
+    {
+      "tc_id": "B-002",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at zero (just past allowed boundary) (should FAIL)",
+      "preconditions": [
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Constraint reference: Payment_Amount field 'must be greater than 0'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill Payee_Name, Street_Address, City, State, ZIP_Code, Phone_Number, Payee_Account_Number and Confirm_Account_Number (matching) and select any Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL \u2014 Inline validation error referencing constraint 'must be greater than 0' is shown; form remains editable (no 'Payment submitted successfully.' message)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-003",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount equals Source_Account balance (sufficient funds boundary) (should PASS)",
+      "preconditions": [
+        "Source_Account 'Savings-2002' exists with balance $50.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Submit precondition text: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill all required fields with valid values and select Source_Account 'Savings-2002'",
+        "Enter Payment_Amount = 50.00 (exactly the account balance)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "PASS \u2014 Submission succeeds: UI displays 'Payment submitted successfully.' with a reference code; 'Savings-2002' balance is updated to $0.00 (per on_success and precondition 'sufficient funds available in selected Source_Account to cover Payment_Amount')",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "B-004",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount just greater than Source_Account balance (insufficient by smallest unit) (should FAIL)",
+      "preconditions": [
+        "Source_Account 'Savings-2002' exists with balance $50.00",
+        "All required Bill_Payment_Form fields other than Payment_Amount are filled with valid values",
+        "Submit precondition text: 'sufficient funds available in selected Source_Account to cover Payment_Amount'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Fill all required fields with valid values and select Source_Account 'Savings-2002'",
+        "Enter Payment_Amount = 50.01 ($0.01 more than the account balance)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL \u2014 Submission blocked; inline error shown with text 'Insufficient funds' (per on_failure examples) and form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-001",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_Account_Number matches Payee_Account_Number except for leading/trailing whitespace (should FAIL per exact-match constraint)",
+      "preconditions": [
+        "Constraint reference: Confirm_Account_Number 'must match Payee_Account_Number'",
+        "All other required fields are filled validly",
+        "Payee_Account_Number = '987654321'"
+      ],
+      "steps": [
+        "Open Bill_Payment_Form",
+        "Enter Payee_Account_Number = '987654321'",
+        "Enter Confirm_Account_Number = ' 987654321 ' (leading and trailing spaces)",
+        "Fill remaining required fields and enter Payment_Amount = 10.00 (Source_Account with sufficient funds selected)",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "FAIL \u2014 Inline error displayed indicating account numbers do not match (per on_failure example 'Account numbers do not match'); form remains editable. This verifies the system enforces exact match for Confirm_Account_Number against Payee_Account_Number",
+      "priority": "low"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Payment_Amount at zero (0) \u2014 should fail validation",
+      "subcategory": "input_edge",
+      "test_case": "Confirm_Account_Number differs by a visually similar character (O vs 0) -> should trigger account-number mismatch",
       "preconditions": [
-        "Source_Account exists with any available_funds",
-        "All other required fields filled with valid values"
+        "Constraint reference: Confirm_Account_Number 'must match Payee_Account_Number'",
+        "All other required fields are filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill all required fields with valid values and select Source_Account",
-        "Enter Payment_Amount = 0",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Enter Payee_Account_Number = 'AC0D12345' (contains digit zero '0')",
+        "Enter Confirm_Account_Number = 'ACO D12345' replacing the '0' with letter 'O' (or create similar single-character difference)",
+        "Fill remaining required fields and enter Payment_Amount = 20.00 (Source_Account with sufficient funds selected)",
+        "Click the 'Pay' button"
       ],
-      "expected_result": "FAIL \u2014 Inline validation error shown on submit (form validates all entries on submit) and form remains editable (per AST: \"all fields are validated on submit\" and \"form remains editable\"). The payment is not submitted.",
-      "priority": "medium"
+      "expected_result": "FAIL \u2014 Inline error 'Account numbers do not match' is displayed and form remains editable. This verifies equality check is exact and not tolerant of visually similar characters",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "boundary",
-      "test_case": "Source_Account available_funds exactly equals Payment_Amount \u2014 should succeed",
+      "subcategory": "data_edge",
+      "test_case": "High-precision Payment_Amount (many decimal places) \u2014 validates 'must be greater than 0' and behavior with fractional cents",
       "preconditions": [
-        "Source_Account has available_funds exactly equal to desired Payment_Amount (set account balance to X)",
-        "All other required fields filled and Payee Account numbers match"
+        "Payment_Amount field constraint: 'must be greater than 0'",
+        "A Source_Account 'Checking-3003' exists with balance $100.0000 or larger",
+        "All other required fields filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill required fields, select Source_Account with available_funds = X",
-        "Enter Payment_Amount = X",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Fill required fields and select Source_Account 'Checking-3003'",
+        "Enter Payment_Amount = 0.0001 (more precision than typical cents)",
+        "Click the 'Pay' button"
       ],
-      "expected_result": "PASS \u2014 Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and updates balances (available_funds becomes zero). This exercises the precondition \"available_funds in Source_Account >= Payment_Amount\" at the exact boundary.",
+      "expected_result": "PASS \u2014 Since Payment_Amount satisfies constraint 'must be greater than 0', the system validates and proceeds; UI displays 'Payment submitted successfully.' with a reference code and balances update per on_success. This test verifies how the UI accepts high-precision decimal input for Payment_Amount",
       "priority": "medium"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "boundary",
-      "test_case": "Source_Account available_funds just less than Payment_Amount by smallest currency unit \u2014 should fail with 'Insufficient funds'",
+      "subcategory": "interaction_edge",
+      "test_case": "Change Source_Account immediately after clicking 'Pay' \u2014 submit validates final UI state ('validates all entries before executing payment')",
       "preconditions": [
-        "Source_Account has available_funds = (Payment_Amount - 0.01)",
-        "All other required fields filled and Payee Account numbers match"
+        "Submit action constraint: 'validates all entries before executing payment' (from submit_actions.constraints)",
+        "Two Source_Accounts exist: 'Acct-Full' with $100.00 and 'Acct-Low' with $0.00",
+        "All required fields filled and Payee account numbers matching"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Select Source_Account with available_funds set to Payment_Amount - 0.01",
-        "Enter Payment_Amount greater than available_funds by 0.01",
-        "Click 'Pay'"
+        "Open Bill_Payment_Form",
+        "Select Source_Account = 'Acct-Full' (balance $100.00)",
+        "Enter Payment_Amount = 100.00",
+        "Click the 'Pay' button and IMMEDIATELY (before any visible confirmation) change the Source_Account selection to 'Acct-Low' (balance $0.00)",
+        "Observe resulting UI behavior"
       ],
-      "expected_result": "FAIL \u2014 Inline error \"Insufficient funds\" displayed and form remains editable (per AST constraint: \"if available_funds < Payment_Amount then error: Insufficient funds\"). No payment submitted.",
-      "priority": "medium"
+      "expected_result": "FAIL \u2014 Because the submit action 'validates all entries before executing payment', the final validated state should reflect the changed Source_Account; submission should be blocked with inline error 'Insufficient funds' and the form remains editable",
+      "priority": "low"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "input_edge",
-      "test_case": "Payee_Account_Number and Confirm_Account_Number differ only by leading/trailing whitespace \u2014 whitespace handling",
-      "preconditions": [
-        "Source_Account has sufficient funds",
-        "All other required fields filled correctly"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee_Account_Number = \"12345678 \" (trailing space)",
-        "Enter Confirm_Account_Number = \"12345678\" (no trailing space)",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): System should trim leading/trailing whitespace for account-number comparison and allow submission (displaying \"Payment submitted successfully.\" and returning a reference code). This test exercises the AST constraint \"Payee_Account_Number must equal Confirm_Account_Number\" to verify whitespace handling. If the system does not trim, it should display the inline error \"Account numbers do not match\" and keep form editable.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-006",
-      "subcategory": "input_edge",
-      "test_case": "Payee_Account_Number formatted with internal spaces vs Confirm_Account_Number compact \u2014 formatting-tolerance check",
-      "preconditions": [
-        "Source_Account has sufficient funds",
-        "All other required fields filled correctly"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee_Account_Number = \"1234 5678\" (internal space formatting)",
-        "Enter Confirm_Account_Number = \"12345678\"",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): System should ignore common formatting (spaces) when comparing account numbers and allow submission, satisfying \"Payee_Account_Number must equal Confirm_Account_Number\"; if not, it should display inline error \"Account numbers do not match\" and keep the form editable.",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-007",
       "subcategory": "interaction_edge",
-      "test_case": "Rapid double-click of 'Pay' \u2014 check for duplicate submissions / single reference code",
+      "test_case": "Double-click the 'Pay' button rapidly to attempt duplicate submissions (observe dedup/idempotency behavior tied to on_success)",
       "preconditions": [
-        "All required fields filled with valid values and Source_Account has sufficient funds"
+        "Submit action element_name is 'Pay' (from submit_actions)",
+        "A Source_Account with sufficient funds exists",
+        "All required fields are filled validly"
       ],
       "steps": [
-        "Open Bill Payment form",
-        "Fill all required fields with valid values",
+        "Open Bill_Payment_Form",
+        "Fill all required fields and select a Source_Account with sufficient funds",
         "Rapidly double-click the 'Pay' button (two clicks within short interval)",
-        "Observe UI response and any messages/reference codes shown"
+        "Observe success messages, reference codes, and resulting balance changes"
       ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): Only one successful submission should be processed \u2014 user should see a single \"Payment submitted successfully.\" message and a single reference code; balances should be updated once. If the system processes two submissions, two reference codes or duplicated balance changes would appear (indicating a defect). This test stresses the submission behavior described by \"on_success: Payment submitted successfully. Returns reference code and updates balances.\"",
-      "priority": "low"
-    },
-    {
-      "tc_id": "E-008",
-      "subcategory": "input_edge",
-      "test_case": "Very long Payee Name (500 characters) \u2014 text-length handling",
-      "preconditions": [
-        "All other required fields filled with valid values",
-        "Source_Account has sufficient funds"
-      ],
-      "steps": [
-        "Open Bill Payment form",
-        "Enter Payee Name with 500 characters (long string)",
-        "Fill remaining required fields and click 'Pay'"
-      ],
-      "expected_result": "EXPECTED BEHAVIOR (edge): Because AST/description specify Payee Name is required but provide no length constraints, the form should accept a very long Payee Name and submit successfully (showing \"Payment submitted successfully.\" and returning a reference code) unless the UI enforces a client-side length limit; if a client-side length limit exists, an inline validation error should be shown and the form remain editable. This test verifies UI behavior for unexpectedly long text in the required Payee Name field.",
+      "expected_result": "Edge observation: System should not produce two separate successful payments. Expected behavior (based on on_success text 'returns \"Payment submitted successfully.\" with a reference code; updates balances') is a single 'Payment submitted successfully.' result with one reference code and a single balance update. If two success messages or two reference codes appear, that indicates duplicate execution. The test therefore verifies whether the UI prevents duplicate executions when 'Pay' is activated rapidly.",
       "priority": "low"
     }
   ],
   "summary": {
-    "total": 8,
+    "total": 9,
     "boundary": 4,
-    "edge": 4,
-    "medium_priority": 4,
+    "edge": 5,
+    "medium_priority": 5,
     "low_priority": 4
   }
 }

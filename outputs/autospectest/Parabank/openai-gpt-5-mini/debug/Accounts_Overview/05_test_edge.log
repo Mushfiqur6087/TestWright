@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:56:41.572223
+DEBUG SESSION STARTED: 2026-05-09T23:11:21.555002
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - SYSTEM PROMPT
+[23:11:21] Test-Edge - SYSTEM PROMPT
 ------------------------------------------------------------
-You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+You are an Edge Case and Boundary Test Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
 
 You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
 
@@ -21,15 +21,11 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 {Module UI-AST JSON}
 </ast>
 
-<description>
-{Original functional description text for this module}
-</description>
-
 ---
 
 **ASSERTION STYLE:**
 
-- Use exact text from description when available.
+- Use exact text from the AST (constraint strings, on_success values) when available.
 - For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
 - For edge cases: describe the expected system behavior precisely.
 
@@ -37,25 +33,23 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-Every test case you generate MUST trace back to a specific
-statement in the description or a specific element in the AST.
+You receive only the UI-AST. The AST is the complete source of truth.
+Every test case you generate MUST trace to a specific JSON element:
+  - A constraint string in `constraints: []`
+  - A field name in `fields: []`
+  - An action name or `on_success` value
+  - A state key or step in the AST
 
-Before writing any test, mentally answer: "Which exact sentence
-in the description or which exact field/constraint/state in the
-AST justifies this test?" If you cannot point to one, DO NOT
-generate the test.
+There is no prose to interpret. DO NOT use general knowledge about
+how similar UIs typically behave. If it is not in the AST, it does not exist.
 
-DO NOT generate tests for:
-  - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
+Banned reasoning:
+  ✗ "Name fields typically restrict special characters" — not in AST, skip
+  ✗ "State machines usually have blocked transitions" — use available_actions as truth
+  ✗ "Financial forms usually have minimum amounts" — only if constraints says so
+  ✗ "This type of field typically has a max length" — only if AST has the constraint
 
-The spec is the boundary. Stay inside it.
+The AST is authoritative. Stay inside it.
 
 ---
 
@@ -111,7 +105,7 @@ If the module has:
 
 Zero boundary tests when constraints exist is a generation
 failure. If you find yourself producing zero tests, re-read
-the AST constraints and the description for threshold values.
+the AST constraints for threshold values.
 
 Common boundary sources you might miss:
   - "sufficient funds" → test exact balance = amount (pass)
@@ -123,11 +117,35 @@ Common boundary sources you might miss:
 
 ---
 
+**CONSTRAINT MECHANISM DEDUP (CRITICAL):**
+
+A constraint MECHANISM is the type of check (numeric range, date ordering,
+percentage floor, character count). An INSTANCE is a specific entity the
+mechanism applies to (loan type, account type, wizard step, form field).
+
+Test each MECHANISM once on the first/primary instance. Do NOT repeat
+boundary tests for every entity that shares the same mechanism.
+
+WRONG — mechanism tested per instance:
+  Constraint "numeric range" applies to Type A ($1k–$50k), Type B ($5k–$75k), Type C ($50k–$500k)
+  → 12 boundary tests (4 per type) — all testing the same range-enforcement code
+
+RIGHT — mechanism tested once:
+  Test Type A (primary instance): min pass, min-1 fail, max pass, max+1 fail = 4 tests
+  Skip Type B and Type C — same range-enforcement logic applies
+
+EXCEPTION: Test a second instance only when it involves a CROSS-FIELD relationship
+(e.g., "down payment ≥ 10% of loan amount") where the relationship changes per
+instance, OR when the AST's constraints array explicitly shows different enforcement
+logic (different constraint text, not just different threshold values).
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
 
-Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+Scan every `constraints: []` array in the AST. For each UNIQUE constraint MECHANISM that implies a numeric, date, or count threshold:
 
 Produce exactly TWO tests:
   - AT the boundary (should succeed): the exact minimum/maximum/threshold value
@@ -220,7 +238,7 @@ Categories to consider:
 
 
 ------------------------------------------------------------
-[21:56:41] Test-Edge - USER PROMPT
+[23:11:21] Test-Edge - USER PROMPT
 ------------------------------------------------------------
 <module_name>Accounts Overview</module_name>
 
@@ -228,76 +246,52 @@ Categories to consider:
 {
   "module_name": "Accounts Overview",
   "components": {
-    "Accounts_Table": {
+    "Customer_Accounts_Table": {
       "type": "data_table",
-      "columns": [
-        {
-          "column_name": "Account Number",
+      "columns": {
+        "Account_Number": {
           "type": "link",
           "constraints": [
-            "mask: show only last 4 digits as ****5001"
+            "mask all but last 4 digits (e.g., ****5001)"
           ],
-          "interactive": true
+          "preconditions": [
+            "click action not implemented"
+          ]
         },
-        {
-          "column_name": "Account Type",
-          "type": "unspecified",
-          "interactive": false
+        "Account_Type": {
+          "type": "unspecified"
         },
-        {
-          "column_name": "Current Balance",
-          "type": "number",
-          "interactive": false
+        "Current_Balance": {
+          "type": "number"
         },
-        {
-          "column_name": "Account Status",
-          "type": "badge",
-          "values": [
-            "Active"
-          ],
-          "interactive": false
+        "Account_Status": {
+          "type": "unspecified"
         },
-        {
-          "column_name": "Open Date",
-          "type": "date",
-          "interactive": false
+        "Open_Date": {
+          "type": "date"
         }
-      ],
-      "row_actions": [
-        {
-          "action_name": "Open Account",
-          "type": "link",
-          "enabled": false,
-          "note": "clickable in UI but not implemented"
-        }
-      ],
-      "footer_rows": [
-        {
-          "label": "Total Balance",
-          "operation": "sum",
-          "source_column": "Current Balance"
-        }
-      ],
+      },
       "default_sort": {
-        "column": "Open Date",
+        "column": "Open_Date",
         "direction": "asc"
       },
-      "row_ordering": "earliest_first_by_creation_date"
+      "footer_rows": {
+        "Total_Balance": {
+          "type": "aggregator",
+          "operation": "sum",
+          "column": "Current_Balance",
+          "label": "Total Balance"
+        }
+      }
     }
   }
 }
 </ast>
 
-<description>
-The dashboard displays a welcome message with the user's name and a table of all customer accounts. Each row shows Account Number (clickable but not implemented yet), Account Type, Current Balance, Account Status (Active badge), and Open Date. The table includes a footer row displaying the total balance across all accounts. Rows are ordered by account creation date (earliest first). Account numbers are masked for security (showing only last 4 digits as ****5001). 
-
-
-</description>
-
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:58:12] Test-Edge - LLM RESPONSE
+[23:12:05] Test-Edge - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Accounts Overview",
@@ -305,150 +299,172 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "Account number exactly 4 digits is displayed showing only the last 4 digits",
+      "subcategory": "data_edge",
+      "test_case": "Account_Number masking shows only last 4 digits (standard case)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table (per AST components.Accounts_Table)",
-        "One account row exists with Account Number = '5001' (4 digits)"
+        "Component Customer_Accounts_Table is visible",
+        "One row exists with Account_Number = \"12345001\" and Current_Balance = 100.00"
       ],
       "steps": [
-        "Locate the Account Number column for the row with Account Number '5001'",
-        "Observe the rendered text in the Account Number cell"
+        "Open Accounts Overview",
+        "Locate the Customer_Accounts_Table row with Account_Number \"12345001\""
       ],
-      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the cell shows only the last 4 digits. For an account number of length 4 the UI displays '5001' (only last 4 digits visible, no additional leading digits displayed).",
+      "expected_result": "PASS: Account_Number must follow constraint \"mask all but last 4 digits (e.g., ****5001)\" — the value displayed in the table is \"****5001\" and not the full number",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Account number length = 5 is masked leaving exactly the last 4 digits visible with one leading asterisk",
+      "subcategory": "input_edge",
+      "test_case": "Account_Number shorter than 4 digits (3-digit account)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table",
-        "One account row exists with Account Number = '15001' (5 digits)"
+        "Component Customer_Accounts_Table is visible",
+        "One row exists with Account_Number = \"500\" and Current_Balance = 50.00"
       ],
       "steps": [
-        "Locate the Account Number cell for the row with Account Number '15001'",
-        "Observe the rendered text in that cell"
+        "Open Accounts Overview",
+        "Locate the Customer_Accounts_Table row with Account_Number \"500\""
       ],
-      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the UI masks leading characters and shows only the last 4 digits. For a 5-digit number the displayed label should show one asterisk followed by the last 4 digits (e.g. '*5001').",
-      "priority": "medium"
+      "expected_result": "PASS: Constraint \"mask all but last 4 digits (e.g., ****5001)\" must not cause an error for short values — the UI displays the value (\"500\") without throwing an error or breaking the table (i.e., no crash, table still renders)",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "input_edge",
-      "test_case": "Very long account number is masked to reveal only last 4 digits and does not spill visible raw digits",
+      "subcategory": "interaction_edge",
+      "test_case": "Clicking Account_Number link (click action not implemented)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table",
-        "One account row exists with Account Number = 100-character numeric string ending in '5001'"
+        "Component Customer_Accounts_Table is visible",
+        "Row exists with Account_Number displayed as masked per constraint"
       ],
       "steps": [
-        "Locate the Account Number cell for the long-account-number row",
-        "Observe the rendered Account Number text and visually confirm only last 4 digits are legible"
+        "Open Accounts Overview",
+        "Click the Account_Number cell/link for the row"
       ],
-      "expected_result": "The UI must follow the AST mask rule: only the last 4 digits are visible (e.g. 96 asterisks then '5001' or otherwise masked so only the last 4 digits are readable). No unmasked leading digits should be visible in the cell.",
-      "priority": "low"
+      "expected_result": "PASS: Precondition states \"click action not implemented\" — clicking the Account_Number link causes no navigation and does not open a new page or perform an unexpected action (the UI remains on Accounts Overview and no error is shown)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "interaction_edge",
-      "test_case": "Clicking the Account Number link (clickable but not implemented) performs no navigation",
+      "subcategory": "data_edge",
+      "test_case": "Total Balance aggregator sums positive decimal balances precisely",
       "preconditions": [
-        "Dashboard loaded with Accounts_Table and at least one row",
-        "Description states 'Account Number (clickable but not implemented yet)'"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = 100.50, 200.25"
       ],
       "steps": [
-        "Click the Account Number link in a row",
-        "Observe whether the app navigates or changes pages"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "Per description 'clickable but not implemented yet' the click should be a no-op in terms of navigation: the page remains the dashboard, no account-detail navigation occurs, and the table remains visible.",
-      "priority": "low"
+      "expected_result": "PASS: Footer label \"Total Balance\" is visible and the displayed total equals the sum of Current_Balance values: 100.50 + 200.25 = 300.75 (displayed exactly as 300.75)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "interaction_edge",
-      "test_case": "Row action 'Open Account' is present but disabled — clicking it does nothing",
+      "subcategory": "data_edge",
+      "test_case": "Total Balance aggregator includes negative balances (overdrafts)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table row actions (AST row_actions for Open Account have enabled: false)"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = -50.00, 25.00"
       ],
       "steps": [
-        "Reveal the row actions for any account row",
-        "Attempt to click 'Open Account' action"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "Per AST row_actions.enabled = false, clicking 'Open Account' must not perform the open action; there must be no navigation or change in account detail view. The UI should either ignore the click or show a disabled affordance.",
-      "priority": "low"
+      "expected_result": "PASS: Footer label \"Total Balance\" is visible and the displayed total equals the arithmetic sum including negatives: -50.00 + 25.00 = -25.00 (displayed exactly as -25.00)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "data_edge",
-      "test_case": "Footer 'Total Balance' correctly sums positive and negative balances to zero",
+      "test_case": "Total Balance aggregator with very large Current_Balance values (magnitude boundary)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table with footer row 'Total Balance' (AST footer_rows operation: sum on Current Balance)",
-        "Two account rows exist: Current Balance = 100.00 and Current Balance = -100.00"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = 9999999999, 1"
       ],
       "steps": [
-        "Locate the table footer 'Total Balance'",
-        "Observe the displayed total balance"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "PASS: The footer sum must reflect the sum across all accounts per AST footer_rows: the total balance displayed equals $0.00 (100.00 + -100.00 = 0.00).",
+      "expected_result": "PASS: Footer displays label \"Total Balance\" and shows the arithmetic sum 9,999,999,999 + 1 = 10,000,000,000 (displayed as 10000000000) without truncation or obvious overflow",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "data_edge",
-      "test_case": "Empty accounts list displays the footer row and a total balance of zero",
+      "test_case": "default_sort uses Open_Date ascending with far-future date present",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table (per description 'table includes a footer row displaying the total balance across all accounts')",
-        "No account rows are present"
+        "Component Customer_Accounts_Table is visible",
+        "default_sort: column = \"Open_Date\", direction = \"asc\"",
+        "Table rows with Open_Date: 2020-01-01, 2019-12-31, 2099-01-01"
       ],
       "steps": [
-        "Observe the table footer area",
-        "Read the displayed 'Total Balance' value"
+        "Open Accounts Overview",
+        "Observe the row order in Customer_Accounts_Table"
       ],
-      "expected_result": "PASS: The footer row must still be present and display the total balance across all accounts. With zero accounts the total must be $0.00 (or explicitly show zero), consistent with 'total balance across all accounts'.",
+      "expected_result": "PASS: Table is sorted by Open_Date ascending per default_sort: rows appear in order 2019-12-31, 2020-01-01, 2099-01-01",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "state_edge",
-      "test_case": "Row ordering must follow creation date (earliest first) even when Open Date sort would produce a different order",
+      "subcategory": "data_edge",
+      "test_case": "Open_Date leap day ordering (2020-02-29) vs prior year",
       "preconditions": [
-        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
-        "Two accounts exist: Account A has creation_date = 2020-01-01 and Open Date = 2021-01-01; Account B has creation_date = 2021-06-01 and Open Date = 2020-01-01"
+        "Component Customer_Accounts_Table is visible",
+        "default_sort: column = \"Open_Date\", direction = \"asc\"",
+        "Table rows with Open_Date: 2019-02-28, 2020-02-29"
       ],
       "steps": [
-        "Load the Accounts Overview",
-        "Observe the order of rows in the table from top (first) to bottom (last)"
+        "Open Accounts Overview",
+        "Observe the row order in Customer_Accounts_Table"
       ],
-      "expected_result": "PASS: Per AST row_ordering, rows are ordered by account creation date earliest first. Account A (creation_date 2020-01-01) must appear before Account B, despite Account B having an earlier Open Date. The creation_date ordering takes precedence so the top row is Account A.",
-      "priority": "medium"
+      "expected_result": "PASS: Sorting by Open_Date (date type) places 2019-02-28 before 2020-02-29 (correct chronological order); no error for leap-day date",
+      "priority": "low"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "state_edge",
-      "test_case": "When creation dates are identical, default_sort by Open Date ascending is applied as a secondary ordering",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click Account_Number (ensure inert link does not trigger duplicate actions)",
       "preconditions": [
-        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
-        "Two accounts exist with identical creation_date = 2020-01-01 but different Open Dates: Account X Open Date = 2020-02-01, Account Y Open Date = 2020-01-01"
+        "Component Customer_Accounts_Table is visible",
+        "Precondition text: \"click action not implemented\" applies to Account_Number"
       ],
       "steps": [
-        "Load the Accounts Overview",
-        "Observe the order of the two rows with identical creation_date"
+        "Open Accounts Overview",
+        "Double-click the Account_Number cell/link rapidly on a row"
       ],
-      "expected_result": "The table must order rows by creation date first (they tie) and then apply the default_sort on Open Date ascending. Therefore Account Y (Open Date 2020-01-01) should appear above Account X (Open Date 2020-02-01).",
-      "priority": "medium"
+      "expected_result": "PASS: Given the precondition \"click action not implemented\", double-clicking does not trigger navigation or duplicate UI actions and the page remains unchanged (no duplicate records, no navigation, no errors)",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "data_edge",
+      "test_case": "Footer label presence when table empty (Total Balance label visible)",
+      "preconditions": [
+        "Component Customer_Accounts_Table is visible",
+        "Customer_Accounts_Table contains zero rows",
+        "Footer configuration: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\""
+      ],
+      "steps": [
+        "Open Accounts Overview",
+        "Verify footer area of Customer_Accounts_Table"
+      ],
+      "expected_result": "PASS: Footer row label \"Total Balance\" is present even when the table has zero rows; footer is rendered and shows a numeric total computed over Current_Balance (if no rows, the UI displays a zero or empty total but must not crash)",
+      "priority": "low"
     }
   ],
   "summary": {
-    "total": 9,
-    "boundary": 2,
-    "edge": 7,
+    "total": 10,
+    "boundary": 0,
+    "edge": 10,
     "medium_priority": 6,
-    "low_priority": 3
+    "low_priority": 4
   }
 }
 
 ------------------------------------------------------------
-[21:58:12] Test-Edge - PARSED JSON
+[23:12:05] Test-Edge - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Accounts Overview",
@@ -456,144 +472,166 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "E-001",
-      "subcategory": "boundary",
-      "test_case": "Account number exactly 4 digits is displayed showing only the last 4 digits",
+      "subcategory": "data_edge",
+      "test_case": "Account_Number masking shows only last 4 digits (standard case)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table (per AST components.Accounts_Table)",
-        "One account row exists with Account Number = '5001' (4 digits)"
+        "Component Customer_Accounts_Table is visible",
+        "One row exists with Account_Number = \"12345001\" and Current_Balance = 100.00"
       ],
       "steps": [
-        "Locate the Account Number column for the row with Account Number '5001'",
-        "Observe the rendered text in the Account Number cell"
+        "Open Accounts Overview",
+        "Locate the Customer_Accounts_Table row with Account_Number \"12345001\""
       ],
-      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the cell shows only the last 4 digits. For an account number of length 4 the UI displays '5001' (only last 4 digits visible, no additional leading digits displayed).",
+      "expected_result": "PASS: Account_Number must follow constraint \"mask all but last 4 digits (e.g., ****5001)\" \u2014 the value displayed in the table is \"****5001\" and not the full number",
       "priority": "medium"
     },
     {
       "tc_id": "E-002",
-      "subcategory": "boundary",
-      "test_case": "Account number length = 5 is masked leaving exactly the last 4 digits visible with one leading asterisk",
+      "subcategory": "input_edge",
+      "test_case": "Account_Number shorter than 4 digits (3-digit account)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table",
-        "One account row exists with Account Number = '15001' (5 digits)"
+        "Component Customer_Accounts_Table is visible",
+        "One row exists with Account_Number = \"500\" and Current_Balance = 50.00"
       ],
       "steps": [
-        "Locate the Account Number cell for the row with Account Number '15001'",
-        "Observe the rendered text in that cell"
+        "Open Accounts Overview",
+        "Locate the Customer_Accounts_Table row with Account_Number \"500\""
       ],
-      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the UI masks leading characters and shows only the last 4 digits. For a 5-digit number the displayed label should show one asterisk followed by the last 4 digits (e.g. '*5001').",
-      "priority": "medium"
+      "expected_result": "PASS: Constraint \"mask all but last 4 digits (e.g., ****5001)\" must not cause an error for short values \u2014 the UI displays the value (\"500\") without throwing an error or breaking the table (i.e., no crash, table still renders)",
+      "priority": "low"
     },
     {
       "tc_id": "E-003",
-      "subcategory": "input_edge",
-      "test_case": "Very long account number is masked to reveal only last 4 digits and does not spill visible raw digits",
+      "subcategory": "interaction_edge",
+      "test_case": "Clicking Account_Number link (click action not implemented)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table",
-        "One account row exists with Account Number = 100-character numeric string ending in '5001'"
+        "Component Customer_Accounts_Table is visible",
+        "Row exists with Account_Number displayed as masked per constraint"
       ],
       "steps": [
-        "Locate the Account Number cell for the long-account-number row",
-        "Observe the rendered Account Number text and visually confirm only last 4 digits are legible"
+        "Open Accounts Overview",
+        "Click the Account_Number cell/link for the row"
       ],
-      "expected_result": "The UI must follow the AST mask rule: only the last 4 digits are visible (e.g. 96 asterisks then '5001' or otherwise masked so only the last 4 digits are readable). No unmasked leading digits should be visible in the cell.",
-      "priority": "low"
+      "expected_result": "PASS: Precondition states \"click action not implemented\" \u2014 clicking the Account_Number link causes no navigation and does not open a new page or perform an unexpected action (the UI remains on Accounts Overview and no error is shown)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-004",
-      "subcategory": "interaction_edge",
-      "test_case": "Clicking the Account Number link (clickable but not implemented) performs no navigation",
+      "subcategory": "data_edge",
+      "test_case": "Total Balance aggregator sums positive decimal balances precisely",
       "preconditions": [
-        "Dashboard loaded with Accounts_Table and at least one row",
-        "Description states 'Account Number (clickable but not implemented yet)'"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = 100.50, 200.25"
       ],
       "steps": [
-        "Click the Account Number link in a row",
-        "Observe whether the app navigates or changes pages"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "Per description 'clickable but not implemented yet' the click should be a no-op in terms of navigation: the page remains the dashboard, no account-detail navigation occurs, and the table remains visible.",
-      "priority": "low"
+      "expected_result": "PASS: Footer label \"Total Balance\" is visible and the displayed total equals the sum of Current_Balance values: 100.50 + 200.25 = 300.75 (displayed exactly as 300.75)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-005",
-      "subcategory": "interaction_edge",
-      "test_case": "Row action 'Open Account' is present but disabled \u2014 clicking it does nothing",
+      "subcategory": "data_edge",
+      "test_case": "Total Balance aggregator includes negative balances (overdrafts)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table row actions (AST row_actions for Open Account have enabled: false)"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = -50.00, 25.00"
       ],
       "steps": [
-        "Reveal the row actions for any account row",
-        "Attempt to click 'Open Account' action"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "Per AST row_actions.enabled = false, clicking 'Open Account' must not perform the open action; there must be no navigation or change in account detail view. The UI should either ignore the click or show a disabled affordance.",
-      "priority": "low"
+      "expected_result": "PASS: Footer label \"Total Balance\" is visible and the displayed total equals the arithmetic sum including negatives: -50.00 + 25.00 = -25.00 (displayed exactly as -25.00)",
+      "priority": "medium"
     },
     {
       "tc_id": "E-006",
       "subcategory": "data_edge",
-      "test_case": "Footer 'Total Balance' correctly sums positive and negative balances to zero",
+      "test_case": "Total Balance aggregator with very large Current_Balance values (magnitude boundary)",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table with footer row 'Total Balance' (AST footer_rows operation: sum on Current Balance)",
-        "Two account rows exist: Current Balance = 100.00 and Current Balance = -100.00"
+        "Component Customer_Accounts_Table is visible",
+        "Footer row configured: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\"",
+        "Table rows: Current_Balance = 9999999999, 1"
       ],
       "steps": [
-        "Locate the table footer 'Total Balance'",
-        "Observe the displayed total balance"
+        "Open Accounts Overview",
+        "Observe footer row labeled \"Total Balance\""
       ],
-      "expected_result": "PASS: The footer sum must reflect the sum across all accounts per AST footer_rows: the total balance displayed equals $0.00 (100.00 + -100.00 = 0.00).",
+      "expected_result": "PASS: Footer displays label \"Total Balance\" and shows the arithmetic sum 9,999,999,999 + 1 = 10,000,000,000 (displayed as 10000000000) without truncation or obvious overflow",
       "priority": "medium"
     },
     {
       "tc_id": "E-007",
       "subcategory": "data_edge",
-      "test_case": "Empty accounts list displays the footer row and a total balance of zero",
+      "test_case": "default_sort uses Open_Date ascending with far-future date present",
       "preconditions": [
-        "Dashboard loaded showing Accounts_Table (per description 'table includes a footer row displaying the total balance across all accounts')",
-        "No account rows are present"
+        "Component Customer_Accounts_Table is visible",
+        "default_sort: column = \"Open_Date\", direction = \"asc\"",
+        "Table rows with Open_Date: 2020-01-01, 2019-12-31, 2099-01-01"
       ],
       "steps": [
-        "Observe the table footer area",
-        "Read the displayed 'Total Balance' value"
+        "Open Accounts Overview",
+        "Observe the row order in Customer_Accounts_Table"
       ],
-      "expected_result": "PASS: The footer row must still be present and display the total balance across all accounts. With zero accounts the total must be $0.00 (or explicitly show zero), consistent with 'total balance across all accounts'.",
+      "expected_result": "PASS: Table is sorted by Open_Date ascending per default_sort: rows appear in order 2019-12-31, 2020-01-01, 2099-01-01",
       "priority": "medium"
     },
     {
       "tc_id": "E-008",
-      "subcategory": "state_edge",
-      "test_case": "Row ordering must follow creation date (earliest first) even when Open Date sort would produce a different order",
+      "subcategory": "data_edge",
+      "test_case": "Open_Date leap day ordering (2020-02-29) vs prior year",
       "preconditions": [
-        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
-        "Two accounts exist: Account A has creation_date = 2020-01-01 and Open Date = 2021-01-01; Account B has creation_date = 2021-06-01 and Open Date = 2020-01-01"
+        "Component Customer_Accounts_Table is visible",
+        "default_sort: column = \"Open_Date\", direction = \"asc\"",
+        "Table rows with Open_Date: 2019-02-28, 2020-02-29"
       ],
       "steps": [
-        "Load the Accounts Overview",
-        "Observe the order of rows in the table from top (first) to bottom (last)"
+        "Open Accounts Overview",
+        "Observe the row order in Customer_Accounts_Table"
       ],
-      "expected_result": "PASS: Per AST row_ordering, rows are ordered by account creation date earliest first. Account A (creation_date 2020-01-01) must appear before Account B, despite Account B having an earlier Open Date. The creation_date ordering takes precedence so the top row is Account A.",
-      "priority": "medium"
+      "expected_result": "PASS: Sorting by Open_Date (date type) places 2019-02-28 before 2020-02-29 (correct chronological order); no error for leap-day date",
+      "priority": "low"
     },
     {
       "tc_id": "E-009",
-      "subcategory": "state_edge",
-      "test_case": "When creation dates are identical, default_sort by Open Date ascending is applied as a secondary ordering",
+      "subcategory": "interaction_edge",
+      "test_case": "Double-click Account_Number (ensure inert link does not trigger duplicate actions)",
       "preconditions": [
-        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
-        "Two accounts exist with identical creation_date = 2020-01-01 but different Open Dates: Account X Open Date = 2020-02-01, Account Y Open Date = 2020-01-01"
+        "Component Customer_Accounts_Table is visible",
+        "Precondition text: \"click action not implemented\" applies to Account_Number"
       ],
       "steps": [
-        "Load the Accounts Overview",
-        "Observe the order of the two rows with identical creation_date"
+        "Open Accounts Overview",
+        "Double-click the Account_Number cell/link rapidly on a row"
       ],
-      "expected_result": "The table must order rows by creation date first (they tie) and then apply the default_sort on Open Date ascending. Therefore Account Y (Open Date 2020-01-01) should appear above Account X (Open Date 2020-02-01).",
-      "priority": "medium"
+      "expected_result": "PASS: Given the precondition \"click action not implemented\", double-clicking does not trigger navigation or duplicate UI actions and the page remains unchanged (no duplicate records, no navigation, no errors)",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "data_edge",
+      "test_case": "Footer label presence when table empty (Total Balance label visible)",
+      "preconditions": [
+        "Component Customer_Accounts_Table is visible",
+        "Customer_Accounts_Table contains zero rows",
+        "Footer configuration: Total_Balance operation = \"sum\" column = \"Current_Balance\" label = \"Total Balance\""
+      ],
+      "steps": [
+        "Open Accounts Overview",
+        "Verify footer area of Customer_Accounts_Table"
+      ],
+      "expected_result": "PASS: Footer row label \"Total Balance\" is present even when the table has zero rows; footer is rendered and shows a numeric total computed over Current_Balance (if no rows, the UI displays a zero or empty total but must not crash)",
+      "priority": "low"
     }
   ],
   "summary": {
-    "total": 9,
-    "boundary": 2,
-    "edge": 7,
+    "total": 10,
+    "boundary": 0,
+    "edge": 10,
     "medium_priority": 6,
-    "low_priority": 3
+    "low_priority": 4
   }
 }

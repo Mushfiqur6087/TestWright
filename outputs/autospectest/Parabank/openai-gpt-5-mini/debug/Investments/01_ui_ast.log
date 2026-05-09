@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T21:54:00.327748
+DEBUG SESSION STARTED: 2026-05-09T23:08:55.151950
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - SYSTEM PROMPT
+[23:08:55] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[21:54:00] UI-AST Agent - USER PROMPT
+[23:08:55] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Investments
 
@@ -215,7 +215,7 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[21:54:47] UI-AST Agent - LLM RESPONSE
+[23:09:23] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Investments",
@@ -235,7 +235,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Quantity": {
@@ -253,12 +253,15 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Execute Trade",
+          "type": "button",
           "constraints": [
-            "if Action == Buy then customer must have sufficient buying power for the requested Quantity",
-            "if Action == Sell then customer must have sufficient share balance of Fund_Symbol for the requested Quantity"
+            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
+            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
+            "Fund_Symbol must resolve to an existing fund symbol",
+            "Quantity must be greater than 0"
           ],
-          "on_success": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
-          "on_failure": "validation errors appear inline"
+          "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "on_error": "validation failures appear inline"
         }
       ]
     },
@@ -269,14 +272,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Contribution_Amount": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must meet the minimum contribution"
+            "must meet the minimum contribution amount"
           ]
         },
         "Frequency": {
@@ -291,24 +294,29 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "date",
           "required": true,
           "constraints": [
-            "must be in the future"
+            "must be a future date",
+            "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true
+          "required": true,
+          "constraints": [
+            "Funding_Account must have adequate balance to fund initial contribution"
+          ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
+          "type": "button",
           "constraints": [
-            "start date must be in the future",
-            "contribution amount must meet the minimum contribution",
-            "funding account must have adequate balance at time of creation"
+            "Start_Date must be in the future",
+            "Contribution_Amount must meet the minimum contribution amount",
+            "Funding_Account must have adequate balance"
           ],
-          "on_success": "stores schedule; displays \"Plan created successfully.\"",
-          "on_failure": "errors highlight problematic fields (for example: \"Start date must be in the future\")"
+          "on_success": "stores schedule and shows \"Plan created successfully.\"",
+          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
         }
       ]
     }
@@ -316,7 +324,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[21:54:47] UI-AST Agent - PARSED JSON
+[23:09:23] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Investments",
@@ -336,7 +344,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Quantity": {
@@ -354,12 +362,15 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Execute Trade",
+          "type": "button",
           "constraints": [
-            "if Action == Buy then customer must have sufficient buying power for the requested Quantity",
-            "if Action == Sell then customer must have sufficient share balance of Fund_Symbol for the requested Quantity"
+            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
+            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
+            "Fund_Symbol must resolve to an existing fund symbol",
+            "Quantity must be greater than 0"
           ],
-          "on_success": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
-          "on_failure": "validation errors appear inline"
+          "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "on_error": "validation failures appear inline"
         }
       ]
     },
@@ -370,14 +381,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "search",
           "required": true,
           "constraints": [
-            "symbol must exist"
+            "must resolve to an existing fund symbol"
           ]
         },
         "Contribution_Amount": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must meet the minimum contribution"
+            "must meet the minimum contribution amount"
           ]
         },
         "Frequency": {
@@ -392,24 +403,29 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "date",
           "required": true,
           "constraints": [
-            "must be in the future"
+            "must be a future date",
+            "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true
+          "required": true,
+          "constraints": [
+            "Funding_Account must have adequate balance to fund initial contribution"
+          ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
+          "type": "button",
           "constraints": [
-            "start date must be in the future",
-            "contribution amount must meet the minimum contribution",
-            "funding account must have adequate balance at time of creation"
+            "Start_Date must be in the future",
+            "Contribution_Amount must meet the minimum contribution amount",
+            "Funding_Account must have adequate balance"
           ],
-          "on_success": "stores schedule; displays \"Plan created successfully.\"",
-          "on_failure": "errors highlight problematic fields (for example: \"Start date must be in the future\")"
+          "on_success": "stores schedule and shows \"Plan created successfully.\"",
+          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
         }
       ]
     }
