@@ -1,0 +1,243 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:54:00.326493
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:54:54] Semantic Critic - SYSTEM PROMPT
+------------------------------------------------------------
+You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
+
+Your single job: decide whether this AST is good enough to use, or whether it should be regenerated. Be strict — when in doubt, retry.
+
+You DO NOT modify the JSON. You DO NOT generate a new JSON. You ONLY audit.
+
+---
+
+**INPUT:**
+
+<description>
+{Raw functional description text}
+</description>
+
+<ast>
+{Generated UI-AST JSON}
+</ast>
+
+---
+
+**WHAT COUNTS AS INTERACTIVE (in scope):**
+- Form fields, checkboxes, file uploads, search inputs (user inputs a value)
+- Buttons, links, row actions, bulk actions, submit actions (user triggers something)
+- Tabs, sub-tabs, wizard steps (user navigates)
+- Action consequences (`on_success`), preconditions, validation constraints
+- States in a state_bound_action_bar (Pending/Active/Closed are routing keys)
+
+**WHAT IS OUT OF SCOPE (do NOT expect these in the AST):**
+- Passive display labels — "the page displays the client name, account number, status badge, activation date, office" produces ZERO expected items. The AST is correct to omit them.
+- Chip colors, badge styles, decorative icons, visual styling
+
+---
+
+**METHOD:**
+
+**Step 1 — Walk the description and list every interactive element.**
+Apply the scope rules above. A passive display sentence produces zero expected items.
+If the description names a tab or step but gives zero fields for it, the correct AST has
+`fields: {}` for that tab/step — do NOT expect fields there.
+
+**Step 2 — Walk the AST and verify each expected element is present at the right path.**
+Note any expected items that are MISSING.
+
+**Step 3 — Walk the AST and check for PHANTOMS.**
+A phantom is anything in the AST that isn't traceable to explicit text in the description:
+- Buttons not named in the description (e.g., a "Start Import" button when description only says "uploading a file")
+- Fields invented inside generic-name tabs (e.g., an Add_Note field in a Notes tab, an Upload_Document field in a Documents tab) when the description only names the tab and gives no field details
+- Constraints inferred from UX intuition, not stated in the description text
+- Passive display fields (Client_Name, Status_Badge in a display_fields block)
+
+A reasonable inference with no textual anchor is still a phantom. Flag it.
+
+**Step 4 — Check conditional logic.**
+Count a conditional ONLY if the description has explicit trigger language:
+"when X is selected", "if X then", "required if", "Y is enabled when X", "selecting X reveals Y".
+Do NOT infer conditionals from field relationships. If no trigger phrase exists, expected = 0.
+
+**Step 5 — Decide the verdict.**
+
+```
+yes   →  Missing items: 0–2 minor (optional fields, non-critical)
+          AND Phantoms: 0–2 minor
+          AND no critical structural errors
+
+retry →  Missing items: 3+, OR
+          Phantoms: 3+, OR
+          Any required field missing, OR
+          Any state in state_bound_action_bar missing, OR
+          Recursive nesting (sub-tabs/sub-steps) missing when description names them, OR
+          Constraint placed at wrong level (floating instead of nested)
+```
+
+There is no third option. Don't agonize over edge cases — when in doubt, retry. A single regeneration is cheap.
+
+---
+
+**OUTPUT FORMAT — JSON only, no prose, no markdown fencing:**
+
+{
+  "verdict": "yes | retry",
+  "summary": "<one sentence explaining the decision>",
+  "missing": [
+    "<dotted path of expected element absent from AST — e.g., 'Create_Client_Wizard.steps[3].fields.Document_Type'>"
+  ],
+  "phantoms": [
+    "<dotted path of AST element not in description — e.g., 'Bulk_Import_Page.submit_actions[0] (Start_Import button not in description)'>"
+  ],
+  "fixes": [
+    "<actionable instruction for regeneration — only populated when verdict is retry>",
+    "<each fix references a JSON path and the exact change needed>"
+  ]
+}
+
+If verdict is "yes", `fixes` must be an empty array.
+
+Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
+
+
+------------------------------------------------------------
+[21:54:54] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The Manage Cards page contains two separate forms presented in stacked cards.The card request form includes Card Type (Debit or Credit), Account to Link, Shipping Address, and a “Request Card” button. When submitted, the system checks that the address is complete, verifies the selected account’s standing, opens a card-request ticket, and shows “Card request submitted successfully.” with a tracking ID.The card controls form includes Select Existing Card (dropdown), New Spending Limit, Travel Notice (optional dates and destinations), Card Status (Active or Frozen), and an “Update Controls” button. The system validates numeric limits, date ranges, and allowable card-status transitions. Successful updates display “Card controls updated successfully.”; validation failures (for example, a limit above policy) appear inline, and the form stays editable.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Manage Cards",
+  "components": {
+    "Card_Request_Form": {
+      "type": "form",
+      "fields": {
+        "Card_Type": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Debit",
+            "Credit"
+          ]
+        },
+        "Account_to_Link": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": []
+        },
+        "Shipping_Address": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "address must be complete"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Request Card",
+          "constraints": [
+            "selected account must be in good standing"
+          ],
+          "on_success": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID",
+          "on_failure": "shows validation errors and keeps form editable"
+        }
+      ]
+    },
+    "Card_Controls_Form": {
+      "type": "form",
+      "fields": {
+        "Select_Existing_Card": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": []
+        },
+        "New_Spending_Limit": {
+          "type": "number",
+          "required": false,
+          "constraints": [
+            "must be numeric",
+            "must be >= 0",
+            "must not exceed policy maximum"
+          ]
+        },
+        "Travel_Notice": {
+          "type": "repeating_group",
+          "required": false,
+          "item_fields": {
+            "Start_Date": {
+              "type": "date",
+              "required": false
+            },
+            "End_Date": {
+              "type": "date",
+              "required": false
+            },
+            "Destination": {
+              "type": "unspecified",
+              "required": false
+            }
+          },
+          "constraints": [
+            "date ranges must be valid (Start_Date <= End_Date)"
+          ]
+        },
+        "Card_Status": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Active",
+            "Frozen"
+          ],
+          "constraints": []
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Update Controls",
+          "constraints": [
+            "validate numeric limits (e.g., New_Spending_Limit must not exceed policy maximum)",
+            "validate travel notice date ranges",
+            "validate allowable card-status transitions"
+          ],
+          "on_success": "Card controls updated successfully.",
+          "on_failure": "shows inline validation errors (e.g., limit above policy) and form remains editable"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:55:22] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "The AST accurately captures both forms, all interactive fields, their validations, and the submit actions (including success messages and validation failure behavior).",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}
+
+------------------------------------------------------------
+[21:55:22] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "The AST accurately captures both forms, all interactive fields, their validations, and the submit actions (including success messages and validation failure behavior).",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}

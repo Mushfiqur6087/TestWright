@@ -1,0 +1,239 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:54:00.327797
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:54:47] Semantic Critic - SYSTEM PROMPT
+------------------------------------------------------------
+You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
+
+Your single job: decide whether this AST is good enough to use, or whether it should be regenerated. Be strict — when in doubt, retry.
+
+You DO NOT modify the JSON. You DO NOT generate a new JSON. You ONLY audit.
+
+---
+
+**INPUT:**
+
+<description>
+{Raw functional description text}
+</description>
+
+<ast>
+{Generated UI-AST JSON}
+</ast>
+
+---
+
+**WHAT COUNTS AS INTERACTIVE (in scope):**
+- Form fields, checkboxes, file uploads, search inputs (user inputs a value)
+- Buttons, links, row actions, bulk actions, submit actions (user triggers something)
+- Tabs, sub-tabs, wizard steps (user navigates)
+- Action consequences (`on_success`), preconditions, validation constraints
+- States in a state_bound_action_bar (Pending/Active/Closed are routing keys)
+
+**WHAT IS OUT OF SCOPE (do NOT expect these in the AST):**
+- Passive display labels — "the page displays the client name, account number, status badge, activation date, office" produces ZERO expected items. The AST is correct to omit them.
+- Chip colors, badge styles, decorative icons, visual styling
+
+---
+
+**METHOD:**
+
+**Step 1 — Walk the description and list every interactive element.**
+Apply the scope rules above. A passive display sentence produces zero expected items.
+If the description names a tab or step but gives zero fields for it, the correct AST has
+`fields: {}` for that tab/step — do NOT expect fields there.
+
+**Step 2 — Walk the AST and verify each expected element is present at the right path.**
+Note any expected items that are MISSING.
+
+**Step 3 — Walk the AST and check for PHANTOMS.**
+A phantom is anything in the AST that isn't traceable to explicit text in the description:
+- Buttons not named in the description (e.g., a "Start Import" button when description only says "uploading a file")
+- Fields invented inside generic-name tabs (e.g., an Add_Note field in a Notes tab, an Upload_Document field in a Documents tab) when the description only names the tab and gives no field details
+- Constraints inferred from UX intuition, not stated in the description text
+- Passive display fields (Client_Name, Status_Badge in a display_fields block)
+
+A reasonable inference with no textual anchor is still a phantom. Flag it.
+
+**Step 4 — Check conditional logic.**
+Count a conditional ONLY if the description has explicit trigger language:
+"when X is selected", "if X then", "required if", "Y is enabled when X", "selecting X reveals Y".
+Do NOT infer conditionals from field relationships. If no trigger phrase exists, expected = 0.
+
+**Step 5 — Decide the verdict.**
+
+```
+yes   →  Missing items: 0–2 minor (optional fields, non-critical)
+          AND Phantoms: 0–2 minor
+          AND no critical structural errors
+
+retry →  Missing items: 3+, OR
+          Phantoms: 3+, OR
+          Any required field missing, OR
+          Any state in state_bound_action_bar missing, OR
+          Recursive nesting (sub-tabs/sub-steps) missing when description names them, OR
+          Constraint placed at wrong level (floating instead of nested)
+```
+
+There is no third option. Don't agonize over edge cases — when in doubt, retry. A single regeneration is cheap.
+
+---
+
+**OUTPUT FORMAT — JSON only, no prose, no markdown fencing:**
+
+{
+  "verdict": "yes | retry",
+  "summary": "<one sentence explaining the decision>",
+  "missing": [
+    "<dotted path of expected element absent from AST — e.g., 'Create_Client_Wizard.steps[3].fields.Document_Type'>"
+  ],
+  "phantoms": [
+    "<dotted path of AST element not in description — e.g., 'Bulk_Import_Page.submit_actions[0] (Start_Import button not in description)'>"
+  ],
+  "fixes": [
+    "<actionable instruction for regeneration — only populated when verdict is retry>",
+    "<each fix references a JSON path and the exact change needed>"
+  ]
+}
+
+If verdict is "yes", `fixes` must be an empty array.
+
+Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
+
+
+------------------------------------------------------------
+[21:54:47] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The Investments page is a multi-section workspace.The portfolio snapshot is a read-only panel that shows current fund holdings, market value, and unrealised gain or loss.The trade funds form includes Action (Buy or Sell), Fund Symbol (autocomplete), Quantity, Funding or Destination Account (dropdown), and an “Execute Trade” button. The system checks that the symbol exists, quantity is greater than zero, and that the customer has sufficient buying power or share balance. A successful submission executes a same-day trade, updates holdings, and displays “Trade executed successfully.” with an order ID; validation failures appear inline.The recurring investment plan form includes Fund Symbol, Contribution Amount, Frequency (Weekly or Monthly), Start Date, Funding Account, and a “Create Plan” button. The system validates that the start date is in the future, the contribution meets the minimum, and that the funding account has adequate balance. Success stores the schedule and shows “Plan created successfully.”; errors highlight the problematic fields (for example, “Start date must be in the future”).
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Investments",
+  "components": {
+    "Trade_Funds_Form": {
+      "type": "form",
+      "fields": {
+        "Action": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Buy",
+            "Sell"
+          ]
+        },
+        "Fund_Symbol": {
+          "type": "search",
+          "required": true,
+          "constraints": [
+            "symbol must exist"
+          ]
+        },
+        "Quantity": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be greater than 0"
+          ]
+        },
+        "Funding_or_Destination_Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Execute Trade",
+          "constraints": [
+            "if Action == Buy then customer must have sufficient buying power for the requested Quantity",
+            "if Action == Sell then customer must have sufficient share balance of Fund_Symbol for the requested Quantity"
+          ],
+          "on_success": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
+          "on_failure": "validation errors appear inline"
+        }
+      ]
+    },
+    "Recurring_Investment_Plan_Form": {
+      "type": "form",
+      "fields": {
+        "Fund_Symbol": {
+          "type": "search",
+          "required": true,
+          "constraints": [
+            "symbol must exist"
+          ]
+        },
+        "Contribution_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must meet the minimum contribution"
+          ]
+        },
+        "Frequency": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Weekly",
+            "Monthly"
+          ]
+        },
+        "Start_Date": {
+          "type": "date",
+          "required": true,
+          "constraints": [
+            "must be in the future"
+          ]
+        },
+        "Funding_Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Create Plan",
+          "constraints": [
+            "start date must be in the future",
+            "contribution amount must meet the minimum contribution",
+            "funding account must have adequate balance at time of creation"
+          ],
+          "on_success": "stores schedule; displays \"Plan created successfully.\"",
+          "on_failure": "errors highlight problematic fields (for example: \"Start date must be in the future\")"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:55:11] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}
+
+------------------------------------------------------------
+[21:55:11] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}

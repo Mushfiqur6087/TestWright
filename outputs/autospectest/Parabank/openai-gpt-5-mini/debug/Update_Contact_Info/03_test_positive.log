@@ -1,0 +1,599 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572731
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Positive - SYSTEM PROMPT
+------------------------------------------------------------
+You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- When the description quotes exact success text → use it verbatim.
+- When generic → write specific assertions describing the visible outcome.
+- Always use `on_success` from the AST when available.
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Three unique happy path tests per form/wizard:**
+
+Path A — COMPLETE DATA: Fill every field (required + optional) with valid data. For wizards, complete every step fully. Submit → verify on_success outcome and any redirect/state change.
+
+Path B — MINIMUM VIABLE: Fill ONLY required fields. Leave every optional field blank/default. Submit → verify the SAME on_success outcome as Path A. This proves optional fields are truly optional.
+
+Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
+  - Wizards: navigate forward to last step → back to step 1 → verify all data persists → submit
+  - Forms with dropdowns/options: select a DIFFERENT option than Path A, verify flow still completes
+  - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
+  - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
+
+**2. State transition tests:**
+
+For EACH state in a `state_bound_action_bar`:
+  - One test verifying the correct actions are available
+  - For each action that has its own fields: one test filling those fields correctly and confirming the state change
+
+**BIDIRECTIONAL STATE / TOGGLE RULE:**
+
+For toggles and bidirectional controls (Active/Frozen,
+enable/disable, opt-in/opt-out, check/uncheck), test
+BOTH directions:
+  - Forward: initial state → changed state (e.g., Active → Frozen)
+  - Reverse: changed state → original state (e.g., Frozen → Active)
+
+If a state_bound_action_bar shows an action available in
+State A that transitions to State B, AND State B has an action
+that transitions back to State A — test both transitions.
+
+For checkboxes and toggles: test check → submit, then
+uncheck → submit.
+
+**3. End-to-end lifecycle flows (from description context):**
+
+If the module has multiple states, produce:
+  - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
+  - One alternative lifecycle: a different valid path through states (Create → Reject, Create → Withdraw)
+
+These are multi-step tests spanning several state transitions. Include every precondition, navigation step, and intermediate verification.
+
+**4. Tab and sub-tab navigation:**
+
+For each `tab_container`:
+  - One test verifying all tabs are accessible
+  - If sub-tabs exist: one test navigating into sub-tabs and back
+
+**5. Data table interaction tests:**
+
+For each `data_table`:
+  - If `row_actions` exist: one test per row action (with valid preconditions met)
+  - If `bulk_actions` exist: one test per bulk action with items selected
+  - If `sortable_columns` exist: one test verifying sort works
+
+**6. Dropdown option verification:**
+
+For each field with `options: []`:
+  - One test verifying all listed options are present and selectable
+
+**7. Search and filter (from description):**
+
+If description mentions search or filter:
+  - One test: search/filter with matching criteria → correct results shown
+
+**8. Navigation and redirect (from description):**
+
+If description mentions "redirected to X" or "opens Y page":
+  - One test per unique redirect verifying navigation occurs
+
+**9. Pre-population (from description):**
+
+If description mentions "pre-filled", "auto-populated", "defaults to":
+  - One test verifying pre-fill behavior
+
+---
+
+**PRIORITY:**
+
+- **High**: Happy paths, state transitions, lifecycle flows
+- **Medium**: Tab navigation, dropdown verification, search/filter, pre-fill, data table interactions
+- **Low**: Alternative route happy path, sort verification
+
+---
+
+**PRECONDITIONS:**
+
+- Auth required → "User logged in"
+- Specific state → "[Entity] in [State] status"
+- Prerequisite entities → name them explicitly
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What should happen",
+      "priority": "high | medium | low"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Positive - USER PROMPT
+------------------------------------------------------------
+<module_name>Update Contact Info</module_name>
+
+<ast>
+{
+  "module_name": "Update Contact Info",
+  "components": {
+    "Update_Contact_Info_Form": {
+      "type": "form",
+      "fields": {
+        "First_Name": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected name format"
+          ]
+        },
+        "Last_Name": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected name format"
+          ]
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected street address format"
+          ]
+        },
+        "City": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected city name format"
+          ]
+        },
+        "State": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must be a valid state/region value"
+          ]
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match ZIP/postal code format (e.g., 5 digits or 5+4)"
+          ]
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match phone number format (e.g., 10-digit or E.164)"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Update Profile",
+          "type": "button",
+          "on_submit": "validates each field for format and completeness",
+          "on_success": "Profile updated successfully and refreshes the data",
+          "on_failure": "highlights invalid fields and displays inline error banner"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[22:00:08] Test-Positive - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Update Contact Info",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Happy path — complete valid data (10-digit phone, 5-digit ZIP)",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form (pre-filled)"],
+      "steps": [
+        "Open the Customer Profile page",
+        "In First Name enter 'John'",
+        "In Last Name enter 'Doe'",
+        "In Street Address enter '123 Main St Apt 4B'",
+        "In City enter 'Springfield'",
+        "In State select 'Illinois' (a valid state/region value)",
+        "In ZIP Code enter '62704' (5-digit ZIP)",
+        "In Phone Number enter '2175550123' (10-digit phone number)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-002",
+      "test_case": "Happy path — minimum viable submit (use existing pre-filled values, no changes)",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form pre-filled"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Verify form fields are populated (do not change any values)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-003",
+      "test_case": "Happy path — alternative formats (E.164 phone, ZIP+4)",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Fill First Name with 'Maria'",
+        "Fill Last Name with 'Lopez'",
+        "Fill Street Address with '456 Oak Lane'",
+        "Fill City with 'Austin'",
+        "Select State 'Texas'",
+        "Fill ZIP Code with '73301-1234' (5+4 ZIP format)",
+        "Fill Phone Number with '+12175550123' (E.164 format)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-004",
+      "test_case": "Pre-population verification — form fields show existing profile values",
+      "preconditions": ["User logged in", "User has existing profile data"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Inspect First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number fields"
+      ],
+      "expected_result": "Each field (First Name, Last Name, Street Address, City, State, ZIP Code, Phone Number) is pre-filled with the user's existing value",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Update a single field (Street Address) and verify data refresh",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form and existing values"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Change Street Address to '789 Pine Blvd Unit 2'",
+        "Leave all other fields unchanged",
+        "Click the 'Update Profile' button",
+        "After success, re-open or observe the refreshed form"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; Street Address shows '789 Pine Blvd Unit 2' in the refreshed form",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "Change State selection to another valid state and confirm update",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Select a different valid State/region (e.g., change from 'New York' to 'California')",
+        "Ensure all other required fields remain present and valid",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; the State field in the refreshed form shows the newly selected valid state",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-007",
+      "test_case": "Phone format round-trip — change phone to E.164, submit, then change back to 10-digit and submit",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Record current Phone Number value",
+        "Change Phone Number to '+14155552671' (valid E.164)",
+        "Click the 'Update Profile' button",
+        "Verify success and that the refreshed form shows '+14155552671'",
+        "Change Phone Number to '4155552671' (valid 10-digit)",
+        "Click the 'Update Profile' button again"
+      ],
+      "expected_result": "First update: Profile updated successfully and refreshes the data with Phone Number '+14155552671'; Second update: Profile updated successfully and refreshes the data with Phone Number '4155552671'",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-008",
+      "test_case": "Name format acceptance — valid hyphenated/apostrophed names accepted",
+      "preconditions": ["User logged in", "On Customer Profile page with editable form"],
+      "steps": [
+        "Open the Customer Profile page",
+        "Set First Name to 'Anne-Marie' and Last Name to \"O'Connor\"",
+        "Fill remaining required fields with valid values (Street Address, City, State, ZIP Code, Phone Number)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; the refreshed form shows First Name 'Anne-Marie' and Last Name \"O'Connor\"",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 6,
+    "medium_priority": 2,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[22:00:08] Test-Positive - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Update Contact Info",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Happy path \u2014 complete valid data (10-digit phone, 5-digit ZIP)",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form (pre-filled)"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "In First Name enter 'John'",
+        "In Last Name enter 'Doe'",
+        "In Street Address enter '123 Main St Apt 4B'",
+        "In City enter 'Springfield'",
+        "In State select 'Illinois' (a valid state/region value)",
+        "In ZIP Code enter '62704' (5-digit ZIP)",
+        "In Phone Number enter '2175550123' (10-digit phone number)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-002",
+      "test_case": "Happy path \u2014 minimum viable submit (use existing pre-filled values, no changes)",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form pre-filled"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Verify form fields are populated (do not change any values)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-003",
+      "test_case": "Happy path \u2014 alternative formats (E.164 phone, ZIP+4)",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Fill First Name with 'Maria'",
+        "Fill Last Name with 'Lopez'",
+        "Fill Street Address with '456 Oak Lane'",
+        "Fill City with 'Austin'",
+        "Select State 'Texas'",
+        "Fill ZIP Code with '73301-1234' (5+4 ZIP format)",
+        "Fill Phone Number with '+12175550123' (E.164 format)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-004",
+      "test_case": "Pre-population verification \u2014 form fields show existing profile values",
+      "preconditions": [
+        "User logged in",
+        "User has existing profile data"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Inspect First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number fields"
+      ],
+      "expected_result": "Each field (First Name, Last Name, Street Address, City, State, ZIP Code, Phone Number) is pre-filled with the user's existing value",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Update a single field (Street Address) and verify data refresh",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form and existing values"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Change Street Address to '789 Pine Blvd Unit 2'",
+        "Leave all other fields unchanged",
+        "Click the 'Update Profile' button",
+        "After success, re-open or observe the refreshed form"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; Street Address shows '789 Pine Blvd Unit 2' in the refreshed form",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "Change State selection to another valid state and confirm update",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Select a different valid State/region (e.g., change from 'New York' to 'California')",
+        "Ensure all other required fields remain present and valid",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; the State field in the refreshed form shows the newly selected valid state",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-007",
+      "test_case": "Phone format round-trip \u2014 change phone to E.164, submit, then change back to 10-digit and submit",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Record current Phone Number value",
+        "Change Phone Number to '+14155552671' (valid E.164)",
+        "Click the 'Update Profile' button",
+        "Verify success and that the refreshed form shows '+14155552671'",
+        "Change Phone Number to '4155552671' (valid 10-digit)",
+        "Click the 'Update Profile' button again"
+      ],
+      "expected_result": "First update: Profile updated successfully and refreshes the data with Phone Number '+14155552671'; Second update: Profile updated successfully and refreshes the data with Phone Number '4155552671'",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-008",
+      "test_case": "Name format acceptance \u2014 valid hyphenated/apostrophed names accepted",
+      "preconditions": [
+        "User logged in",
+        "On Customer Profile page with editable form"
+      ],
+      "steps": [
+        "Open the Customer Profile page",
+        "Set First Name to 'Anne-Marie' and Last Name to \"O'Connor\"",
+        "Fill remaining required fields with valid values (Street Address, City, State, ZIP Code, Phone Number)",
+        "Click the 'Update Profile' button"
+      ],
+      "expected_result": "Profile updated successfully and refreshes the data; the refreshed form shows First Name 'Anne-Marie' and Last Name \"O'Connor\"",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 6,
+    "medium_priority": 2,
+    "low_priority": 0
+  }
+}

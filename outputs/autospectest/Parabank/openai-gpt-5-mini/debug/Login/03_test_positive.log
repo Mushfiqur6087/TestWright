@@ -1,0 +1,493 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.571867
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Positive - SYSTEM PROMPT
+------------------------------------------------------------
+You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- When the description quotes exact success text → use it verbatim.
+- When generic → write specific assertions describing the visible outcome.
+- Always use `on_success` from the AST when available.
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Three unique happy path tests per form/wizard:**
+
+Path A — COMPLETE DATA: Fill every field (required + optional) with valid data. For wizards, complete every step fully. Submit → verify on_success outcome and any redirect/state change.
+
+Path B — MINIMUM VIABLE: Fill ONLY required fields. Leave every optional field blank/default. Submit → verify the SAME on_success outcome as Path A. This proves optional fields are truly optional.
+
+Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
+  - Wizards: navigate forward to last step → back to step 1 → verify all data persists → submit
+  - Forms with dropdowns/options: select a DIFFERENT option than Path A, verify flow still completes
+  - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
+  - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
+
+**2. State transition tests:**
+
+For EACH state in a `state_bound_action_bar`:
+  - One test verifying the correct actions are available
+  - For each action that has its own fields: one test filling those fields correctly and confirming the state change
+
+**BIDIRECTIONAL STATE / TOGGLE RULE:**
+
+For toggles and bidirectional controls (Active/Frozen,
+enable/disable, opt-in/opt-out, check/uncheck), test
+BOTH directions:
+  - Forward: initial state → changed state (e.g., Active → Frozen)
+  - Reverse: changed state → original state (e.g., Frozen → Active)
+
+If a state_bound_action_bar shows an action available in
+State A that transitions to State B, AND State B has an action
+that transitions back to State A — test both transitions.
+
+For checkboxes and toggles: test check → submit, then
+uncheck → submit.
+
+**3. End-to-end lifecycle flows (from description context):**
+
+If the module has multiple states, produce:
+  - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
+  - One alternative lifecycle: a different valid path through states (Create → Reject, Create → Withdraw)
+
+These are multi-step tests spanning several state transitions. Include every precondition, navigation step, and intermediate verification.
+
+**4. Tab and sub-tab navigation:**
+
+For each `tab_container`:
+  - One test verifying all tabs are accessible
+  - If sub-tabs exist: one test navigating into sub-tabs and back
+
+**5. Data table interaction tests:**
+
+For each `data_table`:
+  - If `row_actions` exist: one test per row action (with valid preconditions met)
+  - If `bulk_actions` exist: one test per bulk action with items selected
+  - If `sortable_columns` exist: one test verifying sort works
+
+**6. Dropdown option verification:**
+
+For each field with `options: []`:
+  - One test verifying all listed options are present and selectable
+
+**7. Search and filter (from description):**
+
+If description mentions search or filter:
+  - One test: search/filter with matching criteria → correct results shown
+
+**8. Navigation and redirect (from description):**
+
+If description mentions "redirected to X" or "opens Y page":
+  - One test per unique redirect verifying navigation occurs
+
+**9. Pre-population (from description):**
+
+If description mentions "pre-filled", "auto-populated", "defaults to":
+  - One test verifying pre-fill behavior
+
+---
+
+**PRIORITY:**
+
+- **High**: Happy paths, state transitions, lifecycle flows
+- **Medium**: Tab navigation, dropdown verification, search/filter, pre-fill, data table interactions
+- **Low**: Alternative route happy path, sort verification
+
+---
+
+**PRECONDITIONS:**
+
+- Auth required → "User logged in"
+- Specific state → "[Entity] in [State] status"
+- Prerequisite entities → name them explicitly
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What should happen",
+      "priority": "high | medium | low"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Positive - USER PROMPT
+------------------------------------------------------------
+<module_name>Login</module_name>
+
+<ast>
+{
+  "module_name": "Login",
+  "components": {
+    "Login_Form": {
+      "type": "form",
+      "fields": {
+        "Email_Username": {
+          "type": "email",
+          "required": true,
+          "constraints": [
+            "must be valid email format"
+          ]
+        },
+        "Password": {
+          "type": "password",
+          "required": true,
+          "constraints": [
+            "minimum length 8",
+            "must include at least one uppercase letter",
+            "must include at least one lowercase letter",
+            "must include at least one number",
+            "must include at least one special character"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Sign In",
+          "type": "button",
+          "server_side_validation": "securely validates credentials against registered-user database",
+          "on_success": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+          "on_failure": {
+            "message": "Incorrect email or password. Please try again",
+            "effects": [
+              "clears Password field",
+              "allows another attempt"
+            ]
+          }
+        }
+      ]
+    },
+    "Forgot_Password_Link": {
+      "type": "link",
+      "element_name": "Forgot Password?"
+    }
+  }
+}
+</ast>
+
+<description>
+The login page contains a login form with two required input fields—Email/Username and Password—along with a "Sign In" button and a "Forgot Password?" link. Email must be a valid email format and password must be at least 8 characters with uppercase, lowercase, number, and special character. When the user submits the form, the system securely validates the provided credentials against the registered-user database. If authentication succeeds, the system flashes "Signed in successfully." and redirects the user to the Accounts Overview page; if it fails, it shows "Incorrect email or password. Please try again," clears the password field, and allows another attempt.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:57:59] Test-Positive - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Login",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Path A - Complete valid credentials (email with + addressing)",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: user+test@example.com and Password: P@ssw0rd! (meets password constraints)"
+      ],
+      "steps": [
+        "Enter 'user+test@example.com' into the Email/Username field",
+        "Enter 'P@ssw0rd!' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-002",
+      "test_case": "Path B - Minimum viable required fields with minimally-compliant password",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: user@example.com and Password: Aa1!aaaa (8 chars, includes uppercase, lowercase, number, special char)"
+      ],
+      "steps": [
+        "Enter 'user@example.com' into the Email/Username field",
+        "Enter 'Aa1!aaaa' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-003",
+      "test_case": "Path C - Alternative route: visit Forgot Password? then return and sign in successfully",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: altuser@example.com and Password: Alt1!Pass"
+      ],
+      "steps": [
+        "Click the 'Forgot Password?' link",
+        "Navigate back to the Login page (use browser Back or site navigation to return to Login)",
+        "Enter 'altuser@example.com' into the Email/Username field",
+        "Enter 'Alt1!Pass' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-004",
+      "test_case": "Forgot Password? link is present and visible",
+      "preconditions": [
+        "User is on the Login page"
+      ],
+      "steps": [
+        "Observe the Login form area",
+        "Locate an interactive element with text 'Forgot Password?'"
+      ],
+      "expected_result": "The 'Forgot Password?' link is visible and enabled on the Login page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Sign In button is present and enabled",
+      "preconditions": [
+        "User is on the Login page"
+      ],
+      "steps": [
+        "Observe the Login form area",
+        "Locate a button with label 'Sign In'"
+      ],
+      "expected_result": "The 'Sign In' button is visible and enabled on the Login page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "Alternate valid email format (subdomain + dots) signs in successfully",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: User.Name+alias@sub.example.co.uk and Password: S3cure!Pwd"
+      ],
+      "steps": [
+        "Enter 'User.Name+alias@sub.example.co.uk' into the Email/Username field",
+        "Enter 'S3cure!Pwd' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "high_priority": 3,
+    "medium_priority": 3,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[21:57:59] Test-Positive - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Login",
+  "category": "positive",
+  "test_cases": [
+    {
+      "tc_id": "P-001",
+      "test_case": "Path A - Complete valid credentials (email with + addressing)",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: user+test@example.com and Password: P@ssw0rd! (meets password constraints)"
+      ],
+      "steps": [
+        "Enter 'user+test@example.com' into the Email/Username field",
+        "Enter 'P@ssw0rd!' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-002",
+      "test_case": "Path B - Minimum viable required fields with minimally-compliant password",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: user@example.com and Password: Aa1!aaaa (8 chars, includes uppercase, lowercase, number, special char)"
+      ],
+      "steps": [
+        "Enter 'user@example.com' into the Email/Username field",
+        "Enter 'Aa1!aaaa' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-003",
+      "test_case": "Path C - Alternative route: visit Forgot Password? then return and sign in successfully",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: altuser@example.com and Password: Alt1!Pass"
+      ],
+      "steps": [
+        "Click the 'Forgot Password?' link",
+        "Navigate back to the Login page (use browser Back or site navigation to return to Login)",
+        "Enter 'altuser@example.com' into the Email/Username field",
+        "Enter 'Alt1!Pass' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-004",
+      "test_case": "Forgot Password? link is present and visible",
+      "preconditions": [
+        "User is on the Login page"
+      ],
+      "steps": [
+        "Observe the Login form area",
+        "Locate an interactive element with text 'Forgot Password?'"
+      ],
+      "expected_result": "The 'Forgot Password?' link is visible and enabled on the Login page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-005",
+      "test_case": "Sign In button is present and enabled",
+      "preconditions": [
+        "User is on the Login page"
+      ],
+      "steps": [
+        "Observe the Login form area",
+        "Locate a button with label 'Sign In'"
+      ],
+      "expected_result": "The 'Sign In' button is visible and enabled on the Login page",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "P-006",
+      "test_case": "Alternate valid email format (subdomain + dots) signs in successfully",
+      "preconditions": [
+        "User is on the Login page",
+        "Registered user exists with Email: User.Name+alias@sub.example.co.uk and Password: S3cure!Pwd"
+      ],
+      "steps": [
+        "Enter 'User.Name+alias@sub.example.co.uk' into the Email/Username field",
+        "Enter 'S3cure!Pwd' into the Password field",
+        "Click the 'Sign In' button"
+      ],
+      "expected_result": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "high_priority": 3,
+    "medium_priority": 3,
+    "low_priority": 0
+  }
+}

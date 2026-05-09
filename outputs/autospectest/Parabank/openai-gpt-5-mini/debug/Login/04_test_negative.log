@@ -1,3 +1,12 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.571935
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - SYSTEM PROMPT
+------------------------------------------------------------
 You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
 
 ---
@@ -281,6 +290,268 @@ covers it (e.g., "must be > 0" implicitly requires numeric input).
     "total": 0,
     "high_priority": 0,
     "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - USER PROMPT
+------------------------------------------------------------
+<module_name>Login</module_name>
+
+<ast>
+{
+  "module_name": "Login",
+  "components": {
+    "Login_Form": {
+      "type": "form",
+      "fields": {
+        "Email_Username": {
+          "type": "email",
+          "required": true,
+          "constraints": [
+            "must be valid email format"
+          ]
+        },
+        "Password": {
+          "type": "password",
+          "required": true,
+          "constraints": [
+            "minimum length 8",
+            "must include at least one uppercase letter",
+            "must include at least one lowercase letter",
+            "must include at least one number",
+            "must include at least one special character"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Sign In",
+          "type": "button",
+          "server_side_validation": "securely validates credentials against registered-user database",
+          "on_success": "flashes \"Signed in successfully.\" and redirects to the Accounts Overview page",
+          "on_failure": {
+            "message": "Incorrect email or password. Please try again",
+            "effects": [
+              "clears Password field",
+              "allows another attempt"
+            ]
+          }
+        }
+      ]
+    },
+    "Forgot_Password_Link": {
+      "type": "link",
+      "element_name": "Forgot Password?"
+    }
+  }
+}
+</ast>
+
+<description>
+The login page contains a login form with two required input fields—Email/Username and Password—along with a "Sign In" button and a "Forgot Password?" link. Email must be a valid email format and password must be at least 8 characters with uppercase, lowercase, number, and special character. When the user submits the form, the system securely validates the provided credentials against the registered-user database. If authentication succeeds, the system flashes "Signed in successfully." and redirects the user to the Accounts Overview page; if it fails, it shows "Incorrect email or password. Please try again," clears the password field, and allows another attempt.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:58:02] Test-Negative - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Login",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Email/Username required - empty email field",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Leave Email/Username field empty",
+        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Email/Username field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Password required - empty password field",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
+        "Leave Password field empty",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Password field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Submit with all required fields empty",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Ensure both Email/Username and Password fields are empty",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation errors displayed for required fields: Email/Username field indicating it is required and Password field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Invalid email format prevents submission",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter 'notanemail' into Email/Username field",
+        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Email/Username field indicating it must be a valid email format",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Password fails minimum length policy",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
+        "Enter a password shorter than 8 characters, e.g. 'Aa1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Password field indicating minimum length 8",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Authentication failure with incorrect credentials",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a syntactically valid email not registered in the system, e.g. 'unknown.user@example.com'",
+        "Enter a password that meets the password policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Error 'Incorrect email or password. Please try again' displayed, and Password field cleared",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "high_priority": 5,
+    "medium_priority": 1,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[21:58:02] Test-Negative - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Login",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Email/Username required - empty email field",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Leave Email/Username field empty",
+        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Email/Username field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Password required - empty password field",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
+        "Leave Password field empty",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Password field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Submit with all required fields empty",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Ensure both Email/Username and Password fields are empty",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation errors displayed for required fields: Email/Username field indicating it is required and Password field indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Invalid email format prevents submission",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter 'notanemail' into Email/Username field",
+        "Enter a valid password that meets policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Email/Username field indicating it must be a valid email format",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Password fails minimum length policy",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a valid email in Email/Username field, e.g. 'user@example.com'",
+        "Enter a password shorter than 8 characters, e.g. 'Aa1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Validation error displayed for Password field indicating minimum length 8",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Authentication failure with incorrect credentials",
+      "preconditions": [
+        "User is on the Login page and not authenticated"
+      ],
+      "steps": [
+        "Enter a syntactically valid email not registered in the system, e.g. 'unknown.user@example.com'",
+        "Enter a password that meets the password policy, e.g. 'ValidPwd1!'",
+        "Click 'Sign In'"
+      ],
+      "expected_result": "Error 'Incorrect email or password. Please try again' displayed, and Password field cleared",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 6,
+    "high_priority": 5,
+    "medium_priority": 1,
     "low_priority": 0
   }
 }

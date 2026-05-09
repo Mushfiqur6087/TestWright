@@ -23,14 +23,14 @@ class TestEdgeAgent(BaseAgent):
         return self.call_llm_json(
             self._build_prompt(module_title, ast, description),
             temperature=0.4,
-            max_tokens=4096,
+            max_tokens=8192,
         )
 
     async def arun(self, module_title: str, ast: Dict[str, Any], description: str) -> Dict[str, Any]:
         return await self.acall_llm_json(
             self._build_prompt(module_title, ast, description),
             temperature=0.4,
-            max_tokens=4096,
+            max_tokens=8192,
         )
 
     @staticmethod

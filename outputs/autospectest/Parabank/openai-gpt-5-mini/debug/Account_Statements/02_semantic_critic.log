@@ -1,0 +1,220 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:54:00.328973
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:55:18] Semantic Critic - SYSTEM PROMPT
+------------------------------------------------------------
+You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
+
+Your single job: decide whether this AST is good enough to use, or whether it should be regenerated. Be strict — when in doubt, retry.
+
+You DO NOT modify the JSON. You DO NOT generate a new JSON. You ONLY audit.
+
+---
+
+**INPUT:**
+
+<description>
+{Raw functional description text}
+</description>
+
+<ast>
+{Generated UI-AST JSON}
+</ast>
+
+---
+
+**WHAT COUNTS AS INTERACTIVE (in scope):**
+- Form fields, checkboxes, file uploads, search inputs (user inputs a value)
+- Buttons, links, row actions, bulk actions, submit actions (user triggers something)
+- Tabs, sub-tabs, wizard steps (user navigates)
+- Action consequences (`on_success`), preconditions, validation constraints
+- States in a state_bound_action_bar (Pending/Active/Closed are routing keys)
+
+**WHAT IS OUT OF SCOPE (do NOT expect these in the AST):**
+- Passive display labels — "the page displays the client name, account number, status badge, activation date, office" produces ZERO expected items. The AST is correct to omit them.
+- Chip colors, badge styles, decorative icons, visual styling
+
+---
+
+**METHOD:**
+
+**Step 1 — Walk the description and list every interactive element.**
+Apply the scope rules above. A passive display sentence produces zero expected items.
+If the description names a tab or step but gives zero fields for it, the correct AST has
+`fields: {}` for that tab/step — do NOT expect fields there.
+
+**Step 2 — Walk the AST and verify each expected element is present at the right path.**
+Note any expected items that are MISSING.
+
+**Step 3 — Walk the AST and check for PHANTOMS.**
+A phantom is anything in the AST that isn't traceable to explicit text in the description:
+- Buttons not named in the description (e.g., a "Start Import" button when description only says "uploading a file")
+- Fields invented inside generic-name tabs (e.g., an Add_Note field in a Notes tab, an Upload_Document field in a Documents tab) when the description only names the tab and gives no field details
+- Constraints inferred from UX intuition, not stated in the description text
+- Passive display fields (Client_Name, Status_Badge in a display_fields block)
+
+A reasonable inference with no textual anchor is still a phantom. Flag it.
+
+**Step 4 — Check conditional logic.**
+Count a conditional ONLY if the description has explicit trigger language:
+"when X is selected", "if X then", "required if", "Y is enabled when X", "selecting X reveals Y".
+Do NOT infer conditionals from field relationships. If no trigger phrase exists, expected = 0.
+
+**Step 5 — Decide the verdict.**
+
+```
+yes   →  Missing items: 0–2 minor (optional fields, non-critical)
+          AND Phantoms: 0–2 minor
+          AND no critical structural errors
+
+retry →  Missing items: 3+, OR
+          Phantoms: 3+, OR
+          Any required field missing, OR
+          Any state in state_bound_action_bar missing, OR
+          Recursive nesting (sub-tabs/sub-steps) missing when description names them, OR
+          Constraint placed at wrong level (floating instead of nested)
+```
+
+There is no third option. Don't agonize over edge cases — when in doubt, retry. A single regeneration is cheap.
+
+---
+
+**OUTPUT FORMAT — JSON only, no prose, no markdown fencing:**
+
+{
+  "verdict": "yes | retry",
+  "summary": "<one sentence explaining the decision>",
+  "missing": [
+    "<dotted path of expected element absent from AST — e.g., 'Create_Client_Wizard.steps[3].fields.Document_Type'>"
+  ],
+  "phantoms": [
+    "<dotted path of AST element not in description — e.g., 'Bulk_Import_Page.submit_actions[0] (Start_Import button not in description)'>"
+  ],
+  "fixes": [
+    "<actionable instruction for regeneration — only populated when verdict is retry>",
+    "<each fix references a JSON path and the exact change needed>"
+  ]
+}
+
+If verdict is "yes", `fixes` must be an empty array.
+
+Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
+
+
+------------------------------------------------------------
+[21:55:18] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The Statements page provides two coordinated forms displayed side by side.The generate statement form includes Statement Period (month-and-year or custom date range), Account (dropdown), and a “Generate Statement” button. The system validates the dates and retrieves the relevant transactions. On success it displays “Statement generated successfully.”; if generation fails it shows “Unable to generate statement — please try again later.”The e-statement preference form includes a checkbox to opt into paperless statements, an Email Address field, and a “Save Preference” button. The system validates the email address; success displays “e-Statement preference updated.”, while a failure highlights the email field with guidance.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Account Statements",
+  "components": {
+    "Generate_Statement_Form": {
+      "type": "form",
+      "fields": {
+        "Statement_Period_Mode": {
+          "type": "dropdown",
+          "required": false,
+          "options": [
+            "Month-and-Year",
+            "Custom Range"
+          ]
+        },
+        "Month_Year": {
+          "type": "date",
+          "required_when": "Statement_Period_Mode == Month-and-Year",
+          "constraints": [
+            "must specify month and year (day ignored)"
+          ]
+        },
+        "Start_Date": {
+          "type": "date",
+          "required_when": "Statement_Period_Mode == Custom Range"
+        },
+        "End_Date": {
+          "type": "date",
+          "required_when": "Statement_Period_Mode == Custom Range"
+        },
+        "Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "constraints": [
+        "if Statement_Period_Mode == Custom Range then Start_Date <= End_Date",
+        "dates must be valid calendar dates"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Generate Statement",
+          "on_success": "Statement generated successfully; retrieves relevant transactions",
+          "on_failure": "Unable to generate statement \u2014 please try again later.",
+          "constraints": [
+            "validates date inputs according to Statement_Period_Mode",
+            "Start_Date <= End_Date when Custom Range is selected"
+          ]
+        }
+      ]
+    },
+    "EStatement_Preference_Form": {
+      "type": "form",
+      "fields": {
+        "Paperless": {
+          "type": "checkbox",
+          "required": false
+        },
+        "Email_Address": {
+          "type": "email",
+          "required_when": "Paperless == true",
+          "constraints": [
+            "must be a valid email address"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Save Preference",
+          "on_success": "e-Statement preference updated.",
+          "on_failure": "highlights Email Address field with guidance",
+          "constraints": [
+            "if Paperless == true then Email_Address must be a valid email address"
+          ]
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:55:44] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "The AST accurately captures both forms, their interactive fields, buttons, validation rules, and success/failure behaviors with no missing interactive elements or extraneous items.",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}
+
+------------------------------------------------------------
+[21:55:44] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "The AST accurately captures both forms, their interactive fields, buttons, validation rules, and success/failure behaviors with no missing interactive elements or extraneous items.",
+  "missing": [],
+  "phantoms": [],
+  "fixes": []
+}

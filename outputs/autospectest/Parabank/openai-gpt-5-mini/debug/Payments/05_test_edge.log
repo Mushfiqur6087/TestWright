@@ -1,0 +1,609 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572551
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - SYSTEM PROMPT
+------------------------------------------------------------
+You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+
+You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- Use exact text from description when available.
+- For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
+- For edge cases: describe the expected system behavior precisely.
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**MINIMUM OUTPUT RULE:**
+
+After scanning the AST for boundary constraints, count them.
+If the module has:
+  - 1+ numeric constraints → produce at least 2 boundary tests
+  - 1+ date constraints → produce at least 2 boundary tests
+  - Any repeating_group with max → produce 1 boundary test
+
+Zero boundary tests when constraints exist is a generation
+failure. If you find yourself producing zero tests, re-read
+the AST constraints and the description for threshold values.
+
+Common boundary sources you might miss:
+  - "sufficient funds" → test exact balance = amount (pass)
+    and balance = amount - 0.01 (fail)
+  - "must be at least next business day" → test exactly next
+    business day (pass) and today (fail)
+  - "minimum $X" / "maximum $Y" → test at X (pass), X-1 (fail),
+    at Y (pass), Y+1 (fail)
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Boundary Tests (from AST constraints):**
+
+Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+
+Produce exactly TWO tests:
+  - AT the boundary (should succeed): the exact minimum/maximum/threshold value
+  - JUST PAST the boundary (should fail): one unit beyond the limit
+
+| Constraint text | Boundary test (pass) | Past-boundary test (fail) |
+|---|---|---|
+| "minimum $25" | Deposit exactly $25 → succeeds | Deposit $24.99 → error |
+| "maximum 5 legs" | Add exactly 5 legs → succeeds | Add 6th leg → blocked |
+| "must not be before Submitted_On" | Activation Date = Submitted On → succeeds | Activation Date = Submitted On - 1 day → error |
+| "$1,000–$50,000 range" | Enter $1,000 → succeeds; Enter $50,000 → succeeds | Enter $999 → error; Enter $50,001 → error |
+| "at least 8 characters" | Enter exactly 8 characters → succeeds | Enter 7 characters → error |
+| "must be ≥ 10% of loan" | Enter exactly 10% → succeeds | Enter 9.99% → error |
+
+If a constraint implies BOTH a minimum and maximum, test both boundaries (4 tests total for that constraint).
+
+If a constraint has no numeric/date/count threshold (e.g., "must be unique", "cannot close with active accounts"), SKIP it — it belongs in negative tests, not boundary tests.
+
+**2. Edge Case Tests (creative, module-specific):**
+
+These test unusual but plausible real-world scenarios. Pick 3–5 that are RELEVANT to this specific module. Do not force generic edges that don't apply.
+
+Categories to consider:
+
+**Input edge cases:**
+  - Very long text input in name/description fields (200+ characters)
+  - Special characters, unicode, or emoji in text fields
+  - Leading/trailing whitespace in text inputs
+  - Zero as a valid numeric input where it might be ambiguous
+  - Decimal precision edge (e.g., $25.001 — how does rounding behave?)
+
+**Interaction edge cases:**
+  - Double-click submit button rapidly → should not create duplicate records
+  - Submit form, then press browser back → form state handling
+  - Fill wizard step 1 → jump to step 4 (if possible) → what happens?
+  - For repeating groups: add entries → remove ALL entries → submit
+
+**State edge cases:**
+  - Perform an action immediately after a state change (e.g., activate then immediately try to close)
+  - Entity at the boundary between two states (e.g., loan with $0.01 remaining balance)
+
+**Data edge cases:**
+  - Date fields: use today's date, yesterday, far future dates (year 2099)
+  - Date fields: February 29 on leap year vs non-leap year
+  - Dropdown with only one option vs many options
+  - Search with single character input
+  - Filter that returns exactly one result vs zero results
+
+**Repeating group edges:**
+  - Add maximum allowed entries → verify all persist after submit
+  - Add entries with near-identical data (testing dedup rules at their limit)
+  - Add then immediately remove before saving
+
+**RELEVANCE RULE:** Only generate edge cases that make sense for THIS module. A login form doesn't need "add maximum repeating group entries." A data table doesn't need "fill wizard step and go back." Pick edges that match the component types present in the AST.
+
+---
+
+**PRIORITY:**
+
+- **High**: None — boundary and edge tests are secondary to core functionality
+- **Medium**: Boundary tests at thresholds that could cause data issues (financial amounts, date ordering)
+- **Low**: Input edge cases (long text, special chars), interaction edge cases (double-click, browser back)
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary | input_edge | interaction_edge | state_edge | data_edge",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What should happen — specify pass or fail for boundary tests",
+      "priority": "medium | low"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "boundary": 0,
+    "edge": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - USER PROMPT
+------------------------------------------------------------
+<module_name>Payments</module_name>
+
+<ast>
+{
+  "module_name": "Payments",
+  "components": {
+    "Bill_Payment_Form": {
+      "type": "form",
+      "fields": {
+        "Payee_Name": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "required": true
+        },
+        "City": {
+          "type": "unspecified",
+          "required": true
+        },
+        "State": {
+          "type": "unspecified",
+          "required": true
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payee_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Confirm_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payment_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be greater than 0"
+          ]
+        },
+        "Source_Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "constraints": [
+        "Payee_Account_Number must equal Confirm_Account_Number (error: Account numbers do not match)",
+        "all fields are validated on submit"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Pay",
+          "type": "button",
+          "preconditions": [
+            "available_funds in Source_Account >= Payment_Amount"
+          ],
+          "constraints": [
+            "if available_funds < Payment_Amount then error: Insufficient funds"
+          ],
+          "on_success": "Payment submitted successfully. Returns reference code and updates balances.",
+          "on_failure": "Displays inline error(s) (e.g., 'Account numbers do not match', 'Insufficient funds'); form remains editable."
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:59:47] Test-Edge - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Payments",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at minimum positive boundary (0.01) — should succeed",
+      "preconditions": [
+        "Source_Account exists and available_funds >= 0.01",
+        "All required fields present in the form"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number and Confirm Account Number (matching), select Source_Account with available_funds >= 0.01",
+        "Enter Payment_Amount = 0.01",
+        "Click 'Pay'"
+      ],
+      "expected_result": "PASS — Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and balances updated (per description: \"Payment submitted successfully.\" and \"Returns reference code and updates balances.\")",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at zero (0) — should fail validation",
+      "preconditions": [
+        "Source_Account exists with any available_funds",
+        "All other required fields filled with valid values"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill all required fields with valid values and select Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click 'Pay'"
+      ],
+      "expected_result": "FAIL — Inline validation error shown on submit (form validates all entries on submit) and form remains editable (per AST: \"all fields are validated on submit\" and \"form remains editable\"). The payment is not submitted.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "boundary",
+      "test_case": "Source_Account available_funds exactly equals Payment_Amount — should succeed",
+      "preconditions": [
+        "Source_Account has available_funds exactly equal to desired Payment_Amount (set account balance to X)",
+        "All other required fields filled and Payee Account numbers match"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill required fields, select Source_Account with available_funds = X",
+        "Enter Payment_Amount = X",
+        "Click 'Pay'"
+      ],
+      "expected_result": "PASS — Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and updates balances (available_funds becomes zero). This exercises the precondition \"available_funds in Source_Account >= Payment_Amount\" at the exact boundary.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "boundary",
+      "test_case": "Source_Account available_funds just less than Payment_Amount by smallest currency unit — should fail with 'Insufficient funds'",
+      "preconditions": [
+        "Source_Account has available_funds = (Payment_Amount - 0.01)",
+        "All other required fields filled and Payee Account numbers match"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Select Source_Account with available_funds set to Payment_Amount - 0.01",
+        "Enter Payment_Amount greater than available_funds by 0.01",
+        "Click 'Pay'"
+      ],
+      "expected_result": "FAIL — Inline error \"Insufficient funds\" displayed and form remains editable (per AST constraint: \"if available_funds < Payment_Amount then error: Insufficient funds\"). No payment submitted.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "input_edge",
+      "test_case": "Payee_Account_Number and Confirm_Account_Number differ only by leading/trailing whitespace — whitespace handling",
+      "preconditions": [
+        "Source_Account has sufficient funds",
+        "All other required fields filled correctly"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee_Account_Number = \"12345678 \" (trailing space)",
+        "Enter Confirm_Account_Number = \"12345678\" (no trailing space)",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): System should trim leading/trailing whitespace for account-number comparison and allow submission (displaying \"Payment submitted successfully.\" and returning a reference code). This test exercises the AST constraint \"Payee_Account_Number must equal Confirm_Account_Number\" to verify whitespace handling. If the system does not trim, it should display the inline error \"Account numbers do not match\" and keep form editable.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "input_edge",
+      "test_case": "Payee_Account_Number formatted with internal spaces vs Confirm_Account_Number compact — formatting-tolerance check",
+      "preconditions": [
+        "Source_Account has sufficient funds",
+        "All other required fields filled correctly"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee_Account_Number = \"1234 5678\" (internal space formatting)",
+        "Enter Confirm_Account_Number = \"12345678\"",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): System should ignore common formatting (spaces) when comparing account numbers and allow submission, satisfying \"Payee_Account_Number must equal Confirm_Account_Number\"; if not, it should display inline error \"Account numbers do not match\" and keep the form editable.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Pay' — check for duplicate submissions / single reference code",
+      "preconditions": [
+        "All required fields filled with valid values and Source_Account has sufficient funds"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill all required fields with valid values",
+        "Rapidly double-click the 'Pay' button (two clicks within short interval)",
+        "Observe UI response and any messages/reference codes shown"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): Only one successful submission should be processed — user should see a single \"Payment submitted successfully.\" message and a single reference code; balances should be updated once. If the system processes two submissions, two reference codes or duplicated balance changes would appear (indicating a defect). This test stresses the submission behavior described by \"on_success: Payment submitted successfully. Returns reference code and updates balances.\"",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Very long Payee Name (500 characters) — text-length handling",
+      "preconditions": [
+        "All other required fields filled with valid values",
+        "Source_Account has sufficient funds"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee Name with 500 characters (long string)",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): Because AST/description specify Payee Name is required but provide no length constraints, the form should accept a very long Payee Name and submit successfully (showing \"Payment submitted successfully.\" and returning a reference code) unless the UI enforces a client-side length limit; if a client-side length limit exists, an inline validation error should be shown and the form remain editable. This test verifies UI behavior for unexpectedly long text in the required Payee Name field.",
+      "priority": "low"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "boundary": 4,
+    "edge": 4,
+    "medium_priority": 4,
+    "low_priority": 4
+  }
+}
+
+------------------------------------------------------------
+[21:59:47] Test-Edge - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Payments",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at minimum positive boundary (0.01) \u2014 should succeed",
+      "preconditions": [
+        "Source_Account exists and available_funds >= 0.01",
+        "All required fields present in the form"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number and Confirm Account Number (matching), select Source_Account with available_funds >= 0.01",
+        "Enter Payment_Amount = 0.01",
+        "Click 'Pay'"
+      ],
+      "expected_result": "PASS \u2014 Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and balances updated (per description: \"Payment submitted successfully.\" and \"Returns reference code and updates balances.\")",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Payment_Amount at zero (0) \u2014 should fail validation",
+      "preconditions": [
+        "Source_Account exists with any available_funds",
+        "All other required fields filled with valid values"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill all required fields with valid values and select Source_Account",
+        "Enter Payment_Amount = 0",
+        "Click 'Pay'"
+      ],
+      "expected_result": "FAIL \u2014 Inline validation error shown on submit (form validates all entries on submit) and form remains editable (per AST: \"all fields are validated on submit\" and \"form remains editable\"). The payment is not submitted.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "boundary",
+      "test_case": "Source_Account available_funds exactly equals Payment_Amount \u2014 should succeed",
+      "preconditions": [
+        "Source_Account has available_funds exactly equal to desired Payment_Amount (set account balance to X)",
+        "All other required fields filled and Payee Account numbers match"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill required fields, select Source_Account with available_funds = X",
+        "Enter Payment_Amount = X",
+        "Click 'Pay'"
+      ],
+      "expected_result": "PASS \u2014 Submission succeeds: displays \"Payment submitted successfully.\" with a reference code and updates balances (available_funds becomes zero). This exercises the precondition \"available_funds in Source_Account >= Payment_Amount\" at the exact boundary.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "boundary",
+      "test_case": "Source_Account available_funds just less than Payment_Amount by smallest currency unit \u2014 should fail with 'Insufficient funds'",
+      "preconditions": [
+        "Source_Account has available_funds = (Payment_Amount - 0.01)",
+        "All other required fields filled and Payee Account numbers match"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Select Source_Account with available_funds set to Payment_Amount - 0.01",
+        "Enter Payment_Amount greater than available_funds by 0.01",
+        "Click 'Pay'"
+      ],
+      "expected_result": "FAIL \u2014 Inline error \"Insufficient funds\" displayed and form remains editable (per AST constraint: \"if available_funds < Payment_Amount then error: Insufficient funds\"). No payment submitted.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "input_edge",
+      "test_case": "Payee_Account_Number and Confirm_Account_Number differ only by leading/trailing whitespace \u2014 whitespace handling",
+      "preconditions": [
+        "Source_Account has sufficient funds",
+        "All other required fields filled correctly"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee_Account_Number = \"12345678 \" (trailing space)",
+        "Enter Confirm_Account_Number = \"12345678\" (no trailing space)",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): System should trim leading/trailing whitespace for account-number comparison and allow submission (displaying \"Payment submitted successfully.\" and returning a reference code). This test exercises the AST constraint \"Payee_Account_Number must equal Confirm_Account_Number\" to verify whitespace handling. If the system does not trim, it should display the inline error \"Account numbers do not match\" and keep form editable.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "input_edge",
+      "test_case": "Payee_Account_Number formatted with internal spaces vs Confirm_Account_Number compact \u2014 formatting-tolerance check",
+      "preconditions": [
+        "Source_Account has sufficient funds",
+        "All other required fields filled correctly"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee_Account_Number = \"1234 5678\" (internal space formatting)",
+        "Enter Confirm_Account_Number = \"12345678\"",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): System should ignore common formatting (spaces) when comparing account numbers and allow submission, satisfying \"Payee_Account_Number must equal Confirm_Account_Number\"; if not, it should display inline error \"Account numbers do not match\" and keep the form editable.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Pay' \u2014 check for duplicate submissions / single reference code",
+      "preconditions": [
+        "All required fields filled with valid values and Source_Account has sufficient funds"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Fill all required fields with valid values",
+        "Rapidly double-click the 'Pay' button (two clicks within short interval)",
+        "Observe UI response and any messages/reference codes shown"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): Only one successful submission should be processed \u2014 user should see a single \"Payment submitted successfully.\" message and a single reference code; balances should be updated once. If the system processes two submissions, two reference codes or duplicated balance changes would appear (indicating a defect). This test stresses the submission behavior described by \"on_success: Payment submitted successfully. Returns reference code and updates balances.\"",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Very long Payee Name (500 characters) \u2014 text-length handling",
+      "preconditions": [
+        "All other required fields filled with valid values",
+        "Source_Account has sufficient funds"
+      ],
+      "steps": [
+        "Open Bill Payment form",
+        "Enter Payee Name with 500 characters (long string)",
+        "Fill remaining required fields and click 'Pay'"
+      ],
+      "expected_result": "EXPECTED BEHAVIOR (edge): Because AST/description specify Payee Name is required but provide no length constraints, the form should accept a very long Payee Name and submit successfully (showing \"Payment submitted successfully.\" and returning a reference code) unless the UI enforces a client-side length limit; if a client-side length limit exists, an inline validation error should be shown and the form remain editable. This test verifies UI behavior for unexpectedly long text in the required Payee Name field.",
+      "priority": "low"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "boundary": 4,
+    "edge": 4,
+    "medium_priority": 4,
+    "low_priority": 4
+  }
+}

@@ -1,0 +1,599 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572223
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - SYSTEM PROMPT
+------------------------------------------------------------
+You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+
+You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- Use exact text from description when available.
+- For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
+- For edge cases: describe the expected system behavior precisely.
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**MINIMUM OUTPUT RULE:**
+
+After scanning the AST for boundary constraints, count them.
+If the module has:
+  - 1+ numeric constraints → produce at least 2 boundary tests
+  - 1+ date constraints → produce at least 2 boundary tests
+  - Any repeating_group with max → produce 1 boundary test
+
+Zero boundary tests when constraints exist is a generation
+failure. If you find yourself producing zero tests, re-read
+the AST constraints and the description for threshold values.
+
+Common boundary sources you might miss:
+  - "sufficient funds" → test exact balance = amount (pass)
+    and balance = amount - 0.01 (fail)
+  - "must be at least next business day" → test exactly next
+    business day (pass) and today (fail)
+  - "minimum $X" / "maximum $Y" → test at X (pass), X-1 (fail),
+    at Y (pass), Y+1 (fail)
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Boundary Tests (from AST constraints):**
+
+Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+
+Produce exactly TWO tests:
+  - AT the boundary (should succeed): the exact minimum/maximum/threshold value
+  - JUST PAST the boundary (should fail): one unit beyond the limit
+
+| Constraint text | Boundary test (pass) | Past-boundary test (fail) |
+|---|---|---|
+| "minimum $25" | Deposit exactly $25 → succeeds | Deposit $24.99 → error |
+| "maximum 5 legs" | Add exactly 5 legs → succeeds | Add 6th leg → blocked |
+| "must not be before Submitted_On" | Activation Date = Submitted On → succeeds | Activation Date = Submitted On - 1 day → error |
+| "$1,000–$50,000 range" | Enter $1,000 → succeeds; Enter $50,000 → succeeds | Enter $999 → error; Enter $50,001 → error |
+| "at least 8 characters" | Enter exactly 8 characters → succeeds | Enter 7 characters → error |
+| "must be ≥ 10% of loan" | Enter exactly 10% → succeeds | Enter 9.99% → error |
+
+If a constraint implies BOTH a minimum and maximum, test both boundaries (4 tests total for that constraint).
+
+If a constraint has no numeric/date/count threshold (e.g., "must be unique", "cannot close with active accounts"), SKIP it — it belongs in negative tests, not boundary tests.
+
+**2. Edge Case Tests (creative, module-specific):**
+
+These test unusual but plausible real-world scenarios. Pick 3–5 that are RELEVANT to this specific module. Do not force generic edges that don't apply.
+
+Categories to consider:
+
+**Input edge cases:**
+  - Very long text input in name/description fields (200+ characters)
+  - Special characters, unicode, or emoji in text fields
+  - Leading/trailing whitespace in text inputs
+  - Zero as a valid numeric input where it might be ambiguous
+  - Decimal precision edge (e.g., $25.001 — how does rounding behave?)
+
+**Interaction edge cases:**
+  - Double-click submit button rapidly → should not create duplicate records
+  - Submit form, then press browser back → form state handling
+  - Fill wizard step 1 → jump to step 4 (if possible) → what happens?
+  - For repeating groups: add entries → remove ALL entries → submit
+
+**State edge cases:**
+  - Perform an action immediately after a state change (e.g., activate then immediately try to close)
+  - Entity at the boundary between two states (e.g., loan with $0.01 remaining balance)
+
+**Data edge cases:**
+  - Date fields: use today's date, yesterday, far future dates (year 2099)
+  - Date fields: February 29 on leap year vs non-leap year
+  - Dropdown with only one option vs many options
+  - Search with single character input
+  - Filter that returns exactly one result vs zero results
+
+**Repeating group edges:**
+  - Add maximum allowed entries → verify all persist after submit
+  - Add entries with near-identical data (testing dedup rules at their limit)
+  - Add then immediately remove before saving
+
+**RELEVANCE RULE:** Only generate edge cases that make sense for THIS module. A login form doesn't need "add maximum repeating group entries." A data table doesn't need "fill wizard step and go back." Pick edges that match the component types present in the AST.
+
+---
+
+**PRIORITY:**
+
+- **High**: None — boundary and edge tests are secondary to core functionality
+- **Medium**: Boundary tests at thresholds that could cause data issues (financial amounts, date ordering)
+- **Low**: Input edge cases (long text, special chars), interaction edge cases (double-click, browser back)
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary | input_edge | interaction_edge | state_edge | data_edge",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What should happen — specify pass or fail for boundary tests",
+      "priority": "medium | low"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "boundary": 0,
+    "edge": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - USER PROMPT
+------------------------------------------------------------
+<module_name>Accounts Overview</module_name>
+
+<ast>
+{
+  "module_name": "Accounts Overview",
+  "components": {
+    "Accounts_Table": {
+      "type": "data_table",
+      "columns": [
+        {
+          "column_name": "Account Number",
+          "type": "link",
+          "constraints": [
+            "mask: show only last 4 digits as ****5001"
+          ],
+          "interactive": true
+        },
+        {
+          "column_name": "Account Type",
+          "type": "unspecified",
+          "interactive": false
+        },
+        {
+          "column_name": "Current Balance",
+          "type": "number",
+          "interactive": false
+        },
+        {
+          "column_name": "Account Status",
+          "type": "badge",
+          "values": [
+            "Active"
+          ],
+          "interactive": false
+        },
+        {
+          "column_name": "Open Date",
+          "type": "date",
+          "interactive": false
+        }
+      ],
+      "row_actions": [
+        {
+          "action_name": "Open Account",
+          "type": "link",
+          "enabled": false,
+          "note": "clickable in UI but not implemented"
+        }
+      ],
+      "footer_rows": [
+        {
+          "label": "Total Balance",
+          "operation": "sum",
+          "source_column": "Current Balance"
+        }
+      ],
+      "default_sort": {
+        "column": "Open Date",
+        "direction": "asc"
+      },
+      "row_ordering": "earliest_first_by_creation_date"
+    }
+  }
+}
+</ast>
+
+<description>
+The dashboard displays a welcome message with the user's name and a table of all customer accounts. Each row shows Account Number (clickable but not implemented yet), Account Type, Current Balance, Account Status (Active badge), and Open Date. The table includes a footer row displaying the total balance across all accounts. Rows are ordered by account creation date (earliest first). Account numbers are masked for security (showing only last 4 digits as ****5001). 
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:58:12] Test-Edge - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Accounts Overview",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Account number exactly 4 digits is displayed showing only the last 4 digits",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table (per AST components.Accounts_Table)",
+        "One account row exists with Account Number = '5001' (4 digits)"
+      ],
+      "steps": [
+        "Locate the Account Number column for the row with Account Number '5001'",
+        "Observe the rendered text in the Account Number cell"
+      ],
+      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the cell shows only the last 4 digits. For an account number of length 4 the UI displays '5001' (only last 4 digits visible, no additional leading digits displayed).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Account number length = 5 is masked leaving exactly the last 4 digits visible with one leading asterisk",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table",
+        "One account row exists with Account Number = '15001' (5 digits)"
+      ],
+      "steps": [
+        "Locate the Account Number cell for the row with Account Number '15001'",
+        "Observe the rendered text in that cell"
+      ],
+      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the UI masks leading characters and shows only the last 4 digits. For a 5-digit number the displayed label should show one asterisk followed by the last 4 digits (e.g. '*5001').",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "input_edge",
+      "test_case": "Very long account number is masked to reveal only last 4 digits and does not spill visible raw digits",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table",
+        "One account row exists with Account Number = 100-character numeric string ending in '5001'"
+      ],
+      "steps": [
+        "Locate the Account Number cell for the long-account-number row",
+        "Observe the rendered Account Number text and visually confirm only last 4 digits are legible"
+      ],
+      "expected_result": "The UI must follow the AST mask rule: only the last 4 digits are visible (e.g. 96 asterisks then '5001' or otherwise masked so only the last 4 digits are readable). No unmasked leading digits should be visible in the cell.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "interaction_edge",
+      "test_case": "Clicking the Account Number link (clickable but not implemented) performs no navigation",
+      "preconditions": [
+        "Dashboard loaded with Accounts_Table and at least one row",
+        "Description states 'Account Number (clickable but not implemented yet)'"
+      ],
+      "steps": [
+        "Click the Account Number link in a row",
+        "Observe whether the app navigates or changes pages"
+      ],
+      "expected_result": "Per description 'clickable but not implemented yet' the click should be a no-op in terms of navigation: the page remains the dashboard, no account-detail navigation occurs, and the table remains visible.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "interaction_edge",
+      "test_case": "Row action 'Open Account' is present but disabled — clicking it does nothing",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table row actions (AST row_actions for Open Account have enabled: false)"
+      ],
+      "steps": [
+        "Reveal the row actions for any account row",
+        "Attempt to click 'Open Account' action"
+      ],
+      "expected_result": "Per AST row_actions.enabled = false, clicking 'Open Account' must not perform the open action; there must be no navigation or change in account detail view. The UI should either ignore the click or show a disabled affordance.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "data_edge",
+      "test_case": "Footer 'Total Balance' correctly sums positive and negative balances to zero",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table with footer row 'Total Balance' (AST footer_rows operation: sum on Current Balance)",
+        "Two account rows exist: Current Balance = 100.00 and Current Balance = -100.00"
+      ],
+      "steps": [
+        "Locate the table footer 'Total Balance'",
+        "Observe the displayed total balance"
+      ],
+      "expected_result": "PASS: The footer sum must reflect the sum across all accounts per AST footer_rows: the total balance displayed equals $0.00 (100.00 + -100.00 = 0.00).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "data_edge",
+      "test_case": "Empty accounts list displays the footer row and a total balance of zero",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table (per description 'table includes a footer row displaying the total balance across all accounts')",
+        "No account rows are present"
+      ],
+      "steps": [
+        "Observe the table footer area",
+        "Read the displayed 'Total Balance' value"
+      ],
+      "expected_result": "PASS: The footer row must still be present and display the total balance across all accounts. With zero accounts the total must be $0.00 (or explicitly show zero), consistent with 'total balance across all accounts'.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "state_edge",
+      "test_case": "Row ordering must follow creation date (earliest first) even when Open Date sort would produce a different order",
+      "preconditions": [
+        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
+        "Two accounts exist: Account A has creation_date = 2020-01-01 and Open Date = 2021-01-01; Account B has creation_date = 2021-06-01 and Open Date = 2020-01-01"
+      ],
+      "steps": [
+        "Load the Accounts Overview",
+        "Observe the order of rows in the table from top (first) to bottom (last)"
+      ],
+      "expected_result": "PASS: Per AST row_ordering, rows are ordered by account creation date earliest first. Account A (creation_date 2020-01-01) must appear before Account B, despite Account B having an earlier Open Date. The creation_date ordering takes precedence so the top row is Account A.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "state_edge",
+      "test_case": "When creation dates are identical, default_sort by Open Date ascending is applied as a secondary ordering",
+      "preconditions": [
+        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
+        "Two accounts exist with identical creation_date = 2020-01-01 but different Open Dates: Account X Open Date = 2020-02-01, Account Y Open Date = 2020-01-01"
+      ],
+      "steps": [
+        "Load the Accounts Overview",
+        "Observe the order of the two rows with identical creation_date"
+      ],
+      "expected_result": "The table must order rows by creation date first (they tie) and then apply the default_sort on Open Date ascending. Therefore Account Y (Open Date 2020-01-01) should appear above Account X (Open Date 2020-02-01).",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "boundary": 2,
+    "edge": 7,
+    "medium_priority": 6,
+    "low_priority": 3
+  }
+}
+
+------------------------------------------------------------
+[21:58:12] Test-Edge - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Accounts Overview",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Account number exactly 4 digits is displayed showing only the last 4 digits",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table (per AST components.Accounts_Table)",
+        "One account row exists with Account Number = '5001' (4 digits)"
+      ],
+      "steps": [
+        "Locate the Account Number column for the row with Account Number '5001'",
+        "Observe the rendered text in the Account Number cell"
+      ],
+      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the cell shows only the last 4 digits. For an account number of length 4 the UI displays '5001' (only last 4 digits visible, no additional leading digits displayed).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Account number length = 5 is masked leaving exactly the last 4 digits visible with one leading asterisk",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table",
+        "One account row exists with Account Number = '15001' (5 digits)"
+      ],
+      "steps": [
+        "Locate the Account Number cell for the row with Account Number '15001'",
+        "Observe the rendered text in that cell"
+      ],
+      "expected_result": "PASS: Per AST constraint 'mask: show only last 4 digits', the UI masks leading characters and shows only the last 4 digits. For a 5-digit number the displayed label should show one asterisk followed by the last 4 digits (e.g. '*5001').",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "input_edge",
+      "test_case": "Very long account number is masked to reveal only last 4 digits and does not spill visible raw digits",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table",
+        "One account row exists with Account Number = 100-character numeric string ending in '5001'"
+      ],
+      "steps": [
+        "Locate the Account Number cell for the long-account-number row",
+        "Observe the rendered Account Number text and visually confirm only last 4 digits are legible"
+      ],
+      "expected_result": "The UI must follow the AST mask rule: only the last 4 digits are visible (e.g. 96 asterisks then '5001' or otherwise masked so only the last 4 digits are readable). No unmasked leading digits should be visible in the cell.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "interaction_edge",
+      "test_case": "Clicking the Account Number link (clickable but not implemented) performs no navigation",
+      "preconditions": [
+        "Dashboard loaded with Accounts_Table and at least one row",
+        "Description states 'Account Number (clickable but not implemented yet)'"
+      ],
+      "steps": [
+        "Click the Account Number link in a row",
+        "Observe whether the app navigates or changes pages"
+      ],
+      "expected_result": "Per description 'clickable but not implemented yet' the click should be a no-op in terms of navigation: the page remains the dashboard, no account-detail navigation occurs, and the table remains visible.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "interaction_edge",
+      "test_case": "Row action 'Open Account' is present but disabled \u2014 clicking it does nothing",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table row actions (AST row_actions for Open Account have enabled: false)"
+      ],
+      "steps": [
+        "Reveal the row actions for any account row",
+        "Attempt to click 'Open Account' action"
+      ],
+      "expected_result": "Per AST row_actions.enabled = false, clicking 'Open Account' must not perform the open action; there must be no navigation or change in account detail view. The UI should either ignore the click or show a disabled affordance.",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "data_edge",
+      "test_case": "Footer 'Total Balance' correctly sums positive and negative balances to zero",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table with footer row 'Total Balance' (AST footer_rows operation: sum on Current Balance)",
+        "Two account rows exist: Current Balance = 100.00 and Current Balance = -100.00"
+      ],
+      "steps": [
+        "Locate the table footer 'Total Balance'",
+        "Observe the displayed total balance"
+      ],
+      "expected_result": "PASS: The footer sum must reflect the sum across all accounts per AST footer_rows: the total balance displayed equals $0.00 (100.00 + -100.00 = 0.00).",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "data_edge",
+      "test_case": "Empty accounts list displays the footer row and a total balance of zero",
+      "preconditions": [
+        "Dashboard loaded showing Accounts_Table (per description 'table includes a footer row displaying the total balance across all accounts')",
+        "No account rows are present"
+      ],
+      "steps": [
+        "Observe the table footer area",
+        "Read the displayed 'Total Balance' value"
+      ],
+      "expected_result": "PASS: The footer row must still be present and display the total balance across all accounts. With zero accounts the total must be $0.00 (or explicitly show zero), consistent with 'total balance across all accounts'.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "state_edge",
+      "test_case": "Row ordering must follow creation date (earliest first) even when Open Date sort would produce a different order",
+      "preconditions": [
+        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
+        "Two accounts exist: Account A has creation_date = 2020-01-01 and Open Date = 2021-01-01; Account B has creation_date = 2021-06-01 and Open Date = 2020-01-01"
+      ],
+      "steps": [
+        "Load the Accounts Overview",
+        "Observe the order of rows in the table from top (first) to bottom (last)"
+      ],
+      "expected_result": "PASS: Per AST row_ordering, rows are ordered by account creation date earliest first. Account A (creation_date 2020-01-01) must appear before Account B, despite Account B having an earlier Open Date. The creation_date ordering takes precedence so the top row is Account A.",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "state_edge",
+      "test_case": "When creation dates are identical, default_sort by Open Date ascending is applied as a secondary ordering",
+      "preconditions": [
+        "AST: row_ordering = 'earliest_first_by_creation_date' and default_sort.column = 'Open Date' direction = 'asc'",
+        "Two accounts exist with identical creation_date = 2020-01-01 but different Open Dates: Account X Open Date = 2020-02-01, Account Y Open Date = 2020-01-01"
+      ],
+      "steps": [
+        "Load the Accounts Overview",
+        "Observe the order of the two rows with identical creation_date"
+      ],
+      "expected_result": "The table must order rows by creation date first (they tie) and then apply the default_sort on Open Date ascending. Therefore Account Y (Open Date 2020-01-01) should appear above Account X (Open Date 2020-02-01).",
+      "priority": "medium"
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "boundary": 2,
+    "edge": 7,
+    "medium_priority": 6,
+    "low_priority": 3
+  }
+}

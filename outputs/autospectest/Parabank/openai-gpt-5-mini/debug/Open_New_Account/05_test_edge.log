@@ -1,0 +1,698 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572329
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - SYSTEM PROMPT
+------------------------------------------------------------
+You are an Edge Case and Boundary Test Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY boundary tests and edge case tests — scenarios at the limits of valid/invalid input and unusual-but-plausible user behaviors.
+
+You are NOT producing happy paths (positive prompt handles that) or standard validation failures (negative prompt handles that). You are finding the cracks between valid and invalid, and the unusual paths real users take.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- Use exact text from description when available.
+- For boundary tests: be explicit about whether the boundary value should PASS or FAIL.
+- For edge cases: describe the expected system behavior precisely.
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**MINIMUM OUTPUT RULE:**
+
+After scanning the AST for boundary constraints, count them.
+If the module has:
+  - 1+ numeric constraints → produce at least 2 boundary tests
+  - 1+ date constraints → produce at least 2 boundary tests
+  - Any repeating_group with max → produce 1 boundary test
+
+Zero boundary tests when constraints exist is a generation
+failure. If you find yourself producing zero tests, re-read
+the AST constraints and the description for threshold values.
+
+Common boundary sources you might miss:
+  - "sufficient funds" → test exact balance = amount (pass)
+    and balance = amount - 0.01 (fail)
+  - "must be at least next business day" → test exactly next
+    business day (pass) and today (fail)
+  - "minimum $X" / "maximum $Y" → test at X (pass), X-1 (fail),
+    at Y (pass), Y+1 (fail)
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Boundary Tests (from AST constraints):**
+
+Scan every `constraints: []` array in the AST. For each constraint that implies a numeric, date, or count threshold:
+
+Produce exactly TWO tests:
+  - AT the boundary (should succeed): the exact minimum/maximum/threshold value
+  - JUST PAST the boundary (should fail): one unit beyond the limit
+
+| Constraint text | Boundary test (pass) | Past-boundary test (fail) |
+|---|---|---|
+| "minimum $25" | Deposit exactly $25 → succeeds | Deposit $24.99 → error |
+| "maximum 5 legs" | Add exactly 5 legs → succeeds | Add 6th leg → blocked |
+| "must not be before Submitted_On" | Activation Date = Submitted On → succeeds | Activation Date = Submitted On - 1 day → error |
+| "$1,000–$50,000 range" | Enter $1,000 → succeeds; Enter $50,000 → succeeds | Enter $999 → error; Enter $50,001 → error |
+| "at least 8 characters" | Enter exactly 8 characters → succeeds | Enter 7 characters → error |
+| "must be ≥ 10% of loan" | Enter exactly 10% → succeeds | Enter 9.99% → error |
+
+If a constraint implies BOTH a minimum and maximum, test both boundaries (4 tests total for that constraint).
+
+If a constraint has no numeric/date/count threshold (e.g., "must be unique", "cannot close with active accounts"), SKIP it — it belongs in negative tests, not boundary tests.
+
+**2. Edge Case Tests (creative, module-specific):**
+
+These test unusual but plausible real-world scenarios. Pick 3–5 that are RELEVANT to this specific module. Do not force generic edges that don't apply.
+
+Categories to consider:
+
+**Input edge cases:**
+  - Very long text input in name/description fields (200+ characters)
+  - Special characters, unicode, or emoji in text fields
+  - Leading/trailing whitespace in text inputs
+  - Zero as a valid numeric input where it might be ambiguous
+  - Decimal precision edge (e.g., $25.001 — how does rounding behave?)
+
+**Interaction edge cases:**
+  - Double-click submit button rapidly → should not create duplicate records
+  - Submit form, then press browser back → form state handling
+  - Fill wizard step 1 → jump to step 4 (if possible) → what happens?
+  - For repeating groups: add entries → remove ALL entries → submit
+
+**State edge cases:**
+  - Perform an action immediately after a state change (e.g., activate then immediately try to close)
+  - Entity at the boundary between two states (e.g., loan with $0.01 remaining balance)
+
+**Data edge cases:**
+  - Date fields: use today's date, yesterday, far future dates (year 2099)
+  - Date fields: February 29 on leap year vs non-leap year
+  - Dropdown with only one option vs many options
+  - Search with single character input
+  - Filter that returns exactly one result vs zero results
+
+**Repeating group edges:**
+  - Add maximum allowed entries → verify all persist after submit
+  - Add entries with near-identical data (testing dedup rules at their limit)
+  - Add then immediately remove before saving
+
+**RELEVANCE RULE:** Only generate edge cases that make sense for THIS module. A login form doesn't need "add maximum repeating group entries." A data table doesn't need "fill wizard step and go back." Pick edges that match the component types present in the AST.
+
+---
+
+**PRIORITY:**
+
+- **High**: None — boundary and edge tests are secondary to core functionality
+- **Medium**: Boundary tests at thresholds that could cause data issues (financial amounts, date ordering)
+- **Low**: Input edge cases (long text, special chars), interaction edge cases (double-click, browser back)
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary | input_edge | interaction_edge | state_edge | data_edge",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What should happen — specify pass or fail for boundary tests",
+      "priority": "medium | low"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "boundary": 0,
+    "edge": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Edge - USER PROMPT
+------------------------------------------------------------
+<module_name>Open New Account</module_name>
+
+<ast>
+{
+  "module_name": "Open New Account",
+  "components": {
+    "Open_New_Account_Form": {
+      "type": "form",
+      "real_time_validation": true,
+      "fields": {
+        "Account_Type": {
+          "type": "radio",
+          "required": true,
+          "options": [
+            "Checking",
+            "Savings"
+          ],
+          "constraints": [
+            "required"
+          ]
+        },
+        "Initial_Deposit_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be numeric",
+            "must be >= 25 when Account_Type == Checking",
+            "must be >= 100 when Account_Type == Savings"
+          ]
+        },
+        "Funding_Source_Account": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": [
+            "selected account must have sufficient balance to cover Initial_Deposit_Amount"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Open Account",
+          "type": "button",
+          "preconditions": [
+            "Account_Type must be selected",
+            "Initial_Deposit_Amount must be numeric and meet minimum for selected Account_Type",
+            "Funding_Source_Account must have sufficient balance"
+          ],
+          "on_success": "Account opened successfully! redirects to accounts overview"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+This page contains an account-opening form with interactive account type selection cards (Checking or Savings) showing features and minimum deposit requirements, Initial Deposit Amount field, Funding Source Account dropdown, and an "Open Account" button. The system validates that account type is selected, deposit amount is numeric and meets minimums ($25 for Checking, $100 for Savings), funding account has sufficient balance, and displays real-time validation errors. Success shows "Account opened successfully!" and redirects to accounts overview.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:58:56] Test-Edge - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Open New Account",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Checking: Initial_Deposit_Amount exactly at $25 should succeed",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $25"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 25",
+        "Select Funding_Source_Account with balance >= 25",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS — form validates (real-time validation shows no error), submission succeeds, user sees 'Account opened successfully!' and is redirected to accounts overview",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Checking: Initial_Deposit_Amount just below $25 ($24.99) should fail",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $24.99"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 24.99",
+        "Select Funding_Source_Account with balance >= 24.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL — real-time validation displays an error because the deposit 'must be >= 25 when Account_Type == Checking' and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "boundary",
+      "test_case": "Savings: Initial_Deposit_Amount exactly at $100 should succeed",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $100"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Enter Initial_Deposit_Amount = 100",
+        "Select Funding_Source_Account with balance >= 100",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS — form validates (real-time validation shows no error), submission succeeds, user sees 'Account opened successfully!' and is redirected to accounts overview",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "boundary",
+      "test_case": "Savings: Initial_Deposit_Amount just below $100 ($99.99) should fail",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $99.99"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Enter Initial_Deposit_Amount = 99.99",
+        "Select Funding_Source_Account with balance >= 99.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL — real-time validation displays an error because the deposit 'must be >= 100 when Account_Type == Savings' and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "boundary",
+      "test_case": "Funding_Source_Account balance exactly equals Initial_Deposit_Amount should allow submission",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Select Account_Type = Checking (min $25) or Savings as appropriate"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 50",
+        "Select a Funding_Source_Account whose displayed available balance = 50.00",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS — funding account has 'sufficient balance to cover Initial_Deposit_Amount' (exact match), real-time validation shows no insufficient-funds error, submission succeeds and user sees 'Account opened successfully!' and is redirected",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "boundary",
+      "test_case": "Funding_Source_Account balance just below Initial_Deposit_Amount should block submission",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Select Account_Type = Checking (min $25) or Savings as appropriate"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 50",
+        "Select a Funding_Source_Account whose displayed available balance = 49.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL — real-time validation displays an insufficient funds error because the 'selected account must have sufficient balance to cover Initial_Deposit_Amount', and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "input_edge",
+      "test_case": "Initial_Deposit_Amount entered with more than two decimal places (25.001) — decimal precision handling",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 25.01"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 25.001",
+        "Select Funding_Source_Account with balance >= 25.01",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION — per 'must be numeric' and 'must be >= 25 when Account_Type == Checking', the value should be treated as numeric and >=25 so no minimum-deposit error is shown; real-time validation shows no minimum error and submission proceeds (UI may show rounded display to two decimals but must still allow the action and show 'Account opened successfully!')",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Initial_Deposit_Amount entered with leading/trailing whitespace (' 100 ') should be treated as numeric",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 100"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Type Initial_Deposit_Amount = ' 100 ' (leading and trailing spaces)",
+        "Select Funding_Source_Account with balance >= 100",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION — real-time validation should interpret ' 100 ' as numeric and enforce the 'must be >= 100 when Account_Type == Savings' rule; no validation error shown and submission succeeds with 'Account opened successfully!'",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "interaction_edge",
+      "test_case": "Change Account_Type after entering an amount that was valid for the previous type (e.g., 30 while switching from Checking to Savings)",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 30"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 30 (valid for Checking)",
+        "Select Funding_Source_Account with balance >= 30",
+        "Change Account_Type to Savings (which has minimum $100)",
+        "Observe validation state and attempt to click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION — because validation is real-time and requirements include 'must be >= 100 when Account_Type == Savings', the UI should immediately show a minimum-deposit validation error and submission should be blocked until the amount meets the Savings minimum; user should not be able to submit while the error is present",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Open Account' after meeting all preconditions should not produce duplicate UI success flows",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Account_Type selected and Initial_Deposit_Amount meets minimum for that type",
+        "Funding_Source_Account selected and has sufficient balance"
+      ],
+      "steps": [
+        "Confirm form shows no validation errors",
+        "Double-click the 'Open Account' button rapidly",
+        "Observe success behavior"
+      ],
+      "expected_result": "EXPECTATION — UI should show only a single 'Account opened successfully!' message and perform a single redirect to accounts overview (user should not see multiple success messages or multiple redirects in the UI)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-011",
+      "subcategory": "data_edge",
+      "test_case": "Funding_Source_Account dropdown contains only one option — submission allowed when that sole option has sufficient funds",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account dropdown lists exactly one funding account",
+        "That funding account has balance >= required deposit"
+      ],
+      "steps": [
+        "Select Account_Type = Checking or Savings appropriately",
+        "Enter Initial_Deposit_Amount that meets the selected type's minimum",
+        "Select the sole Funding_Source_Account option (or rely on UI if it auto-selects)",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION — because Funding_Source_Account is 'required', the form should accept the single available option (user can select it or it may be preselected); if that account has sufficient balance the form validates and submission succeeds showing 'Account opened successfully!' and redirecting to accounts overview",
+      "priority": "low"
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "boundary": 6,
+    "edge": 5,
+    "medium_priority": 8,
+    "low_priority": 3
+  }
+}
+
+------------------------------------------------------------
+[21:58:56] Test-Edge - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Open New Account",
+  "category": "edge",
+  "test_cases": [
+    {
+      "tc_id": "E-001",
+      "subcategory": "boundary",
+      "test_case": "Checking: Initial_Deposit_Amount exactly at $25 should succeed",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $25"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 25",
+        "Select Funding_Source_Account with balance >= 25",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS \u2014 form validates (real-time validation shows no error), submission succeeds, user sees 'Account opened successfully!' and is redirected to accounts overview",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-002",
+      "subcategory": "boundary",
+      "test_case": "Checking: Initial_Deposit_Amount just below $25 ($24.99) should fail",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $24.99"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 24.99",
+        "Select Funding_Source_Account with balance >= 24.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL \u2014 real-time validation displays an error because the deposit 'must be >= 25 when Account_Type == Checking' and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-003",
+      "subcategory": "boundary",
+      "test_case": "Savings: Initial_Deposit_Amount exactly at $100 should succeed",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $100"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Enter Initial_Deposit_Amount = 100",
+        "Select Funding_Source_Account with balance >= 100",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS \u2014 form validates (real-time validation shows no error), submission succeeds, user sees 'Account opened successfully!' and is redirected to accounts overview",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-004",
+      "subcategory": "boundary",
+      "test_case": "Savings: Initial_Deposit_Amount just below $100 ($99.99) should fail",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= $99.99"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Enter Initial_Deposit_Amount = 99.99",
+        "Select Funding_Source_Account with balance >= 99.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL \u2014 real-time validation displays an error because the deposit 'must be >= 100 when Account_Type == Savings' and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-005",
+      "subcategory": "boundary",
+      "test_case": "Funding_Source_Account balance exactly equals Initial_Deposit_Amount should allow submission",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Select Account_Type = Checking (min $25) or Savings as appropriate"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 50",
+        "Select a Funding_Source_Account whose displayed available balance = 50.00",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "PASS \u2014 funding account has 'sufficient balance to cover Initial_Deposit_Amount' (exact match), real-time validation shows no insufficient-funds error, submission succeeds and user sees 'Account opened successfully!' and is redirected",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-006",
+      "subcategory": "boundary",
+      "test_case": "Funding_Source_Account balance just below Initial_Deposit_Amount should block submission",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Select Account_Type = Checking (min $25) or Savings as appropriate"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 50",
+        "Select a Funding_Source_Account whose displayed available balance = 49.99",
+        "Attempt to click 'Open Account'"
+      ],
+      "expected_result": "FAIL \u2014 real-time validation displays an insufficient funds error because the 'selected account must have sufficient balance to cover Initial_Deposit_Amount', and submission is blocked",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-007",
+      "subcategory": "input_edge",
+      "test_case": "Initial_Deposit_Amount entered with more than two decimal places (25.001) \u2014 decimal precision handling",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 25.01"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 25.001",
+        "Select Funding_Source_Account with balance >= 25.01",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION \u2014 per 'must be numeric' and 'must be >= 25 when Account_Type == Checking', the value should be treated as numeric and >=25 so no minimum-deposit error is shown; real-time validation shows no minimum error and submission proceeds (UI may show rounded display to two decimals but must still allow the action and show 'Account opened successfully!')",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-008",
+      "subcategory": "input_edge",
+      "test_case": "Initial_Deposit_Amount entered with leading/trailing whitespace (' 100 ') should be treated as numeric",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 100"
+      ],
+      "steps": [
+        "Select Account_Type = Savings",
+        "Type Initial_Deposit_Amount = ' 100 ' (leading and trailing spaces)",
+        "Select Funding_Source_Account with balance >= 100",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION \u2014 real-time validation should interpret ' 100 ' as numeric and enforce the 'must be >= 100 when Account_Type == Savings' rule; no validation error shown and submission succeeds with 'Account opened successfully!'",
+      "priority": "low"
+    },
+    {
+      "tc_id": "E-009",
+      "subcategory": "interaction_edge",
+      "test_case": "Change Account_Type after entering an amount that was valid for the previous type (e.g., 30 while switching from Checking to Savings)",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account exists with balance >= 30"
+      ],
+      "steps": [
+        "Select Account_Type = Checking",
+        "Enter Initial_Deposit_Amount = 30 (valid for Checking)",
+        "Select Funding_Source_Account with balance >= 30",
+        "Change Account_Type to Savings (which has minimum $100)",
+        "Observe validation state and attempt to click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION \u2014 because validation is real-time and requirements include 'must be >= 100 when Account_Type == Savings', the UI should immediately show a minimum-deposit validation error and submission should be blocked until the amount meets the Savings minimum; user should not be able to submit while the error is present",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-010",
+      "subcategory": "interaction_edge",
+      "test_case": "Rapid double-click of 'Open Account' after meeting all preconditions should not produce duplicate UI success flows",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Account_Type selected and Initial_Deposit_Amount meets minimum for that type",
+        "Funding_Source_Account selected and has sufficient balance"
+      ],
+      "steps": [
+        "Confirm form shows no validation errors",
+        "Double-click the 'Open Account' button rapidly",
+        "Observe success behavior"
+      ],
+      "expected_result": "EXPECTATION \u2014 UI should show only a single 'Account opened successfully!' message and perform a single redirect to accounts overview (user should not see multiple success messages or multiple redirects in the UI)",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "E-011",
+      "subcategory": "data_edge",
+      "test_case": "Funding_Source_Account dropdown contains only one option \u2014 submission allowed when that sole option has sufficient funds",
+      "preconditions": [
+        "Account opening page is loaded",
+        "Funding_Source_Account dropdown lists exactly one funding account",
+        "That funding account has balance >= required deposit"
+      ],
+      "steps": [
+        "Select Account_Type = Checking or Savings appropriately",
+        "Enter Initial_Deposit_Amount that meets the selected type's minimum",
+        "Select the sole Funding_Source_Account option (or rely on UI if it auto-selects)",
+        "Click 'Open Account'"
+      ],
+      "expected_result": "EXPECTATION \u2014 because Funding_Source_Account is 'required', the form should accept the single available option (user can select it or it may be preselected); if that account has sufficient balance the form validates and submission succeeds showing 'Account opened successfully!' and redirecting to accounts overview",
+      "priority": "low"
+    }
+  ],
+  "summary": {
+    "total": 11,
+    "boundary": 6,
+    "edge": 5,
+    "medium_priority": 8,
+    "low_priority": 3
+  }
+}

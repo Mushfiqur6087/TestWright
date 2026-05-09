@@ -26,6 +26,94 @@ You are NOT producing happy paths (positive prompt handles that) or standard val
 
 ---
 
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**MINIMUM OUTPUT RULE:**
+
+After scanning the AST for boundary constraints, count them.
+If the module has:
+  - 1+ numeric constraints → produce at least 2 boundary tests
+  - 1+ date constraints → produce at least 2 boundary tests
+  - Any repeating_group with max → produce 1 boundary test
+
+Zero boundary tests when constraints exist is a generation
+failure. If you find yourself producing zero tests, re-read
+the AST constraints and the description for threshold values.
+
+Common boundary sources you might miss:
+  - "sufficient funds" → test exact balance = amount (pass)
+    and balance = amount - 0.01 (fail)
+  - "must be at least next business day" → test exactly next
+    business day (pass) and today (fail)
+  - "minimum $X" / "maximum $Y" → test at X (pass), X-1 (fail),
+    at Y (pass), Y+1 (fail)
+
+---
+
 **WHAT TO GENERATE:**
 
 **1. Boundary Tests (from AST constraints):**
@@ -70,7 +158,6 @@ Categories to consider:
 
 **State edge cases:**
   - Perform an action immediately after a state change (e.g., activate then immediately try to close)
-  - Two concurrent users acting on the same entity (if relevant)
   - Entity at the boundary between two states (e.g., loan with $0.01 remaining balance)
 
 **Data edge cases:**

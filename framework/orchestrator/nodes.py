@@ -16,11 +16,22 @@ from autospectest.framework.orchestrator.state import PipelineState
 MAX_ATTEMPTS = 3
 
 
-def _agent_kwargs(state: PipelineState, stage_file: str) -> dict:
+def _module_debug_dir(state: PipelineState, module_title: str) -> str:
+    """Return a per-module debug subdirectory path, creating it on demand. Empty string when debug is off."""
     debug: bool = state.get("debug", False)
     debug_dir: str = state.get("debug_dir", "")
-    if debug and debug_dir:
-        debug_file = os.path.join(debug_dir, stage_file)
+    if not (debug and debug_dir):
+        return ""
+    slug = module_title.replace(" ", "_")
+    path = os.path.join(debug_dir, slug)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _agent_kwargs(state: PipelineState, stage_file: str, module_debug_dir: str = "") -> dict:
+    debug: bool = state.get("debug", False)
+    if debug and module_debug_dir:
+        debug_file = os.path.join(module_debug_dir, stage_file)
         BaseAgent.init_debug_session(debug_file, state["model"])
     else:
         debug_file = state.get("debug_file", "debug_log.txt")
@@ -34,10 +45,10 @@ async def generate_and_critique_node(state: PipelineState) -> Dict[str, Any]:
 
     print(f"\n[1/3] Generating UI-AST with critic-guided retry ({len(modules)} module(s))...")
 
-    ast_agent = UIASTAgent(**_agent_kwargs(state, "01_ui_ast.log"))
-    critic_agent = SemanticCriticAgent(**_agent_kwargs(state, "02_semantic_critic.log"))
-
     async def _process_module(module: Dict[str, Any]) -> Dict[str, Any]:
+        module_dir = _module_debug_dir(state, module["title"])
+        ast_agent = UIASTAgent(**_agent_kwargs(state, "01_ui_ast.log", module_dir))
+        critic_agent = SemanticCriticAgent(**_agent_kwargs(state, "02_semantic_critic.log", module_dir))
         desc = desc_by_id.get(module["id"], "")
         fixes: List[str] = []
         ast: Dict[str, Any] = {}
@@ -131,14 +142,14 @@ async def generate_tests_node(state: PipelineState) -> Dict[str, Any]:
     if skipped:
         print(f"  Skipping {skipped} module(s) with no AST.")
 
-    pos_agent = TestPositiveAgent(**_agent_kwargs(state, "03_test_positive.log"))
-    neg_agent = TestNegativeAgent(**_agent_kwargs(state, "04_test_negative.log"))
-    edge_agent = TestEdgeAgent(**_agent_kwargs(state, "05_test_edge.log"))
-
     async def _process_module(module: Dict[str, Any]) -> Dict[str, Any]:
         title = module["title"]
         ast = ast_by_id[module["id"]]
         desc = desc_by_id.get(module["id"], "")
+        module_dir = _module_debug_dir(state, title)
+        pos_agent = TestPositiveAgent(**_agent_kwargs(state, "03_test_positive.log", module_dir))
+        neg_agent = TestNegativeAgent(**_agent_kwargs(state, "04_test_negative.log", module_dir))
+        edge_agent = TestEdgeAgent(**_agent_kwargs(state, "05_test_edge.log", module_dir))
 
         pos, neg, edge = await asyncio.gather(
             pos_agent.arun(title, ast, desc),
@@ -234,10 +245,8 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
         json.dump(output, f, indent=2)
     print(f"  Saved UI-AST to:       {ui_ast_path}")
 
-    ui_ast_md_path = os.path.join(output_dir, "ui-ast.md")
-    with open(ui_ast_md_path, "w", encoding="utf-8") as f:
-        f.write(_render_ui_ast_md(output))
-    print(f"  Saved UI-AST (md):     {ui_ast_md_path}")
+    project_slug = output.get("project_name", "output").replace(" ", "-")
+    model_slug = state.get("model", "").replace("/", "-")
 
     critique_results = state.get("semantic_critique_results")
     if critique_results is not None:
@@ -251,7 +260,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
             json.dump(critique_output, f, indent=2)
         print(f"  Saved critique to:     {critique_path}")
 
-        critique_md_path = os.path.join(output_dir, "semantic-critique.md")
+        critique_md_path = os.path.join(output_dir, f"{project_slug}-{model_slug}-critique.md")
         with open(critique_md_path, "w", encoding="utf-8") as f:
             f.write(_render_critique_md(critique_output))
         print(f"  Saved critique (md):   {critique_md_path}")
@@ -281,7 +290,7 @@ def finalize_node(state: PipelineState) -> Dict[str, Any]:
             json.dump(tests_output, f, indent=2)
         print(f"  Saved test cases to:   {tests_path}  ({total_tests} total)")
 
-        tests_md_path = os.path.join(output_dir, "test-cases.md")
+        tests_md_path = os.path.join(output_dir, f"{project_slug}-{model_slug}-tests.md")
         with open(tests_md_path, "w", encoding="utf-8") as f:
             f.write(_render_test_cases_md(tests_output))
         print(f"  Saved test cases (md): {tests_md_path}")
@@ -300,43 +309,6 @@ def _md_escape(text: str) -> str:
         text = str(text)
     return text.replace("|", "\\|").replace("\n", " ")
 
-
-def _render_ui_ast_md(data: dict) -> str:
-    lines = []
-    lines.append(f"# UI-AST — {data.get('project_name', '')}")
-    lines.append("")
-    lines.append(f"Generated: {data.get('generated_at', '')}")
-    lines.append("")
-
-    for module in data.get("modules", []):
-        title = module.get("module_title", "Unknown")
-        attempts = module.get("attempts")
-        error = module.get("error")
-
-        lines.append(f"## {title}")
-        lines.append("")
-
-        if error:
-            lines.append(f"> **Error:** {error}")
-            lines.append("")
-            continue
-
-        if attempts is not None:
-            lines.append(f"Attempts: {attempts}")
-            lines.append("")
-
-        ast = module.get("ast", {})
-        if not ast:
-            lines.append("*(no AST generated)*")
-            lines.append("")
-            continue
-
-        lines.append("```json")
-        lines.append(json.dumps(ast, indent=2))
-        lines.append("```")
-        lines.append("")
-
-    return "\n".join(lines)
 
 
 def _render_critique_md(data: dict) -> str:

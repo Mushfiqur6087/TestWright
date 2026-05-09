@@ -1,0 +1,673 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572527
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - SYSTEM PROMPT
+------------------------------------------------------------
+You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- When the description quotes exact error text → use it verbatim.
+- When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
+
+WRONG:   "Validation error shown"
+RIGHT:   "Validation error displayed for Office field indicating it is required"
+RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared"
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**DISPLAY-ONLY MODULE DETECTION:**
+
+Before generating negative tests, check the AST for this module.
+If the module has:
+  - NO form or wizard (no submit_actions)
+  - NO state_bound_action_bar
+  - NO required fields
+  - NO constraints
+
+Then it is a DISPLAY-ONLY module. For display-only modules:
+  - Produce at most 1-2 negative tests (e.g., unauthenticated
+    access, clicking a non-implemented link)
+  - DO NOT invent validation error scenarios — there are no
+    form fields to validate
+  - DO NOT invent backend data corruption scenarios — the
+    description describes what IS displayed, not what could
+    go wrong with the data
+
+A display page that "shows a table with columns X, Y, Z"
+produces ZERO negative validation tests. The positive prompt
+handles verifying display correctness.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**DEDUPLICATION RULE (CRITICAL — READ THREE TIMES):**
+
+The goal is: test each VALIDATION MECHANISM once, not each
+FIELD or each SUB-RULE.
+
+LAYER 1 — Required field dedup:
+  Group required fields by type (text/unspecified, date, email,
+  number, dropdown, checkbox, file_upload). Pick ONE representative
+  field per type group. Generate one "empty/missing" test for that
+  representative only. Plus one "submit completely empty form" test
+  covering all required fields at once.
+
+  EXAMPLE — form with required fields:
+    First Name (text), Last Name (text), Middle Name (text),
+    Office (dropdown), Submitted On (date), Email (email)
+
+  WRONG (6 redundant tests):
+    TC-1: First Name empty → error
+    TC-2: Last Name empty → error       ← SAME mechanism as TC-1
+    TC-3: Middle Name empty → error     ← SAME mechanism as TC-1
+    TC-4: Office not selected → error
+    TC-5: Submitted On empty → error
+    TC-6: Email empty → error
+
+  RIGHT (4 non-redundant tests):
+    TC-1: First Name empty (represents all text fields) → error for First Name
+    TC-2: Office not selected (represents dropdowns) → error for Office
+    TC-3: Submitted On empty (represents date fields) → error for Submitted On
+    TC-4: Submit with all fields empty → errors displayed for all required fields
+
+LAYER 2 — Validation sub-rule dedup:
+  When a SINGLE field has multiple validation sub-rules
+  (e.g., password requires: min 8 chars + uppercase + lowercase
+  + number + special character), these are sub-rules of ONE
+  validation engine. Pick ONE sub-rule to violate as representative.
+  Do NOT test each sub-rule separately.
+
+  WRONG (5 tests for one field):
+    - Password < 8 chars
+    - Password no uppercase
+    - Password no lowercase
+    - Password no number
+    - Password no special char
+
+  RIGHT (1 test):
+    - Password < 8 chars (representative for password policy)
+
+LAYER 3 — Cross-module mechanism dedup:
+  If the same validation pattern appears in multiple forms
+  within the same module (e.g., two forms both have "required
+  text field"), do NOT test the same mechanism in both forms.
+  Test it in the primary/larger form only.
+
+  Example: Support Center has Secure Message form AND
+  Schedule Callback form. Both have required text fields.
+  Test "empty required text" on ONE form, not both.
+
+Count your negative tests before outputting. If a module
+with 5-10 fields produces more than 10 negative tests,
+you are likely violating the dedup rules. Re-check.
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Required field representatives (deduplicated as above):**
+
+One test per field-type group + one "all empty" test.
+
+**2. Type-specific format violations:**
+
+For each field TYPE that has format rules:
+  - `email` → one test with invalid email format (e.g., "notanemail")
+  - `number` → one test with non-numeric input (e.g., "abc")
+  - `date` → one test with invalid date (e.g., "99/99/9999")
+  - `password` → ONE representative test only (per dedup Layer 2)
+
+Only generate these if the AST or description implies format validation.
+
+**3. Constraint violations:**
+
+For EACH unique constraint in `constraints: []` arrays across the AST:
+  - One test that violates it specifically.
+  - If the constraint is a cross-field rule ("must match", "must not be same"), test the mismatch.
+
+Examples:
+  - "must be unique" → submit with duplicate value
+  - "must not be before Submitted_On" → enter date before submission date
+  - "cannot close with active accounts" → attempt close when accounts exist
+  - "same office is blocked" → select current office as destination
+
+**4. Precondition violations:**
+
+For EACH action with `preconditions: []`:
+  - One test attempting the action when the precondition is NOT met.
+
+**5. State-bound action violations:**
+
+For each state with `available_actions: []` (empty array):
+  - One test verifying no action buttons are available in that state.
+
+For actions available in one state but not another:
+  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+
+**6. Cross-field validation from description:**
+
+If the description mentions field relationships not captured in AST constraints:
+  - "confirm password must match" → test mismatch
+  - "account numbers must match" → test mismatch
+  - "end date after start date" → test reversed dates
+
+One test per unique cross-field rule.
+
+---
+
+**MULTI-MECHANISM FIELDS:**
+
+Some fields may have multiple DIFFERENT validation mechanisms:
+  - Required (empty → error)
+  - Format (non-numeric → error)
+  - Business rule (insufficient funds → error)
+
+Testing each unique mechanism ONCE is correct and expected.
+But if a field has 3+ mechanisms, pick the 2 most important:
+  1. The required/empty test (only if it's the representative
+     for its type group — otherwise skip)
+  2. The business rule test (always test)
+
+Skip the format test if the business rule test implicitly
+covers it (e.g., "must be > 0" implicitly requires numeric input).
+
+---
+
+**PRIORITY:**
+
+- **High**: Constraint violations that could cause data corruption, required field representatives, state precondition violations
+- **Medium**: Format violations, cross-field validation, empty-state action tests
+- **Low**: None — negative tests are generally high or medium priority
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What error/block should occur",
+      "priority": "high | medium"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - USER PROMPT
+------------------------------------------------------------
+<module_name>Payments</module_name>
+
+<ast>
+{
+  "module_name": "Payments",
+  "components": {
+    "Bill_Payment_Form": {
+      "type": "form",
+      "fields": {
+        "Payee_Name": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "required": true
+        },
+        "City": {
+          "type": "unspecified",
+          "required": true
+        },
+        "State": {
+          "type": "unspecified",
+          "required": true
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payee_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Confirm_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payment_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be greater than 0"
+          ]
+        },
+        "Source_Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "constraints": [
+        "Payee_Account_Number must equal Confirm_Account_Number (error: Account numbers do not match)",
+        "all fields are validated on submit"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Pay",
+          "type": "button",
+          "preconditions": [
+            "available_funds in Source_Account >= Payment_Amount"
+          ],
+          "constraints": [
+            "if available_funds < Payment_Amount then error: Insufficient funds"
+          ],
+          "on_success": "Payment submitted successfully. Returns reference code and updates balances.",
+          "on_failure": "Displays inline error(s) (e.g., 'Account numbers do not match', 'Insufficient funds'); form remains editable."
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:58:53] Test-Negative - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Payments",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit form with all required fields empty",
+      "preconditions": [
+        "User is on the Bill Payment page (Bill_Payment_Form visible)"
+      ],
+      "steps": [
+        "Leave Payee Name empty",
+        "Leave Street Address empty",
+        "Leave City empty",
+        "Leave State empty",
+        "Leave ZIP Code empty",
+        "Leave Phone Number empty",
+        "Leave Payee Account Number empty",
+        "Leave Confirm Account Number empty",
+        "Leave Payment Amount empty",
+        "Do not select a Source Account",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation errors displayed for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account indicating they are required (all fields are validated on submit)",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Required text field missing (representative: Payee Name)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values"
+      ],
+      "steps": [
+        "Clear Payee Name field (leave empty)",
+        "Ensure Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account are filled with valid values",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payee Name indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Required dropdown not selected (Source Account)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values"
+      ],
+      "steps": [
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, and Payment Amount with valid values",
+        "Do not select any option in the Source Account dropdown",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Source Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Required number field missing (Payment Amount empty)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values, Source Account selected"
+      ],
+      "steps": [
+        "Leave Payment Amount empty",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Payment Amount format invalid (non-numeric input)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter 'abc' into Payment Amount",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating a numeric value is required",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Payment Amount violates 'must be greater than 0' constraint (zero value)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter '0' into Payment Amount",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating it must be greater than 0",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Payee account numbers do not match (Account numbers mismatch)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter a Payee Account Number (e.g., '12345678')",
+        "Enter a different Confirm Account Number (e.g., '87654321')",
+        "Fill Payment Amount with a valid positive number and other required fields",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Inline error 'Account numbers do not match' displayed and form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Insufficient funds in selected Source Account (precondition violation)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "A Source Account exists with available_funds less than the intended Payment Amount (AST: available_funds in Source_Account < Payment_Amount)"
+      ],
+      "steps": [
+        "Select the Source Account with insufficient available_funds",
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number with valid matching values",
+        "Enter a Payment Amount greater than the Source Account's available_funds",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Inline error 'Insufficient funds' displayed (per submit_actions constraint) and the form remains editable",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 7,
+    "medium_priority": 1,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[21:58:53] Test-Negative - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Payments",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit form with all required fields empty",
+      "preconditions": [
+        "User is on the Bill Payment page (Bill_Payment_Form visible)"
+      ],
+      "steps": [
+        "Leave Payee Name empty",
+        "Leave Street Address empty",
+        "Leave City empty",
+        "Leave State empty",
+        "Leave ZIP Code empty",
+        "Leave Phone Number empty",
+        "Leave Payee Account Number empty",
+        "Leave Confirm Account Number empty",
+        "Leave Payment Amount empty",
+        "Do not select a Source Account",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation errors displayed for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account indicating they are required (all fields are validated on submit)",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Required text field missing (representative: Payee Name)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values"
+      ],
+      "steps": [
+        "Clear Payee Name field (leave empty)",
+        "Ensure Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, Payment Amount, and Source Account are filled with valid values",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payee Name indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Required dropdown not selected (Source Account)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values"
+      ],
+      "steps": [
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number, and Payment Amount with valid values",
+        "Do not select any option in the Source Account dropdown",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Source Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Required number field missing (Payment Amount empty)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values, Source Account selected"
+      ],
+      "steps": [
+        "Leave Payment Amount empty",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Payment Amount format invalid (non-numeric input)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter 'abc' into Payment Amount",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating a numeric value is required",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Payment Amount violates 'must be greater than 0' constraint (zero value)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter '0' into Payment Amount",
+        "Ensure Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number are filled and Source Account is selected",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Validation error displayed for Payment Amount indicating it must be greater than 0",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Payee account numbers do not match (Account numbers mismatch)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "All other required fields are filled with valid values and Source Account selected"
+      ],
+      "steps": [
+        "Enter a Payee Account Number (e.g., '12345678')",
+        "Enter a different Confirm Account Number (e.g., '87654321')",
+        "Fill Payment Amount with a valid positive number and other required fields",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Inline error 'Account numbers do not match' displayed and form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Insufficient funds in selected Source Account (precondition violation)",
+      "preconditions": [
+        "User is on the Bill Payment page",
+        "A Source Account exists with available_funds less than the intended Payment Amount (AST: available_funds in Source_Account < Payment_Amount)"
+      ],
+      "steps": [
+        "Select the Source Account with insufficient available_funds",
+        "Fill Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number, Confirm Account Number with valid matching values",
+        "Enter a Payment Amount greater than the Source Account's available_funds",
+        "Click the 'Pay' button"
+      ],
+      "expected_result": "Inline error 'Insufficient funds' displayed (per submit_actions constraint) and the form remains editable",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 7,
+    "medium_priority": 1,
+    "low_priority": 0
+  }
+}

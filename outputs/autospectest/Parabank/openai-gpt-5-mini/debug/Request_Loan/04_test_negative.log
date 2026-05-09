@@ -1,0 +1,702 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572631
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - SYSTEM PROMPT
+------------------------------------------------------------
+You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- When the description quotes exact error text → use it verbatim.
+- When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
+
+WRONG:   "Validation error shown"
+RIGHT:   "Validation error displayed for Office field indicating it is required"
+RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared"
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**DISPLAY-ONLY MODULE DETECTION:**
+
+Before generating negative tests, check the AST for this module.
+If the module has:
+  - NO form or wizard (no submit_actions)
+  - NO state_bound_action_bar
+  - NO required fields
+  - NO constraints
+
+Then it is a DISPLAY-ONLY module. For display-only modules:
+  - Produce at most 1-2 negative tests (e.g., unauthenticated
+    access, clicking a non-implemented link)
+  - DO NOT invent validation error scenarios — there are no
+    form fields to validate
+  - DO NOT invent backend data corruption scenarios — the
+    description describes what IS displayed, not what could
+    go wrong with the data
+
+A display page that "shows a table with columns X, Y, Z"
+produces ZERO negative validation tests. The positive prompt
+handles verifying display correctness.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**DEDUPLICATION RULE (CRITICAL — READ THREE TIMES):**
+
+The goal is: test each VALIDATION MECHANISM once, not each
+FIELD or each SUB-RULE.
+
+LAYER 1 — Required field dedup:
+  Group required fields by type (text/unspecified, date, email,
+  number, dropdown, checkbox, file_upload). Pick ONE representative
+  field per type group. Generate one "empty/missing" test for that
+  representative only. Plus one "submit completely empty form" test
+  covering all required fields at once.
+
+  EXAMPLE — form with required fields:
+    First Name (text), Last Name (text), Middle Name (text),
+    Office (dropdown), Submitted On (date), Email (email)
+
+  WRONG (6 redundant tests):
+    TC-1: First Name empty → error
+    TC-2: Last Name empty → error       ← SAME mechanism as TC-1
+    TC-3: Middle Name empty → error     ← SAME mechanism as TC-1
+    TC-4: Office not selected → error
+    TC-5: Submitted On empty → error
+    TC-6: Email empty → error
+
+  RIGHT (4 non-redundant tests):
+    TC-1: First Name empty (represents all text fields) → error for First Name
+    TC-2: Office not selected (represents dropdowns) → error for Office
+    TC-3: Submitted On empty (represents date fields) → error for Submitted On
+    TC-4: Submit with all fields empty → errors displayed for all required fields
+
+LAYER 2 — Validation sub-rule dedup:
+  When a SINGLE field has multiple validation sub-rules
+  (e.g., password requires: min 8 chars + uppercase + lowercase
+  + number + special character), these are sub-rules of ONE
+  validation engine. Pick ONE sub-rule to violate as representative.
+  Do NOT test each sub-rule separately.
+
+  WRONG (5 tests for one field):
+    - Password < 8 chars
+    - Password no uppercase
+    - Password no lowercase
+    - Password no number
+    - Password no special char
+
+  RIGHT (1 test):
+    - Password < 8 chars (representative for password policy)
+
+LAYER 3 — Cross-module mechanism dedup:
+  If the same validation pattern appears in multiple forms
+  within the same module (e.g., two forms both have "required
+  text field"), do NOT test the same mechanism in both forms.
+  Test it in the primary/larger form only.
+
+  Example: Support Center has Secure Message form AND
+  Schedule Callback form. Both have required text fields.
+  Test "empty required text" on ONE form, not both.
+
+Count your negative tests before outputting. If a module
+with 5-10 fields produces more than 10 negative tests,
+you are likely violating the dedup rules. Re-check.
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Required field representatives (deduplicated as above):**
+
+One test per field-type group + one "all empty" test.
+
+**2. Type-specific format violations:**
+
+For each field TYPE that has format rules:
+  - `email` → one test with invalid email format (e.g., "notanemail")
+  - `number` → one test with non-numeric input (e.g., "abc")
+  - `date` → one test with invalid date (e.g., "99/99/9999")
+  - `password` → ONE representative test only (per dedup Layer 2)
+
+Only generate these if the AST or description implies format validation.
+
+**3. Constraint violations:**
+
+For EACH unique constraint in `constraints: []` arrays across the AST:
+  - One test that violates it specifically.
+  - If the constraint is a cross-field rule ("must match", "must not be same"), test the mismatch.
+
+Examples:
+  - "must be unique" → submit with duplicate value
+  - "must not be before Submitted_On" → enter date before submission date
+  - "cannot close with active accounts" → attempt close when accounts exist
+  - "same office is blocked" → select current office as destination
+
+**4. Precondition violations:**
+
+For EACH action with `preconditions: []`:
+  - One test attempting the action when the precondition is NOT met.
+
+**5. State-bound action violations:**
+
+For each state with `available_actions: []` (empty array):
+  - One test verifying no action buttons are available in that state.
+
+For actions available in one state but not another:
+  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+
+**6. Cross-field validation from description:**
+
+If the description mentions field relationships not captured in AST constraints:
+  - "confirm password must match" → test mismatch
+  - "account numbers must match" → test mismatch
+  - "end date after start date" → test reversed dates
+
+One test per unique cross-field rule.
+
+---
+
+**MULTI-MECHANISM FIELDS:**
+
+Some fields may have multiple DIFFERENT validation mechanisms:
+  - Required (empty → error)
+  - Format (non-numeric → error)
+  - Business rule (insufficient funds → error)
+
+Testing each unique mechanism ONCE is correct and expected.
+But if a field has 3+ mechanisms, pick the 2 most important:
+  1. The required/empty test (only if it's the representative
+     for its type group — otherwise skip)
+  2. The business rule test (always test)
+
+Skip the format test if the business rule test implicitly
+covers it (e.g., "must be > 0" implicitly requires numeric input).
+
+---
+
+**PRIORITY:**
+
+- **High**: Constraint violations that could cause data corruption, required field representatives, state precondition violations
+- **Medium**: Format violations, cross-field validation, empty-state action tests
+- **Low**: None — negative tests are generally high or medium priority
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What error/block should occur",
+      "priority": "high | medium"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - USER PROMPT
+------------------------------------------------------------
+<module_name>Request Loan</module_name>
+
+<ast>
+{
+  "module_name": "Request Loan",
+  "components": {
+    "Loan_Request_Form": {
+      "type": "form",
+      "fields": {
+        "Loan_Type": {
+          "type": "radio",
+          "required": true,
+          "options": [
+            "Personal",
+            "Auto",
+            "Home"
+          ]
+        },
+        "Loan_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "when Loan_Type == Personal: min 1000, max 50000",
+            "when Loan_Type == Auto: min 5000, max 75000",
+            "when Loan_Type == Home: min 50000, max 500000"
+          ]
+        },
+        "Down_Payment": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be less than Loan_Amount",
+            "must be >= 10% of Loan_Amount (credit engine minimum)"
+          ]
+        },
+        "Collateral_Account": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": [
+            "selected_account_balance must be >= 20% of Loan_Amount",
+            "sufficient collateral funds required for selected account"
+          ]
+        }
+      },
+      "constraints": [
+        "cross-field: Down_Payment < Loan_Amount",
+        "cross-field: selected_account_balance >= 0.20 * Loan_Amount"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Submit Request",
+          "type": "button",
+          "constraints": [
+            "invokes credit engine simulation with 80% approval rate",
+            "requires Down_Payment >= 10% of Loan_Amount"
+          ],
+          "on_success": "Loan approved and created successfully! Account details displayed. No actual balance debits occur in this mock system.",
+          "on_failure": "Loan denied; display specific reasons to user",
+          "failure_reasons": [
+            "Insufficient credit history",
+            "Inadequate collateral value",
+            "Down payment below minimum",
+            "Collateral account balance insufficient"
+          ]
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+The loan page has interactive loan type cards (Personal, Auto, Home) with interest rates, Loan Amount field with type-specific ranges (Personal: $1,000-$50,000, Auto: $5,000-$75,000, Home: $50,000-$500,000), Down Payment Amount, and Collateral Account dropdown. The system validates amount ranges, down payment < loan amount, sufficient collateral funds, and 20% collateral value. Credit engine simulates 80% approval rate with 10% minimum down payment requirement. Success shows "Loan approved and created successfully!" with account details; denial shows specific reasons like "Insufficient credit history" or "Inadequate collateral value." Note: In this mock system, no actual balance debits occur.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:59:33] Test-Negative - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Request Loan",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit form completely empty",
+      "preconditions": [
+        "User is authenticated and on the Request Loan page"
+      ],
+      "steps": [
+        "Leave all fields blank/unselected on the Loan Request form",
+        "Click the 'Submit Request' button"
+      ],
+      "expected_result": "Validation errors displayed for required fields: Loan Type required, Loan Amount required, Down Payment required, Collateral Account required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Missing required Loan Type (radio) selection",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "All other fields are filled with valid values"
+      ],
+      "steps": [
+        "Do NOT select any Loan Type (Personal / Auto / Home)",
+        "Enter Loan Amount = 10000",
+        "Enter Down Payment = 2000",
+        "Select a Collateral Account with sufficient balance (>=20% of Loan Amount)",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Type indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Missing required Collateral Account (dropdown) selection",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type, Loan Amount and Down Payment are filled with valid values"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 10000",
+        "Enter Down Payment = 2000",
+        "Do NOT select any Collateral Account from the dropdown",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Collateral Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Missing required numeric field (Loan Amount) — representative for number type",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type and Collateral Account are selected"
+      ],
+      "steps": [
+        "Select Loan Type = Auto",
+        "Leave Loan Amount blank",
+        "Enter Down Payment = 5000 (valid relative to Loan Amount if entered)",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Loan Amount format invalid (non-numeric input)",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type = Personal selected"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 'ten thousand' (non-numeric)",
+        "Enter Down Payment = 2000",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it must be a numeric value",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Loan Amount below allowed minimum for selected Loan Type (Personal)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 500 (below Personal minimum of $1,000)",
+        "Enter Down Payment = 100 (valid numeric value)",
+        "Select a Collateral Account",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it must be between $1,000 and $50,000 for Personal loans",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Down Payment is not less than Loan Amount (equal to Loan Amount)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Auto",
+        "Enter Loan Amount = 20000",
+        "Enter Down Payment = 20000 (equal to Loan Amount)",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Down Payment indicating it must be less than Loan Amount",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Submit denied because Down Payment is below credit engine minimum (below 10%)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 20000",
+        "Enter Down Payment = 1000 (5% of Loan Amount, below 10% minimum)",
+        "Select a Collateral Account with sufficient balance for 20% check",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Loan denied; display failure reason 'Down payment below minimum'",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-009",
+      "test_case": "Collateral account balance below required 20% of Loan Amount",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "A collateral account exists with balance less than 20% of the requested Loan Amount"
+      ],
+      "steps": [
+        "Select Loan Type = Home",
+        "Enter Loan Amount = 200000",
+        "Enter Down Payment = 40000 (20% of Loan Amount, meets down payment rule)",
+        "Select Collateral Account that has balance = 10000 (which is < 20% of 200000)",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Loan denied; display failure reason 'Collateral account balance insufficient'",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "high_priority": 8,
+    "medium_priority": 1,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[21:59:33] Test-Negative - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Request Loan",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit form completely empty",
+      "preconditions": [
+        "User is authenticated and on the Request Loan page"
+      ],
+      "steps": [
+        "Leave all fields blank/unselected on the Loan Request form",
+        "Click the 'Submit Request' button"
+      ],
+      "expected_result": "Validation errors displayed for required fields: Loan Type required, Loan Amount required, Down Payment required, Collateral Account required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Missing required Loan Type (radio) selection",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "All other fields are filled with valid values"
+      ],
+      "steps": [
+        "Do NOT select any Loan Type (Personal / Auto / Home)",
+        "Enter Loan Amount = 10000",
+        "Enter Down Payment = 2000",
+        "Select a Collateral Account with sufficient balance (>=20% of Loan Amount)",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Type indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Missing required Collateral Account (dropdown) selection",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type, Loan Amount and Down Payment are filled with valid values"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 10000",
+        "Enter Down Payment = 2000",
+        "Do NOT select any Collateral Account from the dropdown",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Collateral Account indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Missing required numeric field (Loan Amount) \u2014 representative for number type",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type and Collateral Account are selected"
+      ],
+      "steps": [
+        "Select Loan Type = Auto",
+        "Leave Loan Amount blank",
+        "Enter Down Payment = 5000 (valid relative to Loan Amount if entered)",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it is required",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "Loan Amount format invalid (non-numeric input)",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "Loan Type = Personal selected"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 'ten thousand' (non-numeric)",
+        "Enter Down Payment = 2000",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it must be a numeric value",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "Loan Amount below allowed minimum for selected Loan Type (Personal)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 500 (below Personal minimum of $1,000)",
+        "Enter Down Payment = 100 (valid numeric value)",
+        "Select a Collateral Account",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Loan Amount indicating it must be between $1,000 and $50,000 for Personal loans",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Down Payment is not less than Loan Amount (equal to Loan Amount)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Auto",
+        "Enter Loan Amount = 20000",
+        "Enter Down Payment = 20000 (equal to Loan Amount)",
+        "Select a Collateral Account with sufficient balance",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Validation error displayed for Down Payment indicating it must be less than Loan Amount",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Submit denied because Down Payment is below credit engine minimum (below 10%)",
+      "preconditions": [
+        "User is on the Request Loan page"
+      ],
+      "steps": [
+        "Select Loan Type = Personal",
+        "Enter Loan Amount = 20000",
+        "Enter Down Payment = 1000 (5% of Loan Amount, below 10% minimum)",
+        "Select a Collateral Account with sufficient balance for 20% check",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Loan denied; display failure reason 'Down payment below minimum'",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-009",
+      "test_case": "Collateral account balance below required 20% of Loan Amount",
+      "preconditions": [
+        "User is on the Request Loan page",
+        "A collateral account exists with balance less than 20% of the requested Loan Amount"
+      ],
+      "steps": [
+        "Select Loan Type = Home",
+        "Enter Loan Amount = 200000",
+        "Enter Down Payment = 40000 (20% of Loan Amount, meets down payment rule)",
+        "Select Collateral Account that has balance = 10000 (which is < 20% of 200000)",
+        "Click 'Submit Request'"
+      ],
+      "expected_result": "Loan denied; display failure reason 'Collateral account balance insufficient'",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 9,
+    "high_priority": 8,
+    "medium_priority": 1,
+    "low_priority": 0
+  }
+}

@@ -1,0 +1,221 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:54:00.324667
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:54:45] Semantic Critic - SYSTEM PROMPT
+------------------------------------------------------------
+You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
+
+Your single job: decide whether this AST is good enough to use, or whether it should be regenerated. Be strict — when in doubt, retry.
+
+You DO NOT modify the JSON. You DO NOT generate a new JSON. You ONLY audit.
+
+---
+
+**INPUT:**
+
+<description>
+{Raw functional description text}
+</description>
+
+<ast>
+{Generated UI-AST JSON}
+</ast>
+
+---
+
+**WHAT COUNTS AS INTERACTIVE (in scope):**
+- Form fields, checkboxes, file uploads, search inputs (user inputs a value)
+- Buttons, links, row actions, bulk actions, submit actions (user triggers something)
+- Tabs, sub-tabs, wizard steps (user navigates)
+- Action consequences (`on_success`), preconditions, validation constraints
+- States in a state_bound_action_bar (Pending/Active/Closed are routing keys)
+
+**WHAT IS OUT OF SCOPE (do NOT expect these in the AST):**
+- Passive display labels — "the page displays the client name, account number, status badge, activation date, office" produces ZERO expected items. The AST is correct to omit them.
+- Chip colors, badge styles, decorative icons, visual styling
+
+---
+
+**METHOD:**
+
+**Step 1 — Walk the description and list every interactive element.**
+Apply the scope rules above. A passive display sentence produces zero expected items.
+If the description names a tab or step but gives zero fields for it, the correct AST has
+`fields: {}` for that tab/step — do NOT expect fields there.
+
+**Step 2 — Walk the AST and verify each expected element is present at the right path.**
+Note any expected items that are MISSING.
+
+**Step 3 — Walk the AST and check for PHANTOMS.**
+A phantom is anything in the AST that isn't traceable to explicit text in the description:
+- Buttons not named in the description (e.g., a "Start Import" button when description only says "uploading a file")
+- Fields invented inside generic-name tabs (e.g., an Add_Note field in a Notes tab, an Upload_Document field in a Documents tab) when the description only names the tab and gives no field details
+- Constraints inferred from UX intuition, not stated in the description text
+- Passive display fields (Client_Name, Status_Badge in a display_fields block)
+
+A reasonable inference with no textual anchor is still a phantom. Flag it.
+
+**Step 4 — Check conditional logic.**
+Count a conditional ONLY if the description has explicit trigger language:
+"when X is selected", "if X then", "required if", "Y is enabled when X", "selecting X reveals Y".
+Do NOT infer conditionals from field relationships. If no trigger phrase exists, expected = 0.
+
+**Step 5 — Decide the verdict.**
+
+```
+yes   →  Missing items: 0–2 minor (optional fields, non-critical)
+          AND Phantoms: 0–2 minor
+          AND no critical structural errors
+
+retry →  Missing items: 3+, OR
+          Phantoms: 3+, OR
+          Any required field missing, OR
+          Any state in state_bound_action_bar missing, OR
+          Recursive nesting (sub-tabs/sub-steps) missing when description names them, OR
+          Constraint placed at wrong level (floating instead of nested)
+```
+
+There is no third option. Don't agonize over edge cases — when in doubt, retry. A single regeneration is cheap.
+
+---
+
+**OUTPUT FORMAT — JSON only, no prose, no markdown fencing:**
+
+{
+  "verdict": "yes | retry",
+  "summary": "<one sentence explaining the decision>",
+  "missing": [
+    "<dotted path of expected element absent from AST — e.g., 'Create_Client_Wizard.steps[3].fields.Document_Type'>"
+  ],
+  "phantoms": [
+    "<dotted path of AST element not in description — e.g., 'Bulk_Import_Page.submit_actions[0] (Start_Import button not in description)'>"
+  ],
+  "fixes": [
+    "<actionable instruction for regeneration — only populated when verdict is retry>",
+    "<each fix references a JSON path and the exact change needed>"
+  ]
+}
+
+If verdict is "yes", `fixes` must be an empty array.
+
+Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
+
+
+------------------------------------------------------------
+[21:54:45] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The customer profile page offers an editable form pre-filled with First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number, plus an “Update Profile” button. Submission triggers validation of each entry (format and completeness). Success produces “Profile updated successfully.” and refreshes the data; failures highlight invalid fields and display an inline error banner.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Update Contact Info",
+  "components": {
+    "Update_Contact_Info_Form": {
+      "type": "form",
+      "fields": {
+        "First_Name": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected name format"
+          ]
+        },
+        "Last_Name": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected name format"
+          ]
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected street address format"
+          ]
+        },
+        "City": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match expected city name format"
+          ]
+        },
+        "State": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must be a valid state/region value"
+          ]
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match ZIP/postal code format (e.g., 5 digits or 5+4)"
+          ]
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present",
+            "must match phone number format (e.g., 10-digit or E.164)"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Update Profile",
+          "type": "button",
+          "on_submit": "validates each field for format and completeness",
+          "on_success": "Profile updated successfully and refreshes the data",
+          "on_failure": "highlights invalid fields and displays inline error banner"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:55:14] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
+  "missing": [
+    "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
+  ],
+  "phantoms": [],
+  "fixes": []
+}
+
+------------------------------------------------------------
+[21:55:14] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
+  "missing": [
+    "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
+  ],
+  "phantoms": [],
+  "fixes": []
+}

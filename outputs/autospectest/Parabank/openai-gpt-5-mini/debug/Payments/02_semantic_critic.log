@@ -1,0 +1,219 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:54:00.321592
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:54:54] Semantic Critic - SYSTEM PROMPT
+------------------------------------------------------------
+You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
+
+Your single job: decide whether this AST is good enough to use, or whether it should be regenerated. Be strict — when in doubt, retry.
+
+You DO NOT modify the JSON. You DO NOT generate a new JSON. You ONLY audit.
+
+---
+
+**INPUT:**
+
+<description>
+{Raw functional description text}
+</description>
+
+<ast>
+{Generated UI-AST JSON}
+</ast>
+
+---
+
+**WHAT COUNTS AS INTERACTIVE (in scope):**
+- Form fields, checkboxes, file uploads, search inputs (user inputs a value)
+- Buttons, links, row actions, bulk actions, submit actions (user triggers something)
+- Tabs, sub-tabs, wizard steps (user navigates)
+- Action consequences (`on_success`), preconditions, validation constraints
+- States in a state_bound_action_bar (Pending/Active/Closed are routing keys)
+
+**WHAT IS OUT OF SCOPE (do NOT expect these in the AST):**
+- Passive display labels — "the page displays the client name, account number, status badge, activation date, office" produces ZERO expected items. The AST is correct to omit them.
+- Chip colors, badge styles, decorative icons, visual styling
+
+---
+
+**METHOD:**
+
+**Step 1 — Walk the description and list every interactive element.**
+Apply the scope rules above. A passive display sentence produces zero expected items.
+If the description names a tab or step but gives zero fields for it, the correct AST has
+`fields: {}` for that tab/step — do NOT expect fields there.
+
+**Step 2 — Walk the AST and verify each expected element is present at the right path.**
+Note any expected items that are MISSING.
+
+**Step 3 — Walk the AST and check for PHANTOMS.**
+A phantom is anything in the AST that isn't traceable to explicit text in the description:
+- Buttons not named in the description (e.g., a "Start Import" button when description only says "uploading a file")
+- Fields invented inside generic-name tabs (e.g., an Add_Note field in a Notes tab, an Upload_Document field in a Documents tab) when the description only names the tab and gives no field details
+- Constraints inferred from UX intuition, not stated in the description text
+- Passive display fields (Client_Name, Status_Badge in a display_fields block)
+
+A reasonable inference with no textual anchor is still a phantom. Flag it.
+
+**Step 4 — Check conditional logic.**
+Count a conditional ONLY if the description has explicit trigger language:
+"when X is selected", "if X then", "required if", "Y is enabled when X", "selecting X reveals Y".
+Do NOT infer conditionals from field relationships. If no trigger phrase exists, expected = 0.
+
+**Step 5 — Decide the verdict.**
+
+```
+yes   →  Missing items: 0–2 minor (optional fields, non-critical)
+          AND Phantoms: 0–2 minor
+          AND no critical structural errors
+
+retry →  Missing items: 3+, OR
+          Phantoms: 3+, OR
+          Any required field missing, OR
+          Any state in state_bound_action_bar missing, OR
+          Recursive nesting (sub-tabs/sub-steps) missing when description names them, OR
+          Constraint placed at wrong level (floating instead of nested)
+```
+
+There is no third option. Don't agonize over edge cases — when in doubt, retry. A single regeneration is cheap.
+
+---
+
+**OUTPUT FORMAT — JSON only, no prose, no markdown fencing:**
+
+{
+  "verdict": "yes | retry",
+  "summary": "<one sentence explaining the decision>",
+  "missing": [
+    "<dotted path of expected element absent from AST — e.g., 'Create_Client_Wizard.steps[3].fields.Document_Type'>"
+  ],
+  "phantoms": [
+    "<dotted path of AST element not in description — e.g., 'Bulk_Import_Page.submit_actions[0] (Start_Import button not in description)'>"
+  ],
+  "fixes": [
+    "<actionable instruction for regeneration — only populated when verdict is retry>",
+    "<each fix references a JSON path and the exact change needed>"
+  ]
+}
+
+If verdict is "yes", `fixes` must be an empty array.
+
+Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
+
+
+------------------------------------------------------------
+[21:54:54] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Payments",
+  "components": {
+    "Bill_Payment_Form": {
+      "type": "form",
+      "fields": {
+        "Payee_Name": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Street_Address": {
+          "type": "unspecified",
+          "required": true
+        },
+        "City": {
+          "type": "unspecified",
+          "required": true
+        },
+        "State": {
+          "type": "unspecified",
+          "required": true
+        },
+        "ZIP_Code": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Phone_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payee_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Confirm_Account_Number": {
+          "type": "unspecified",
+          "required": true
+        },
+        "Payment_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be greater than 0"
+          ]
+        },
+        "Source_Account": {
+          "type": "dropdown",
+          "required": true
+        }
+      },
+      "constraints": [
+        "Payee_Account_Number must equal Confirm_Account_Number (error: Account numbers do not match)",
+        "all fields are validated on submit"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Pay",
+          "type": "button",
+          "preconditions": [
+            "available_funds in Source_Account >= Payment_Amount"
+          ],
+          "constraints": [
+            "if available_funds < Payment_Amount then error: Insufficient funds"
+          ],
+          "on_success": "Payment submitted successfully. Returns reference code and updates balances.",
+          "on_failure": "Displays inline error(s) (e.g., 'Account numbers do not match', 'Insufficient funds'); form remains editable."
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[21:55:21] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST accurately covers all interactive fields, the Pay button, validation rules, success/failure behaviors; only two minor inferred items noted.",
+  "missing": [],
+  "phantoms": [
+    "Bill_Payment_Form.fields.Payment_Amount.constraints[0] (must be greater than 0) - not stated in description",
+    "Bill_Payment_Form.submit_actions[0].preconditions[0] (available_funds in Source_Account >= Payment_Amount) - description specifies funds are checked on submit, not a precondition"
+  ],
+  "fixes": []
+}
+
+------------------------------------------------------------
+[21:55:21] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "yes",
+  "summary": "AST accurately covers all interactive fields, the Pay button, validation rules, success/failure behaviors; only two minor inferred items noted.",
+  "missing": [],
+  "phantoms": [
+    "Bill_Payment_Form.fields.Payment_Amount.constraints[0] (must be greater than 0) - not stated in description",
+    "Bill_Payment_Form.submit_actions[0].preconditions[0] (available_funds in Source_Account >= Payment_Amount) - description specifies funds are checked on submit, not a precondition"
+  ],
+  "fixes": []
+}

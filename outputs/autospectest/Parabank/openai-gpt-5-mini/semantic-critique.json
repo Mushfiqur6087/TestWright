@@ -1,0 +1,173 @@
+{
+  "project_name": "Parabank",
+  "generated_at": "2026-05-09T22:02:42.235589Z",
+  "modules": [
+    {
+      "module_id": 1,
+      "module_title": "Login",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately captures the interactive elements (two required fields, validations, Sign In submit behavior with success/failure outcomes, and Forgot Password link) with no missing or extraneous interactive items.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 2,
+      "module_title": "Register",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately captures the form fields, types, validations, submit behavior, and success/failure outcomes; only the explicit list of US states for the State dropdown is not included (minor).",
+        "missing": [
+          "components.Registration_Form.fields.State.options (explicit list of all US states for the dropdown)"
+        ],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 3,
+      "module_title": "Accounts Overview",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST matches the description with all required interactive elements present; one minor phantom (an explicitly named row action) is acceptable.",
+        "missing": [],
+        "phantoms": [
+          "components.Accounts_Table.row_actions[0] (action_name 'Open Account' not explicitly named in description)"
+        ],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 4,
+      "module_title": "Open New Account",
+      "critique": {
+        "verdict": "yes",
+        "summary": "The AST accurately captures the account type selection, deposit amount field, funding account dropdown, real-time validations (including conditional minimums and sufficient balance), and the success message with redirect.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 5,
+      "module_title": "Transfer Funds",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately captures the form fields, conditional destination options, validations, and success/failure behaviors described.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 6,
+      "module_title": "Payments",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately covers all interactive fields, the Pay button, validation rules, success/failure behaviors; only two minor inferred items noted.",
+        "missing": [],
+        "phantoms": [
+          "Bill_Payment_Form.fields.Payment_Amount.constraints[0] (must be greater than 0) - not stated in description",
+          "Bill_Payment_Form.submit_actions[0].preconditions[0] (available_funds in Source_Account >= Payment_Amount) - description specifies funds are checked on submit, not a precondition"
+        ],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 7,
+      "module_title": "Request Loan",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST correctly represents the interactive loan type selection, amount and down-payment fields, collateral dropdown, validation rules, and submit/credit-engine behavior described.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 8,
+      "module_title": "Update Contact Info",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST correctly represents the editable fields, submit action, validation, success and failure behaviors; only the presence of explicit pre-filled initial values is not represented.",
+        "missing": [
+          "components.Update_Contact_Info_Form.initial_values (pre-filled values for the form fields are not represented)"
+        ],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 9,
+      "module_title": "Manage Cards",
+      "critique": {
+        "verdict": "yes",
+        "summary": "The AST accurately captures both forms, all interactive fields, their validations, and the submit actions (including success messages and validation failure behavior).",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 10,
+      "module_title": "Investments",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST correctly captures both interactive forms, their fields, validations (including conditional buy/sell checks), and success/failure behaviors; no critical elements missing or extraneous.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 11,
+      "module_title": "Account Statements",
+      "critique": {
+        "verdict": "yes",
+        "summary": "The AST accurately captures both forms, their interactive fields, buttons, validation rules, and success/failure behaviors with no missing interactive elements or extraneous items.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 12,
+      "module_title": "Security Settings",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately represents the collapsible panel, form fields, change button, validation constraints, and success/failure behaviors described.",
+        "missing": [],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    },
+    {
+      "module_id": 13,
+      "module_title": "Support Center",
+      "critique": {
+        "verdict": "yes",
+        "summary": "AST accurately captures both forms, their fields, validation rules, and submit behaviors; one minor optional attribute (explicit 'editable' flag for Phone_Number) is missing.",
+        "missing": [
+          "components.Schedule_Callback_Form.fields.Phone_Number.editable"
+        ],
+        "phantoms": [],
+        "fixes": []
+      },
+      "forced_ship": false
+    }
+  ]
+}

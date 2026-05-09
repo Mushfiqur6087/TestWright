@@ -1,0 +1,705 @@
+================================================================================
+DEBUG SESSION STARTED: 2026-05-09T21:56:41.572887
+Model: openai/gpt-5-mini
+================================================================================
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - SYSTEM PROMPT
+------------------------------------------------------------
+You are a Negative Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY negative test cases — tests where invalid input is provided or business rules are violated, and the system correctly rejects or blocks the action.
+
+---
+
+**INPUT:**
+
+<module_name>{Module name}</module_name>
+
+<ast>
+{Module UI-AST JSON}
+</ast>
+
+<description>
+{Original functional description text for this module}
+</description>
+
+---
+
+**ASSERTION STYLE:**
+
+- When the description quotes exact error text → use it verbatim.
+- When generic → write a SPECIFIC assertion: what field failed, what the error indicates.
+
+WRONG:   "Validation error shown"
+RIGHT:   "Validation error displayed for Office field indicating it is required"
+RIGHT:   "Error 'Incorrect email or password.' displayed, password field cleared"
+
+---
+
+**ANTI-HALLUCINATION RULE (CRITICAL):**
+
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
+
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
+
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
+
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
+
+---
+
+**SCOPE BOUNDARY — UI-ONLY TESTS:**
+
+Every test you produce must be executable by a user interacting
+with the UI through normal browser actions: clicking, typing,
+selecting, navigating, and reading visible text.
+
+DO NOT generate tests that require:
+  - Browser developer console or network tab inspection
+  - DOM or source code inspection
+  - Concurrent multi-user simulation
+  - API-level or direct backend testing
+  - File binary manipulation or MIME type spoofing
+  - Server-side error simulation (500s, timeouts)
+  - Security penetration testing
+
+If the test's verification step includes "inspect the DOM",
+"check the console", "monitor network requests", or "simulate
+server failure" — it is out of scope. Remove it.
+
+---
+
+**DISPLAY-ONLY MODULE DETECTION:**
+
+Before generating negative tests, check the AST for this module.
+If the module has:
+  - NO form or wizard (no submit_actions)
+  - NO state_bound_action_bar
+  - NO required fields
+  - NO constraints
+
+Then it is a DISPLAY-ONLY module. For display-only modules:
+  - Produce at most 1-2 negative tests (e.g., unauthenticated
+    access, clicking a non-implemented link)
+  - DO NOT invent validation error scenarios — there are no
+    form fields to validate
+  - DO NOT invent backend data corruption scenarios — the
+    description describes what IS displayed, not what could
+    go wrong with the data
+
+A display page that "shows a table with columns X, Y, Z"
+produces ZERO negative validation tests. The positive prompt
+handles verifying display correctness.
+
+---
+
+**QUALITY OVER QUANTITY:**
+
+Your goal is a LEAN, high-signal test suite — not an exhaustive
+one. Every test case must earn its place by testing something
+meaningfully different from every other test case in this module.
+
+Before outputting, review your test list and ask for each test:
+  "Does this test catch a bug that NO other test in this
+   module would catch?"
+If the answer is no, remove it.
+
+Rough calibration (not a hard limit, but a quality signal):
+  - Simple module (login form, display page): 8-15 tests total
+  - Medium module (create wizard, settings form): 15-25 tests total
+  - Complex module (multi-form page, state machine): 25-35 tests total
+
+If you exceed these ranges, you are likely generating redundant
+or phantom tests. Re-review before outputting.
+
+---
+
+**DEDUPLICATION RULE (CRITICAL — READ THREE TIMES):**
+
+The goal is: test each VALIDATION MECHANISM once, not each
+FIELD or each SUB-RULE.
+
+LAYER 1 — Required field dedup:
+  Group required fields by type (text/unspecified, date, email,
+  number, dropdown, checkbox, file_upload). Pick ONE representative
+  field per type group. Generate one "empty/missing" test for that
+  representative only. Plus one "submit completely empty form" test
+  covering all required fields at once.
+
+  EXAMPLE — form with required fields:
+    First Name (text), Last Name (text), Middle Name (text),
+    Office (dropdown), Submitted On (date), Email (email)
+
+  WRONG (6 redundant tests):
+    TC-1: First Name empty → error
+    TC-2: Last Name empty → error       ← SAME mechanism as TC-1
+    TC-3: Middle Name empty → error     ← SAME mechanism as TC-1
+    TC-4: Office not selected → error
+    TC-5: Submitted On empty → error
+    TC-6: Email empty → error
+
+  RIGHT (4 non-redundant tests):
+    TC-1: First Name empty (represents all text fields) → error for First Name
+    TC-2: Office not selected (represents dropdowns) → error for Office
+    TC-3: Submitted On empty (represents date fields) → error for Submitted On
+    TC-4: Submit with all fields empty → errors displayed for all required fields
+
+LAYER 2 — Validation sub-rule dedup:
+  When a SINGLE field has multiple validation sub-rules
+  (e.g., password requires: min 8 chars + uppercase + lowercase
+  + number + special character), these are sub-rules of ONE
+  validation engine. Pick ONE sub-rule to violate as representative.
+  Do NOT test each sub-rule separately.
+
+  WRONG (5 tests for one field):
+    - Password < 8 chars
+    - Password no uppercase
+    - Password no lowercase
+    - Password no number
+    - Password no special char
+
+  RIGHT (1 test):
+    - Password < 8 chars (representative for password policy)
+
+LAYER 3 — Cross-module mechanism dedup:
+  If the same validation pattern appears in multiple forms
+  within the same module (e.g., two forms both have "required
+  text field"), do NOT test the same mechanism in both forms.
+  Test it in the primary/larger form only.
+
+  Example: Support Center has Secure Message form AND
+  Schedule Callback form. Both have required text fields.
+  Test "empty required text" on ONE form, not both.
+
+Count your negative tests before outputting. If a module
+with 5-10 fields produces more than 10 negative tests,
+you are likely violating the dedup rules. Re-check.
+
+---
+
+**WHAT TO GENERATE:**
+
+**1. Required field representatives (deduplicated as above):**
+
+One test per field-type group + one "all empty" test.
+
+**2. Type-specific format violations:**
+
+For each field TYPE that has format rules:
+  - `email` → one test with invalid email format (e.g., "notanemail")
+  - `number` → one test with non-numeric input (e.g., "abc")
+  - `date` → one test with invalid date (e.g., "99/99/9999")
+  - `password` → ONE representative test only (per dedup Layer 2)
+
+Only generate these if the AST or description implies format validation.
+
+**3. Constraint violations:**
+
+For EACH unique constraint in `constraints: []` arrays across the AST:
+  - One test that violates it specifically.
+  - If the constraint is a cross-field rule ("must match", "must not be same"), test the mismatch.
+
+Examples:
+  - "must be unique" → submit with duplicate value
+  - "must not be before Submitted_On" → enter date before submission date
+  - "cannot close with active accounts" → attempt close when accounts exist
+  - "same office is blocked" → select current office as destination
+
+**4. Precondition violations:**
+
+For EACH action with `preconditions: []`:
+  - One test attempting the action when the precondition is NOT met.
+
+**5. State-bound action violations:**
+
+For each state with `available_actions: []` (empty array):
+  - One test verifying no action buttons are available in that state.
+
+For actions available in one state but not another:
+  - One test attempting a state-specific action from the wrong state (e.g., trying to Activate an already Active client).
+
+**6. Cross-field validation from description:**
+
+If the description mentions field relationships not captured in AST constraints:
+  - "confirm password must match" → test mismatch
+  - "account numbers must match" → test mismatch
+  - "end date after start date" → test reversed dates
+
+One test per unique cross-field rule.
+
+---
+
+**MULTI-MECHANISM FIELDS:**
+
+Some fields may have multiple DIFFERENT validation mechanisms:
+  - Required (empty → error)
+  - Format (non-numeric → error)
+  - Business rule (insufficient funds → error)
+
+Testing each unique mechanism ONCE is correct and expected.
+But if a field has 3+ mechanisms, pick the 2 most important:
+  1. The required/empty test (only if it's the representative
+     for its type group — otherwise skip)
+  2. The business rule test (always test)
+
+Skip the format test if the business rule test implicitly
+covers it (e.g., "must be > 0" implicitly requires numeric input).
+
+---
+
+**PRIORITY:**
+
+- **High**: Constraint violations that could cause data corruption, required field representatives, state precondition violations
+- **Medium**: Format violations, cross-field validation, empty-state action tests
+- **Low**: None — negative tests are generally high or medium priority
+
+---
+
+**OUTPUT — JSON only, no prose, no markdown fencing:**
+
+{
+  "module": "Module Name",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Short descriptive name",
+      "preconditions": ["precondition 1"],
+      "steps": ["Step 1", "Step 2"],
+      "expected_result": "What error/block should occur",
+      "priority": "high | medium"
+    }
+  ],
+  "summary": {
+    "total": 0,
+    "high_priority": 0,
+    "medium_priority": 0,
+    "low_priority": 0
+  }
+}
+
+
+------------------------------------------------------------
+[21:56:41] Test-Negative - USER PROMPT
+------------------------------------------------------------
+<module_name>Manage Cards</module_name>
+
+<ast>
+{
+  "module_name": "Manage Cards",
+  "components": {
+    "Card_Request_Form": {
+      "type": "form",
+      "fields": {
+        "Card_Type": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Debit",
+            "Credit"
+          ]
+        },
+        "Account_to_Link": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": []
+        },
+        "Shipping_Address": {
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "address must be complete"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Request Card",
+          "constraints": [
+            "selected account must be in good standing"
+          ],
+          "on_success": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID",
+          "on_failure": "shows validation errors and keeps form editable"
+        }
+      ]
+    },
+    "Card_Controls_Form": {
+      "type": "form",
+      "fields": {
+        "Select_Existing_Card": {
+          "type": "dropdown",
+          "required": true,
+          "constraints": []
+        },
+        "New_Spending_Limit": {
+          "type": "number",
+          "required": false,
+          "constraints": [
+            "must be numeric",
+            "must be >= 0",
+            "must not exceed policy maximum"
+          ]
+        },
+        "Travel_Notice": {
+          "type": "repeating_group",
+          "required": false,
+          "item_fields": {
+            "Start_Date": {
+              "type": "date",
+              "required": false
+            },
+            "End_Date": {
+              "type": "date",
+              "required": false
+            },
+            "Destination": {
+              "type": "unspecified",
+              "required": false
+            }
+          },
+          "constraints": [
+            "date ranges must be valid (Start_Date <= End_Date)"
+          ]
+        },
+        "Card_Status": {
+          "type": "dropdown",
+          "required": true,
+          "options": [
+            "Active",
+            "Frozen"
+          ],
+          "constraints": []
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Update Controls",
+          "constraints": [
+            "validate numeric limits (e.g., New_Spending_Limit must not exceed policy maximum)",
+            "validate travel notice date ranges",
+            "validate allowable card-status transitions"
+          ],
+          "on_success": "Card controls updated successfully.",
+          "on_failure": "shows inline validation errors (e.g., limit above policy) and form remains editable"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+<description>
+The Manage Cards page contains two separate forms presented in stacked cards.The card request form includes Card Type (Debit or Credit), Account to Link, Shipping Address, and a “Request Card” button. When submitted, the system checks that the address is complete, verifies the selected account’s standing, opens a card-request ticket, and shows “Card request submitted successfully.” with a tracking ID.The card controls form includes Select Existing Card (dropdown), New Spending Limit, Travel Notice (optional dates and destinations), Card Status (Active or Frozen), and an “Update Controls” button. The system validates numeric limits, date ranges, and allowable card-status transitions. Successful updates display “Card controls updated successfully.”; validation failures (for example, a limit above policy) appear inline, and the form stays editable.
+
+
+</description>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[22:00:27] Test-Negative - LLM RESPONSE
+------------------------------------------------------------
+{
+  "module": "Manage Cards",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit Card Request with all required fields empty",
+      "preconditions": [
+        "User is signed in and on the Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Ensure Card_Type, Account_to_Link and Shipping_Address are blank/unselected in the Card Request form",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation errors displayed for Card_Type, Account_to_Link and Shipping_Address indicating they are required / Shipping_Address must be complete; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Required dropdown (Card Type) left unselected",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Leave Card_Type unselected",
+        "Fill Account_to_Link with a valid account in good standing",
+        "Fill Shipping_Address with a valid complete address",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Card_Type indicating it is required; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Required Shipping Address incomplete",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Select Card_Type = Debit",
+        "Select Account_to_Link = an account in good standing",
+        "Enter an incomplete Shipping_Address (e.g., street only, missing city/postal code)",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Shipping_Address indicating address must be complete; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Request Card using an account not in good standing",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible",
+        "An account that is NOT in good standing is available in the Account_to_Link dropdown"
+      ],
+      "steps": [
+        "Select Card_Type = Credit",
+        "Select Account_to_Link = an account that is not in good standing",
+        "Fill Shipping_Address with a valid complete address",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Account_to_Link indicating the selected account is not in good standing; form remains editable and no ticket is opened",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "New Spending Limit non-numeric input",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Enter 'abc' into New_Spending_Limit",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for New_Spending_Limit indicating it must be numeric; form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "New Spending Limit exceeds policy maximum",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown",
+        "Policy maximum for spending limit is defined (enforced by system)"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Enter a numeric value for New_Spending_Limit that is greater than the policy maximum",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for New_Spending_Limit indicating the value exceeds the policy maximum; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Travel Notice with Start Date after End Date",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Open Travel_Notice repeating group and add an item",
+        "Set Start_Date to 2026-12-10 and End_Date to 2026-12-05 (Start_Date > End_Date)",
+        "Enter a Destination",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for the Travel_Notice item indicating the date range is invalid (Start_Date must be on or before End_Date); form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Submit Update Controls attempting an invalid card-status transition",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "Select_Existing_Card is set to a card whose current status makes the attempted transition invalid (e.g., card in a state where the chosen transition is disallowed)"
+      ],
+      "steps": [
+        "Select the existing card in Select_Existing_Card",
+        "Change Card_Status to a state that is not allowed for this card according to system rules",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for Card_Status indicating the requested status transition is not allowed; form remains editable and no update occurs",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 5,
+    "medium_priority": 3,
+    "low_priority": 0
+  }
+}
+
+------------------------------------------------------------
+[22:00:27] Test-Negative - PARSED JSON
+------------------------------------------------------------
+{
+  "module": "Manage Cards",
+  "category": "negative",
+  "test_cases": [
+    {
+      "tc_id": "N-001",
+      "test_case": "Submit Card Request with all required fields empty",
+      "preconditions": [
+        "User is signed in and on the Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Ensure Card_Type, Account_to_Link and Shipping_Address are blank/unselected in the Card Request form",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation errors displayed for Card_Type, Account_to_Link and Shipping_Address indicating they are required / Shipping_Address must be complete; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-002",
+      "test_case": "Required dropdown (Card Type) left unselected",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Leave Card_Type unselected",
+        "Fill Account_to_Link with a valid account in good standing",
+        "Fill Shipping_Address with a valid complete address",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Card_Type indicating it is required; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-003",
+      "test_case": "Required Shipping Address incomplete",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible"
+      ],
+      "steps": [
+        "Select Card_Type = Debit",
+        "Select Account_to_Link = an account in good standing",
+        "Enter an incomplete Shipping_Address (e.g., street only, missing city/postal code)",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Shipping_Address indicating address must be complete; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-004",
+      "test_case": "Request Card using an account not in good standing",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Request form is visible",
+        "An account that is NOT in good standing is available in the Account_to_Link dropdown"
+      ],
+      "steps": [
+        "Select Card_Type = Credit",
+        "Select Account_to_Link = an account that is not in good standing",
+        "Fill Shipping_Address with a valid complete address",
+        "Click the 'Request Card' button"
+      ],
+      "expected_result": "Validation error displayed for Account_to_Link indicating the selected account is not in good standing; form remains editable and no ticket is opened",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-005",
+      "test_case": "New Spending Limit non-numeric input",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Enter 'abc' into New_Spending_Limit",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for New_Spending_Limit indicating it must be numeric; form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-006",
+      "test_case": "New Spending Limit exceeds policy maximum",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown",
+        "Policy maximum for spending limit is defined (enforced by system)"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Enter a numeric value for New_Spending_Limit that is greater than the policy maximum",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for New_Spending_Limit indicating the value exceeds the policy maximum; form remains editable",
+      "priority": "high"
+    },
+    {
+      "tc_id": "N-007",
+      "test_case": "Travel Notice with Start Date after End Date",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "A card is available to select in Select_Existing_Card dropdown"
+      ],
+      "steps": [
+        "Select an existing card in Select_Existing_Card",
+        "Open Travel_Notice repeating group and add an item",
+        "Set Start_Date to 2026-12-10 and End_Date to 2026-12-05 (Start_Date > End_Date)",
+        "Enter a Destination",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for the Travel_Notice item indicating the date range is invalid (Start_Date must be on or before End_Date); form remains editable",
+      "priority": "medium"
+    },
+    {
+      "tc_id": "N-008",
+      "test_case": "Submit Update Controls attempting an invalid card-status transition",
+      "preconditions": [
+        "User is on Manage Cards page",
+        "Card Controls form is visible",
+        "Select_Existing_Card is set to a card whose current status makes the attempted transition invalid (e.g., card in a state where the chosen transition is disallowed)"
+      ],
+      "steps": [
+        "Select the existing card in Select_Existing_Card",
+        "Change Card_Status to a state that is not allowed for this card according to system rules",
+        "Click the 'Update Controls' button"
+      ],
+      "expected_result": "Inline validation error displayed for Card_Status indicating the requested status transition is not allowed; form remains editable and no update occurs",
+      "priority": "high"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "high_priority": 5,
+    "medium_priority": 3,
+    "low_priority": 0
+  }
+}
