@@ -50,10 +50,10 @@ own step.
 
 CORRECT example:
   "steps": [
-    "Navigate to the <form name> page",
-    "Leave the <required field> blank",
-    "Enter <valid value> in the <other field>",
-    "Click the Submit button"
+    "1. Navigate to the <form name> page",
+    "2. Leave the <required field> blank",
+    "3. Enter <valid value> in the <other field>",
+    "4. Click the Submit button"
   ]
 
 WRONG example:
@@ -310,7 +310,7 @@ requires numeric input).
       "tc_id": "N-001",
       "test_case": "Short descriptive name",
       "preconditions": ["precondition 1"],
-      "steps": ["Step 1", "Step 2"],
+      "steps": ["1. Step one", "2. Step two"],
       "expected_result": "What error/block should occur",
       "priority": "high | medium"
     }

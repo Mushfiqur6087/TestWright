@@ -51,9 +51,9 @@ own step.
 
 CORRECT example:
   "steps": [
-    "Navigate to the <form name> page",
-    "Enter <minimum allowed value> in the <amount field>",
-    "Click the Submit button"
+    "1. Navigate to the <form name> page",
+    "2. Enter <minimum allowed value> in the <amount field>",
+    "3. Click the Submit button"
   ]
 
 WRONG example:
@@ -232,7 +232,7 @@ Categories to consider:
       "subcategory": "boundary | input_edge | interaction_edge | state_edge | data_edge",
       "test_case": "Short descriptive name",
       "preconditions": ["precondition 1"],
-      "steps": ["Step 1", "Step 2"],
+      "steps": ["1. Step one", "2. Step two"],
       "expected_result": "What should happen — specify pass or fail for boundary tests",
       "priority": "medium | low"
     }

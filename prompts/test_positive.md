@@ -58,22 +58,22 @@ Each field fill, each click, each navigation is its own step.
 
 Example of CORRECT atomic steps (Registration form):
   "steps": [
-    "Navigate to the Registration page",
-    "Enter <first name> in the First Name field",
-    "Enter <last name> in the Last Name field",
-    "Enter <address> in the Address field",
-    "Enter <city> in the City field",
-    "Enter <state> in the State field",
-    "Enter <zip code> in the Zip Code field",
-    "Enter <phone number> in the Phone field",
-    "Enter <SSN> in the SSN field",
-    "Enter <username> in the Username field",
-    "Enter <password> in the Password field",
-    "Enter <password> in the Confirm Password field",
-    "Click the Register button"
+    "1. Navigate to the Registration page",
+    "2. Enter <first name> in the First Name field",
+    "3. Enter <last name> in the Last Name field",
+    "4. Enter <address> in the Address field",
+    "5. Enter <city> in the City field",
+    "6. Enter <state> in the State field",
+    "7. Enter <zip code> in the Zip Code field",
+    "8. Enter <phone number> in the Phone field",
+    "9. Enter <SSN> in the SSN field",
+    "10. Enter <username> in the Username field",
+    "11. Enter <password> in the Password field",
+    "12. Enter <password> in the Confirm Password field",
+    "13. Click the Register button"
   ]
 
-Example of WRONG consolidated steps (never do this):
+Example of WRONG steps (never do this):
   "steps": [
     "Fill in all required fields with valid data",
     "Submit the form"
@@ -85,7 +85,7 @@ Example of WRONG consolidated steps (never do this):
     "Click Register"
   ]
 
-One action per step. No "and". No "all fields". No grouping.
+One action per step. Each step prefixed with its number. No "and". No grouping.
 
 ---
 
@@ -263,7 +263,7 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
       "tc_id": "P-001",
       "test_case": "Short descriptive name",
       "preconditions": ["precondition 1"],
-      "steps": ["Step 1", "Step 2"],
+      "steps": ["1. Step one", "2. Step two"],
       "expected_result": "What should happen",
       "priority": "high | medium | low"
     }

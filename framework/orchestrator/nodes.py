@@ -458,7 +458,13 @@ def _render_test_cases_md(data: dict) -> str:
                 preconds = tc.get("preconditions", [])
                 preconds_str = _md_escape(", ".join(preconds) if isinstance(preconds, list) else str(preconds))
                 steps = tc.get("steps", [])
-                steps_str = _md_escape(" → ".join(steps) if isinstance(steps, list) else str(steps))
+                if isinstance(steps, list):
+                    steps_str = "<br>".join(
+                        s if (s[:2].rstrip(".").isdigit()) else f"{i}. {s}"
+                        for i, s in enumerate(steps, 1)
+                    )
+                else:
+                    steps_str = _md_escape(str(steps))
                 expected = _md_escape(tc.get("expected_result", ""))
                 priority = tc.get("priority", "")
                 subcategory = tc.get("subcategory", "")
