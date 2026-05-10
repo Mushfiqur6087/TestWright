@@ -31,16 +31,13 @@ Always use generic role-based placeholders enclosed in angle brackets.
 
 Examples of CORRECT step wording:
   - "Enter <first name> in the First Name field"
-  - "Enter <last name> in the Last Name field"
   - "Enter <valid email address> in the Email field"
   - "Enter <password> in the Password field"
   - "Select <account type> from the Account Type dropdown"
   - "Enter <amount> in the Amount field"
-  - "Upload <valid file>"
 
 Examples of WRONG step wording (never do this):
   - "Enter 'John' in the First Name field"
-  - "Enter 'Doe' in the Last Name field"
   - "Enter 'john.doe@example.com' in the Email field"
   - "Enter 'Password123!' in the Password field"
   - "Enter '500.00' in the Amount field"
@@ -63,26 +60,17 @@ Example of CORRECT atomic steps (Registration form):
     "3. Enter <last name> in the Last Name field",
     "4. Enter <address> in the Address field",
     "5. Enter <city> in the City field",
-    "6. Enter <state> in the State field",
-    "7. Enter <zip code> in the Zip Code field",
-    "8. Enter <phone number> in the Phone field",
-    "9. Enter <SSN> in the SSN field",
-    "10. Enter <username> in the Username field",
-    "11. Enter <password> in the Password field",
-    "12. Enter <password> in the Confirm Password field",
-    "13. Click the Register button"
+    "6. Enter <zip code> in the Zip Code field",
+    "7. Enter <username> in the Username field",
+    "8. Enter <password> in the Password field",
+    "9. Enter <password> in the Confirm Password field",
+    "10. Click the Register button"
   ]
 
 Example of WRONG steps (never do this):
   "steps": [
     "Fill in all required fields with valid data",
     "Submit the form"
-  ]
-
-  "steps": [
-    "Enter first name, last name, and address",
-    "Enter username and password",
-    "Click Register"
   ]
 
 One action per step. Each step prefixed with its number. No "and". No grouping.
@@ -101,17 +89,9 @@ generate the test.
 
 DO NOT generate tests for:
   - Backend data integrity scenarios the description doesn't mention
-    (e.g., "what if the server returns invalid data")
-  - Security vulnerabilities not described (e.g., "account number
-    exposed in DOM", "session hijacking")
-  - Infrastructure behavior (e.g., "race condition between two users",
-    "API returns 500 error")
-  - Error recovery scenarios not described (e.g., "server timeout
-    during submission")
-
-If the description says "the page displays X" and nothing more,
-that produces a POSITIVE display test — not 9 negative tests
-about what happens when X is malformed, missing, or tampered with.
+  - Security vulnerabilities not described
+  - Infrastructure behavior (race conditions, API errors)
+  - Error recovery scenarios not described
 
 The spec is the boundary. Stay inside it.
 
@@ -128,109 +108,83 @@ DO NOT generate tests that require:
   - DOM or source code inspection
   - Concurrent multi-user simulation
   - API-level or direct backend testing
-  - File binary manipulation or MIME type spoofing
   - Server-side error simulation (500s, timeouts)
-  - Security penetration testing
-
-If the test's verification step includes "inspect the DOM",
-"check the console", "monitor network requests", or "simulate
-server failure" — it is out of scope. Remove it.
 
 ---
 
-**QUALITY OVER QUANTITY:**
+**CALIBRATION (enforce strictly):**
 
-Your goal is a LEAN, high-signal test suite — not an exhaustive
-one. Every test case must earn its place by testing something
-meaningfully different from every other test case in this module.
+  - Simple module (login form, display-only page): 2–4 positive tests
+  - Medium module (single form with states, settings): 4–8 positive tests
+  - Complex module (wizard, multi-state machine, multiple forms): 8–12 positive tests
 
-Before outputting, review your test list and ask for each test:
-  "Does this test catch a bug that NO other test in this
-   module would catch?"
-If the answer is no, remove it.
-
-Rough calibration (not a hard limit, but a quality signal):
-  - Simple module (login form, display page): 8-15 tests total
-  - Medium module (create wizard, settings form): 15-25 tests total
-  - Complex module (multi-form page, state machine): 25-35 tests total
-
-If you exceed these ranges, you are likely generating redundant
-or phantom tests. Re-review before outputting.
+If you exceed these ranges, you have redundant tests. Re-review before outputting.
 
 ---
 
 **WHAT TO GENERATE:**
 
-**1. Three unique happy path tests per form/wizard:**
+**1. One happy path per distinct success outcome:**
 
-Path A — COMPLETE DATA: Fill every field (required + optional) with valid data. For wizards, complete every step fully. Submit → verify on_success outcome and any redirect/state change.
+For each form or wizard, generate ONE happy path that:
+- Fills all fields that affect the flow (required + any optional that trigger conditional UI)
+- Submits and verifies the on_success outcome
 
-Path B — MINIMUM VIABLE: Fill ONLY required fields. Leave every optional field blank/default. Submit → verify the SAME on_success outcome as Path A. This proves optional fields are truly optional.
+Do NOT generate a separate "minimum required fields" test unless the spec
+explicitly states that omitting optional fields changes the outcome or
+triggers different UI. If optional fields are truly optional (omitting them
+reaches the same success screen), they are NOT a separate test.
 
-Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
-  - Wizards: navigate forward to last step → back to step 1 → verify all data persists → submit
-  - Forms with dropdowns/options: select a DIFFERENT option than Path A, verify flow still completes
-  - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
-  - State-bound modules: take an alternative state path (e.g., follow a non-default branch in the state machine instead of the primary one)
+Only add a SECOND happy path for a form if ONE of these conditions is true:
+  - A dropdown/radio choice changes what subsequent fields appear (conditional reveal)
+  - A dropdown/radio choice changes the success outcome or redirect destination
+  - A wizard has a meaningful back-navigation that could break data persistence
 
-**2. State transition tests:**
+If none of those conditions apply, ONE test covers the form.
 
-For EACH state in a `state_bound_action_bar`:
-  - One test verifying the correct actions are available
-  - For each action that has its own fields: one test filling those fields correctly and confirming the state change
+**2. State machine coverage — one test per unique transition:**
 
-**BIDIRECTIONAL STATE / TOGGLE RULE:**
+For each action in a `state_bound_action_bar` that moves the entity from
+State A → State B:
+  - Generate ONE test that performs that action and confirms the resulting state.
+  - Do NOT also generate a separate "verify available actions in State A" test —
+    that is implicitly covered by the transition test's precondition and steps.
 
-For toggles and bidirectional controls (enable/disable,
-opt-in/opt-out, check/uncheck, any two-way state pair),
-test BOTH directions:
-  - Forward: initial state → changed state
-  - Reverse: changed state → original state
+For bidirectional transitions (A→B exists AND B→A exists):
+  - Generate ONE round-trip test: A→B→A. Do NOT split into two separate tests.
 
-If a state_bound_action_bar shows an action available in
-State A that transitions to State B, AND State B has an action
-that transitions back to State A — test both transitions.
+For lifecycle flows:
+  - If the module has a primary happy lifecycle, ONE end-to-end test covering
+    the full journey replaces individual per-transition tests for those
+    transitions already covered by it.
+  - Only add a second lifecycle test if there is a meaningfully different
+    terminal path (e.g., an early-exit or rejection branch) that the primary
+    lifecycle does not reach.
 
-For checkboxes and toggles: test check → submit, then
-uncheck → submit.
-
-**3. End-to-end lifecycle flows (from description context):**
-
-If the module has multiple states, produce:
-  - Primary lifecycle: the full expected journey through every state from creation to terminal state
-  - One alternative lifecycle: a different valid path through states (e.g., a rejection or early-termination branch)
-
-These are multi-step tests spanning several state transitions. Include every precondition, navigation step, and intermediate verification.
-
-**4. Tab and sub-tab navigation:**
+**3. Tab and sub-tab navigation:**
 
 For each `tab_container`:
   - One test verifying all tabs are accessible
   - If sub-tabs exist: one test navigating into sub-tabs and back
 
-**5. Data table interaction tests:**
+**4. Data table interaction tests:**
 
 For each `data_table`:
   - If `row_actions` exist: one test per row action (with valid preconditions met)
   - If `bulk_actions` exist: one test per bulk action with items selected
   - If `sortable_columns` exist: one test verifying sort works
 
-**6. Dropdown option verification:**
-
-For each field with `options: []`:
-  - One test verifying all listed options are present and selectable
-
-**7. Search and filter (from description):**
+**5. Search and filter (from description):**
 
 If description mentions search or filter:
   - One test: search/filter with matching criteria → correct results shown
 
-**8. Navigation and redirect (from description):**
+**6. Navigation and redirect (from description):**
 
 If description mentions "redirected to X" or "opens Y page":
   - One test per unique redirect verifying navigation occurs
 
-**9. Pre-population (from description):**
+**7. Pre-population (from description):**
 
 If description mentions "pre-filled", "auto-populated", "defaults to":
   - One test verifying pre-fill behavior
@@ -240,8 +194,8 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 **PRIORITY:**
 
 - **High**: Happy paths, state transitions, lifecycle flows
-- **Medium**: Tab navigation, dropdown verification, search/filter, pre-fill, data table interactions
-- **Low**: Alternative route happy path, sort verification
+- **Medium**: Tab navigation, search/filter, pre-fill, data table interactions
+- **Low**: Sort verification, redirect verification
 
 ---
 
@@ -250,6 +204,29 @@ If description mentions "pre-filled", "auto-populated", "defaults to":
 - Auth required → "User logged in"
 - Specific state → "[Entity] in [State] status"
 - Prerequisite entities → name them explicitly
+
+---
+
+**DEDUPLICATION GATE — run this before writing any output:**
+
+For each pair of tests in your list, ask:
+  "Do these two tests reach a DIFFERENT success state, OR take a
+   DIFFERENT code path to reach the same state?"
+
+A "different code path" means:
+  - A different form was submitted (not just different field values in the same form)
+  - A different dropdown choice triggered different conditional UI
+  - A different state transition was executed
+
+A "different code path" does NOT mean:
+  - Same form, same fields, but some optional fields filled vs blank
+  - Same transition, but a different data value in the action's field
+  - Same form submitted twice with different placeholder values
+
+If two tests share the same code path → merge them into one. Keep the
+more complete version (more fields filled, more assertions).
+
+Apply this check exhaustively before outputting.
 
 ---
 

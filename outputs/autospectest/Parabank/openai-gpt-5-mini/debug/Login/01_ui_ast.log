@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-10T04:48:44.124254
+DEBUG SESSION STARTED: 2026-05-10T05:26:09.834398
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[04:48:44] UI-AST Agent - SYSTEM PROMPT
+[05:26:09] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[04:48:44] UI-AST Agent - USER PROMPT
+[05:26:09] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Login
 
@@ -215,7 +215,7 @@ The login page contains a login form with two required input fields—Email/User
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[04:48:59] UI-AST Agent - LLM RESPONSE
+[05:26:29] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Login",
@@ -224,46 +224,44 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "type": "form",
       "fields": {
         "Email_Username": {
-          "type": "email",
+          "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be a valid email format"
+            "if value contains '@' then must be a valid email format"
           ]
         },
         "Password": {
           "type": "password",
           "required": true,
           "constraints": [
-            "minimum length 8 characters",
-            "must contain at least one uppercase letter",
-            "must contain at least one lowercase letter",
-            "must contain at least one number",
-            "must contain at least one special character"
+            "minimum length 8",
+            "must include at least one uppercase letter",
+            "must include at least one lowercase letter",
+            "must include at least one number",
+            "must include at least one special character"
           ]
+        },
+        "Forgot_Password_Link": {
+          "type": "link",
+          "element_name": "Forgot Password?",
+          "navigates_to": "Forgot Password page"
         }
       },
       "submit_actions": [
         {
           "element_name": "Sign In",
           "type": "button",
-          "constraints": [
-            "securely validates credentials against the registered-user database"
-          ],
+          "process": "securely validates credentials against the registered-user database",
           "on_success": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
-          "on_failure": "shows 'Incorrect email or password. Please try again.', clears Password field and allows another attempt"
+          "on_failure": "flashes 'Incorrect email or password. Please try again.', clears Password field, allows another attempt"
         }
       ]
-    },
-    "Forgot_Password_Link": {
-      "type": "link",
-      "element_name": "Forgot Password?",
-      "navigates_to": "Forgot Password page"
     }
   }
 }
 
 ------------------------------------------------------------
-[04:48:59] UI-AST Agent - PARSED JSON
+[05:26:29] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Login",
@@ -272,40 +270,38 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "type": "form",
       "fields": {
         "Email_Username": {
-          "type": "email",
+          "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be a valid email format"
+            "if value contains '@' then must be a valid email format"
           ]
         },
         "Password": {
           "type": "password",
           "required": true,
           "constraints": [
-            "minimum length 8 characters",
-            "must contain at least one uppercase letter",
-            "must contain at least one lowercase letter",
-            "must contain at least one number",
-            "must contain at least one special character"
+            "minimum length 8",
+            "must include at least one uppercase letter",
+            "must include at least one lowercase letter",
+            "must include at least one number",
+            "must include at least one special character"
           ]
+        },
+        "Forgot_Password_Link": {
+          "type": "link",
+          "element_name": "Forgot Password?",
+          "navigates_to": "Forgot Password page"
         }
       },
       "submit_actions": [
         {
           "element_name": "Sign In",
           "type": "button",
-          "constraints": [
-            "securely validates credentials against the registered-user database"
-          ],
+          "process": "securely validates credentials against the registered-user database",
           "on_success": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
-          "on_failure": "shows 'Incorrect email or password. Please try again.', clears Password field and allows another attempt"
+          "on_failure": "flashes 'Incorrect email or password. Please try again.', clears Password field, allows another attempt"
         }
       ]
-    },
-    "Forgot_Password_Link": {
-      "type": "link",
-      "element_name": "Forgot Password?",
-      "navigates_to": "Forgot Password page"
     }
   }
 }

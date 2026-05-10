@@ -1,6 +1,6 @@
 {
   "project_name": "Parabank",
-  "generated_at": "2026-05-10T04:51:47.281446Z",
+  "generated_at": "2026-05-10T05:29:26.613076Z",
   "model": "openai/gpt-5-mini",
   "modules": [
     {
@@ -8,17 +8,16 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Primary happy path - sign in with valid credentials (complete data)",
+          "test_case": "Successful sign in with valid credentials",
           "preconditions": [
-            "User exists in registered-user database with <email address> and <password>",
-            "User is signed out",
-            "User on Login page"
+            "User not signed in",
+            "Registered user exists with <valid email address or username> and <valid password> that meets password complexity requirements"
           ],
           "steps": [
-            "Navigate to the Login page",
-            "Enter <email address> in the Email/Username field",
-            "Enter <password> in the Password field",
-            "Click the Sign In button"
+            "1. Navigate to the Login page",
+            "2. Enter <valid email address or username> in the Email/Username field",
+            "3. Enter <valid password> in the Password field",
+            "4. Click the Sign In button"
           ],
           "expected_result": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
           "priority": "high",
@@ -26,84 +25,28 @@
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Minimum viable sign in using only required fields with an alternate account",
+          "test_case": "Navigate to Forgot Password page via Forgot Password? link",
           "preconditions": [
-            "Alternate user exists in registered-user database with <alternate email address> and <alternate password>",
-            "User is signed out",
-            "User on Login page"
+            "User not signed in"
           ],
           "steps": [
-            "Navigate to the Login page",
-            "Enter <alternate email address> in the Email/Username field",
-            "Enter <alternate password> in the Password field",
-            "Click the Sign In button"
-          ],
-          "expected_result": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-003",
-          "test_case": "Alternative route: visit Forgot Password page then return and complete sign in",
-          "preconditions": [
-            "User exists in registered-user database with <email address> and <password>",
-            "User is signed out",
-            "User on Login page"
-          ],
-          "steps": [
-            "Navigate to the Login page",
-            "Click the Forgot Password? link",
-            "Navigate back to the Login page",
-            "Enter <email address> in the Email/Username field",
-            "Enter <password> in the Password field",
-            "Click the Sign In button"
-          ],
-          "expected_result": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Forgot Password? link navigates to Forgot Password page",
-          "preconditions": [
-            "User on Login page"
-          ],
-          "steps": [
-            "Navigate to the Login page",
-            "Click the Forgot Password? link"
+            "1. Navigate to the Login page",
+            "2. Click the Forgot Password? link"
           ],
           "expected_result": "Navigates to Forgot Password page",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Sign in succeeds when Password meets complexity requirements",
-          "preconditions": [
-            "User exists in registered-user database with <email address> and <password_with_uppercase_lowercase_number_and_special_character>",
-            "User is signed out",
-            "User on Login page"
-          ],
-          "steps": [
-            "Navigate to the Login page",
-            "Enter <email address> in the Email/Username field",
-            "Enter <password_with_uppercase_lowercase_number_and_special_character> in the Password field",
-            "Click the Sign In button"
-          ],
-          "expected_result": "flashes 'Signed in successfully.' and redirects to Accounts Overview page",
-          "priority": "high",
+          "priority": "low",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 5,
-        "positive": 5,
+        "total": 2,
+        "positive": 2,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 3,
-        "medium_priority": 2,
-        "low_priority": 0
+        "high_priority": 1,
+        "medium_priority": 0,
+        "low_priority": 1
       }
     },
     {
@@ -111,106 +54,82 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Happy path - complete data with 5+4 ZIP format",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Registration page",
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Select <state> from the State dropdown",
-            "Enter <ZIP Code in 5+4 format> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <SSN> in the SSN field",
-            "Enter <email address> in the Username field",
-            "Enter <password of at least 8 characters> in the Password field",
-            "Enter <same password as Password> in the Confirm Password field",
-            "Click the Register button"
+          "test_case": "Successful registration with all required fields completed",
+          "preconditions": [
+            "Registration page is open"
           ],
-          "expected_result": "Displays \"Account created successfully \u2014 please sign in\" and redirects to the Login Page",
+          "steps": [
+            "1. Enter <first name> in the First Name field",
+            "2. Enter <last name> in the Last Name field",
+            "3. Enter <street address> in the Street Address field",
+            "4. Enter <city> in the City field",
+            "5. Select <state> from the State dropdown",
+            "6. Enter <ZIP code in 5-digit format> in the ZIP Code field",
+            "7. Enter <phone number> in the Phone Number field",
+            "8. Enter <SSN> in the SSN field",
+            "9. Enter <valid email address> in the Username field",
+            "10. Enter <password> in the Password field",
+            "11. Enter <password> in the Confirm Password field",
+            "12. Click the Register button"
+          ],
+          "expected_result": "Account created successfully \u2014 please sign in; redirects to login page",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Happy path - minimum viable required fields with 5-digit ZIP",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Registration page",
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Select <state> from the State dropdown",
-            "Enter <5-digit ZIP Code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <SSN> in the SSN field",
-            "Enter <email address> in the Username field",
-            "Enter <password of at least 8 characters> in the Password field",
-            "Enter <same password as Password> in the Confirm Password field",
-            "Click the Register button"
+          "test_case": "Phone number input is automatically formatted to (123) 456-7890",
+          "preconditions": [
+            "Registration page is open"
           ],
-          "expected_result": "Displays \"Account created successfully \u2014 please sign in\" and redirects to the Login Page",
-          "priority": "high",
+          "steps": [
+            "1. Enter <phone number> in the Phone Number field",
+            "2. Move focus away from the Phone Number field"
+          ],
+          "expected_result": "Phone Number field displays the input formatted as (123) 456-7890 (automatic formatting applied)",
+          "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Alternative happy path - trigger phone and SSN auto-formatting before submit",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Registration page",
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Select <different state than in P-001> from the State dropdown",
-            "Enter <ZIP Code in 5+4 or 5-digit format> in the ZIP Code field",
-            "Enter <unformatted phone digits> in the Phone Number field",
-            "Enter <unformatted SSN digits> in the SSN field",
-            "Enter <email address> in the Username field",
-            "Enter <password of at least 8 characters> in the Password field",
-            "Enter <same password as Password> in the Confirm Password field",
-            "Click the Register button"
+          "test_case": "SSN input is automatically formatted to 123-45-6789",
+          "preconditions": [
+            "Registration page is open"
           ],
-          "expected_result": "Phone Number field displays formatted value in the (123) 456-7890 format and SSN field displays formatted value in the 123-45-6789 format before submit; after submit displays \"Account created successfully \u2014 please sign in\" and redirects to the Login Page",
-          "priority": "high",
+          "steps": [
+            "1. Enter <SSN> in the SSN field",
+            "2. Move focus away from the SSN field"
+          ],
+          "expected_result": "SSN field displays the input formatted as 123-45-6789 (automatic formatting applied)",
+          "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "State dropdown contains all US states and each option is selectable",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Registration page",
-            "Open the State dropdown"
+          "test_case": "ZIP Code field accepts 5+4 format (12345-6789)",
+          "preconditions": [
+            "Registration page is open"
           ],
-          "expected_result": "State dropdown contains the following options and each is selectable: Alabama, Alaska, Arizona, Arkansas, California, Colorado, Connecticut, Delaware, Florida, Georgia, Hawaii, Idaho, Illinois, Indiana, Iowa, Kansas, Kentucky, Louisiana, Maine, Maryland, Massachusetts, Michigan, Minnesota, Mississippi, Missouri, Montana, Nebraska, Nevada, New Hampshire, New Jersey, New Mexico, New York, North Carolina, North Dakota, Ohio, Oklahoma, Oregon, Pennsylvania, Rhode Island, South Carolina, South Dakota, Tennessee, Texas, Utah, Vermont, Virginia, Washington, West Virginia, Wisconsin, Wyoming",
+          "steps": [
+            "1. Enter <ZIP code in 5+4 format> in the ZIP Code field",
+            "2. Move focus away from the ZIP Code field"
+          ],
+          "expected_result": "ZIP Code field accepts and displays the entered 5+4 format (12345-6789)",
           "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-005",
-          "test_case": "Password boundary happy path - password exactly 8 characters",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Registration page",
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Select <state> from the State dropdown",
-            "Enter <ZIP Code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <SSN> in the SSN field",
-            "Enter <email address> in the Username field",
-            "Enter <password of exactly 8 characters> in the Password field",
-            "Enter <same password as Password> in the Confirm Password field",
-            "Click the Register button"
+          "test_case": "State dropdown allows selecting a US state",
+          "preconditions": [
+            "Registration page is open"
           ],
-          "expected_result": "Displays \"Account created successfully \u2014 please sign in\" and redirects to the Login Page",
-          "priority": "low",
+          "steps": [
+            "1. Click the State dropdown",
+            "2. Select <state> from the State dropdown"
+          ],
+          "expected_result": "State dropdown shows <state> as selected",
+          "priority": "medium",
           "category": "positive"
         }
       ],
@@ -220,9 +139,9 @@
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 3,
-        "medium_priority": 1,
-        "low_priority": 1
+        "high_priority": 1,
+        "medium_priority": 4,
+        "low_priority": 0
       }
     },
     {
@@ -230,127 +149,42 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Welcome message and Accounts table are displayed",
+          "test_case": "Accounts Overview displays welcome message, masked account numbers, status badges, ordered rows and total balance",
           "preconditions": [
             "User logged in",
-            "At least one account exists"
+            "At least two customer accounts exist with differing <open date> and <current balance> values"
           ],
           "steps": [
-            "Navigate to the Accounts Overview page"
+            "1. Navigate to the Accounts Overview page"
           ],
-          "expected_result": "The page displays a welcome message that includes <user name> and the Accounts table is visible with columns for Account Number, Account Type, Current Balance, Account Status, and Open Date.",
+          "expected_result": "The page displays a welcome message that includes <user name>. The accounts table is visible with columns: Account Number, Account Type, Current Balance, Account Status, and Open Date. Account Number values are masked and show only the last 4 digits (format: ****5001). Account Status shows an 'Active' badge for active accounts. Rows are ordered by Open Date ascending (earliest first). The table footer shows the label \"Total Balance\" and the displayed total equals the sum of the Current Balance values shown in the table.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "All Accounts table columns are present",
+          "test_case": "Account Number rendered as clickable element but click action not implemented",
           "preconditions": [
             "User logged in",
-            "At least one account exists"
+            "At least one customer account exists"
           ],
           "steps": [
-            "Navigate to the Accounts Overview page"
+            "1. Navigate to the Accounts Overview page",
+            "2. Click the Account Number in the first row of the accounts table"
           ],
-          "expected_result": "The Accounts table shows column headers: Account Number, Account Type, Current Balance, Account Status, and Open Date as visible columns.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-003",
-          "test_case": "Account numbers are masked for security",
-          "preconditions": [
-            "User logged in",
-            "At least one account exists with an account number"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page"
-          ],
-          "expected_result": "Each Account Number in the table is masked, showing only the last 4 digits in the format ****5001.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Account Number displayed as a clickable link element",
-          "preconditions": [
-            "User logged in",
-            "At least one account exists"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page"
-          ],
-          "expected_result": "The Account Number cell is rendered as a clickable link element for each row (Account Number column type is link as defined in the table AST).",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Clicking Account Number does not open account details (feature not implemented)",
-          "preconditions": [
-            "User logged in",
-            "At least one account exists",
-            "Feature not implemented for Open Account action"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page",
-            "Click the Account Number link in a row"
-          ],
-          "expected_result": "Clicking the Account Number link does not navigate to account details or open an account details view; the UI remains on the Accounts Overview page because the Open Account feature is not implemented.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Footer row displays total balance equal to sum of shown balances",
-          "preconditions": [
-            "User logged in",
-            "Multiple accounts exist with Current Balance values"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page"
-          ],
-          "expected_result": "The table footer row is visible and displays a total balance value equal to the sum of the Current Balance values shown in all account rows.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Rows are ordered by Open Date ascending (earliest first)",
-          "preconditions": [
-            "User logged in",
-            "At least two accounts exist with different <open dates>"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page"
-          ],
-          "expected_result": "Table rows are ordered by Open Date with the earliest Open Date in the first row (rows sorted ascending by Open Date as the default).",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Active Account Status badge is shown for accounts",
-          "preconditions": [
-            "User logged in",
-            "At least one account exists with Active status"
-          ],
-          "steps": [
-            "Navigate to the Accounts Overview page"
-          ],
-          "expected_result": "Each account row with an active account displays an Account Status badge labeled \"Active\".",
+          "expected_result": "The Account Number in the row is rendered as a clickable element (for example, link or button). Clicking the Account Number does not navigate away from the Accounts Overview page or open account details because the click action is not implemented; the Accounts Overview table remains visible.",
           "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 8,
-        "positive": 8,
+        "total": 2,
+        "positive": 2,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 5,
-        "medium_priority": 3,
+        "high_priority": 1,
+        "medium_priority": 1,
         "low_priority": 0
       }
     },
@@ -359,165 +193,76 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Happy path - Complete data for Checking account",
+          "test_case": "Open Checking account with valid initial deposit and sufficient funding",
           "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
+            "Funding account <funding account with sufficient balance> exists"
           ],
           "steps": [
-            "Select Checking in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown",
-            "Click the Open Account button"
+            "1. Navigate to the Open New Account page",
+            "2. Select the Checking account type card",
+            "3. Enter <initial deposit amount meeting Checking minimum> in the Initial Deposit Amount field",
+            "4. Select <funding account with sufficient balance> from the Funding Source Account dropdown",
+            "5. Click the Open Account button"
           ],
-          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to Accounts Overview",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Happy path - Minimum viable required fields for Savings account",
+          "test_case": "Open Savings account with valid initial deposit and sufficient funding",
           "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
+            "Funding account <funding account with sufficient balance> exists"
           ],
           "steps": [
-            "Select Savings in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown",
-            "Click the Open Account button"
+            "1. Navigate to the Open New Account page",
+            "2. Select the Savings account type card",
+            "3. Enter <initial deposit amount meeting Savings minimum> in the Initial Deposit Amount field",
+            "4. Select <funding account with sufficient balance> from the Funding Source Account dropdown",
+            "5. Click the Open Account button"
           ],
-          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to Accounts Overview",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Alternative route - switch account type after entering deposit and complete",
-          "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
-          ],
+          "test_case": "Account type selection updates displayed minimum deposit requirement",
+          "preconditions": [],
           "steps": [
-            "Select Savings in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Select Checking in the Account Type radio options",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown",
-            "Click the Open Account button"
+            "1. Navigate to the Open New Account page",
+            "2. Select the Checking account type card",
+            "3. Select the Savings account type card"
           ],
-          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+          "expected_result": "The account type card display updates to show the minimum deposit requirement for the selected type (shows $25 for Checking and $100 for Savings)",
           "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Account type options are present and selectable",
+          "test_case": "Open Account button becomes enabled when all required fields have valid values",
           "preconditions": [
-            "User on the Open New Account page"
+            "Funding account <funding account with sufficient balance> exists"
           ],
           "steps": [
-            "Click the Checking option in the Account Type radio options",
-            "Click the Savings option in the Account Type radio options"
+            "1. Navigate to the Open New Account page",
+            "2. Select an account type",
+            "3. Enter <initial deposit amount meeting selected account type minimum> in the Initial Deposit Amount field",
+            "4. Select <funding account with sufficient balance> from the Funding Source Account dropdown"
           ],
-          "expected_result": "Radio options \"Checking\" and \"Savings\" are visible and can be selected",
+          "expected_result": "The Open Account button is enabled when Account Type is selected, Initial Deposit Amount is numeric and meets the selected type's minimum, and a funding account with sufficient balance is selected",
           "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Minimum deposit requirements display updates with account type selection",
-          "preconditions": [
-            "User on the Open New Account page"
-          ],
-          "steps": [
-            "Select Checking in the Account Type radio options",
-            "Select Savings in the Account Type radio options"
-          ],
-          "expected_result": "The UI displays the Checking minimum deposit \"$25\" and the Savings minimum deposit \"$100\" as part of the account selection cards",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Real-time validation passes when deposit meets account minimum and funding balance",
-          "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
-          ],
-          "steps": [
-            "Select Checking in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown"
-          ],
-          "expected_result": "No real-time validation error messages are visible for Account Type, Initial Deposit Amount, or Funding Source Account, and the Open Account button is enabled",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Funding source balance validated in real-time before submission",
-          "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
-          ],
-          "steps": [
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown"
-          ],
-          "expected_result": "Real-time validation confirms the Funding Source Account balance is sufficient (no funding-related validation errors are shown)",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Successful submission redirects to accounts overview (redirect verification)",
-          "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
-          ],
-          "steps": [
-            "Select Checking in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown",
-            "Click the Open Account button"
-          ],
-          "expected_result": "After displaying \"Account opened successfully!\", the application navigates to the accounts overview page",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-009",
-          "test_case": "End-to-end lifecycle - open account using Savings path and confirm success message and redirect",
-          "preconditions": [
-            "User on the Open New Account page",
-            "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
-          ],
-          "steps": [
-            "Select Savings in the Account Type radio options",
-            "Enter <initial deposit amount> in the Initial Deposit Amount field",
-            "Open the Funding Source Account dropdown",
-            "Select <funding source account> from the Funding Source Account dropdown",
-            "Click the Open Account button"
-          ],
-          "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
-          "priority": "high",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 9,
-        "positive": 9,
+        "total": 4,
+        "positive": 4,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 5,
-        "medium_priority": 4,
+        "high_priority": 2,
+        "medium_priority": 2,
         "low_priority": 0
       }
     },
@@ -526,174 +271,71 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Internal transfer - complete data (My ParaBank Account)",
+          "test_case": "Internal transfer (My ParaBank Account) happy path",
           "preconditions": [
-            "User has a Checking account and a Savings account",
-            "<source account> has sufficient funds"
+            "User logged in",
+            "<source account> has sufficient funds for <transfer amount>",
+            "User has <internal destination account> in their accounts"
           ],
           "steps": [
-            "Navigate to the Transfer page",
-            "Select \"My ParaBank Account\" in the Transfer Type radio group",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "Open the Destination Account dropdown",
-            "Select <destination account> from the Destination Account dropdown",
-            "Click the Submit button"
+            "1. Navigate to the Transfer page",
+            "2. Select \"My ParaBank Account\" in the Transfer Type radio buttons",
+            "3. Click the Source Account dropdown",
+            "4. Select <source account> from the Source Account dropdown",
+            "5. Click the Internal Destination Account dropdown",
+            "6. Select <internal destination account> from the Internal Destination Account dropdown",
+            "7. Enter <transfer amount> in the Transfer Amount field",
+            "8. Click the Submit button"
           ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
+          "expected_result": "Transfer completed successfully. Returns transaction ID. A transaction ID is displayed on screen.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "External transfer - complete data with matching account numbers",
+          "test_case": "External transfer (External Account) happy path with matching account numbers",
           "preconditions": [
-            "User has a Checking account and a Savings account",
-            "<source account> has sufficient funds"
+            "User logged in",
+            "<source account> has sufficient funds for <transfer amount>"
           ],
           "steps": [
-            "Navigate to the Transfer page",
-            "Select \"External Account\" in the Transfer Type radio group",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "Enter <external account number> in the External Account Number field",
-            "Enter <external account number> in the Confirm Account Number field",
-            "Click the Submit button"
+            "1. Navigate to the Transfer page",
+            "2. Select \"External Account\" in the Transfer Type radio buttons",
+            "3. Click the Source Account dropdown",
+            "4. Select <source account> from the Source Account dropdown",
+            "5. Enter <external account number> in the External Account Number field",
+            "6. Enter <external account number> in the External Account Number Confirmation field",
+            "7. Enter <transfer amount> in the Transfer Amount field",
+            "8. Click the Submit button"
           ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
+          "expected_result": "Transfer completed successfully. Returns transaction ID. A transaction ID is displayed on screen.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Alternative route: switch from internal to external transfer and complete",
-          "preconditions": [
-            "User has a Checking account and a Savings account",
-            "<source account> has sufficient funds"
-          ],
-          "steps": [
-            "Navigate to the Transfer page",
-            "Select \"My ParaBank Account\" in the Transfer Type radio group",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "Open the Destination Account dropdown",
-            "Select <destination account> from the Destination Account dropdown",
-            "Select \"External Account\" in the Transfer Type radio group",
-            "Enter <external account number> in the External Account Number field",
-            "Enter <external account number> in the Confirm Account Number field",
-            "Click the Submit button"
-          ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Transfer Type options present and conditional fields visibility",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Transfer page",
-            "Verify the radio option \"My ParaBank Account\" is present in the Transfer Type group",
-            "Verify the radio option \"External Account\" is present in the Transfer Type group",
-            "Select \"My ParaBank Account\" in the Transfer Type radio group",
-            "Verify the Destination Account dropdown is visible",
-            "Select \"External Account\" in the Transfer Type radio group",
-            "Verify the External Account Number field is visible",
-            "Verify the Confirm Account Number field is visible"
-          ],
-          "expected_result": "Transfer type options are present; selecting \"My ParaBank Account\" shows the internal Destination Account dropdown; selecting \"External Account\" shows External Account Number and Confirm Account Number fields",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
           "test_case": "Source Account dropdown is filtered to Checking and Savings accounts",
           "preconditions": [
-            "User has at least one Checking account and at least one Savings account"
+            "User logged in",
+            "User has multiple accounts including accounts of type Checking and Savings"
           ],
           "steps": [
-            "Navigate to the Transfer page",
-            "Open the Source Account dropdown"
+            "1. Navigate to the Transfer page",
+            "2. Click the Source Account dropdown"
           ],
-          "expected_result": "All options in the Source Account dropdown are Checking or Savings accounts",
+          "expected_result": "Source Account dropdown lists only accounts of type Checking or Savings",
           "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Internal transfer between two different ParaBank accounts completes successfully",
-          "preconditions": [
-            "User has at least two ParaBank accounts (e.g., Checking and Savings)",
-            "<source account> has sufficient funds"
-          ],
-          "steps": [
-            "Navigate to the Transfer page",
-            "Select \"My ParaBank Account\" in the Transfer Type radio group",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "Open the Destination Account dropdown",
-            "Select a different <destination account> from the Destination Account dropdown",
-            "Click the Submit button"
-          ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "External transfer requires matching account numbers and completes when they match",
-          "preconditions": [
-            "User has a Checking account or a Savings account",
-            "<source account> has sufficient funds"
-          ],
-          "steps": [
-            "Navigate to the Transfer page",
-            "Select \"External Account\" in the Transfer Type radio group",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "Enter <external account number> in the External Account Number field",
-            "Enter the same <external account number> in the Confirm Account Number field",
-            "Click the Submit button"
-          ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Successful transfer displays success message and transaction ID",
-          "preconditions": [
-            "User has a Checking account or a Savings account",
-            "<source account> has sufficient funds"
-          ],
-          "steps": [
-            "Navigate to the Transfer page",
-            "Select a valid Transfer Type",
-            "Enter <transfer amount> in the Transfer Amount field",
-            "Open the Source Account dropdown",
-            "Select <source account> from the Source Account dropdown",
-            "If Transfer Type is \"My ParaBank Account\", select <destination account> from the Destination Account dropdown",
-            "If Transfer Type is \"External Account\", enter <external account number> in the External Account Number field and enter the same <external account number> in the Confirm Account Number field",
-            "Click the Submit button"
-          ],
-          "expected_result": "Transfer completed successfully and returns a transaction ID",
-          "priority": "high",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 8,
-        "positive": 8,
+        "total": 3,
+        "positive": 3,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 6,
-        "medium_priority": 2,
+        "high_priority": 2,
+        "medium_priority": 1,
         "low_priority": 0
       }
     },
@@ -702,174 +344,61 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Happy path \u2014 complete form submission (all fields) using <primary source account>",
+          "test_case": "Submit payment with matching account numbers and sufficient funds",
           "preconditions": [
-            "User logged in",
-            "<primary source account> has available funds >= <payment amount>"
+            "Source account with available funds >= <payment amount>"
           ],
           "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <payment amount> in the Payment Amount field",
-            "Select <primary source account> from the Source Account dropdown",
-            "Click the Pay button"
+            "1. Navigate to the Bill Payment page",
+            "2. Enter <payee name> in the Payee Name field",
+            "3. Enter <street address> in the Street Address field",
+            "4. Enter <city> in the City field",
+            "5. Enter <state> in the State field",
+            "6. Enter <zip code> in the ZIP Code field",
+            "7. Enter <phone number> in the Phone Number field",
+            "8. Enter <payee account number> in the Payee Account Number field",
+            "9. Enter <payee account number> in the Confirm Account Number field",
+            "10. Enter <payment amount> in the Payment Amount field",
+            "11. Select <source account> from the Source Account dropdown",
+            "12. Click the Pay button"
           ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances.",
+          "expected_result": "Payment submitted successfully. Returns reference code and updates balances. A payment reference code is displayed to the user. Source account and payee balances are updated to reflect the deduction and credit of <payment amount> respectively.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Happy path \u2014 minimum required fields (only required fields filled)",
+          "test_case": "Submit payment where source account funds equal the payment amount (boundary condition)",
           "preconditions": [
-            "User logged in",
-            "<source account> has available funds >= <payment amount>"
+            "Source account with available funds equal to <payment amount>"
           ],
           "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <payment amount> in the Payment Amount field",
-            "Select <source account> from the Source Account dropdown",
-            "Click the Pay button"
+            "1. Navigate to the Bill Payment page",
+            "2. Enter <payee name> in the Payee Name field",
+            "3. Enter <street address> in the Street Address field",
+            "4. Enter <city> in the City field",
+            "5. Enter <state> in the State field",
+            "6. Enter <zip code> in the ZIP Code field",
+            "7. Enter <phone number> in the Phone Number field",
+            "8. Enter <payee account number> in the Payee Account Number field",
+            "9. Enter <payee account number> in the Confirm Account Number field",
+            "10. Enter <payment amount> in the Payment Amount field",
+            "11. Select <source account> from the Source Account dropdown",
+            "12. Click the Pay button"
           ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-003",
-          "test_case": "Alternative route \u2014 submit payment using a different Source Account (<alternate source account>)",
-          "preconditions": [
-            "User logged in",
-            "<alternate source account> has available funds >= <payment amount>"
-          ],
-          "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <payment amount> in the Payment Amount field",
-            "Select <alternate source account> from the Source Account dropdown",
-            "Click the Pay button"
-          ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Happy path \u2014 payment amount equals available funds (pay full available balance)",
-          "preconditions": [
-            "User logged in",
-            "<source account> has available funds equal to <payment amount>"
-          ],
-          "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <payment amount> in the Payment Amount field",
-            "Select <source account> from the Source Account dropdown",
-            "Click the Pay button"
-          ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "End-to-end lifecycle \u2014 submit payment and verify visible reference code and balance update",
-          "preconditions": [
-            "User logged in",
-            "<source account> has available funds >= <payment amount>"
-          ],
-          "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <payment amount> in the Payment Amount field",
-            "Select <source account> from the Source Account dropdown",
-            "Click the Pay button"
-          ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances. A payment confirmation containing a reference code is visible and the account balance for <source account> reflects the deducted <payment amount>.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Lifecycle \u2014 make two sequential valid payments from the same Source Account and verify balances update after each",
-          "preconditions": [
-            "User logged in",
-            "<source account> has available funds >= <first payment amount> + <second payment amount>"
-          ],
-          "steps": [
-            "Navigate to the Bill Payment page",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <first payment amount> in the Payment Amount field",
-            "Select <source account> from the Source Account dropdown",
-            "Click the Pay button",
-            "Enter <payee name> in the Payee Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <payee account number> in the Payee Account Number field",
-            "Enter <payee account number> in the Confirm Account Number field",
-            "Enter <second payment amount> in the Payment Amount field",
-            "Select <source account> from the Source Account dropdown",
-            "Click the Pay button"
-          ],
-          "expected_result": "Payment submitted successfully. Returns a reference code and updates account balances. Both payments complete successfully, each returns a reference code, and the balance of <source account> is reduced first by <first payment amount> and then by <second payment amount>.",
+          "expected_result": "Payment submitted successfully. Returns reference code and updates balances. A payment reference code is displayed to the user. Source account balance is reduced by <payment amount> (resulting balance may be zero) and the payee's balance is increased by <payment amount>.",
           "priority": "high",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 6,
-        "positive": 6,
+        "total": 2,
+        "positive": 2,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 4,
-        "medium_priority": 2,
+        "high_priority": 2,
+        "medium_priority": 0,
         "low_priority": 0
       }
     },
@@ -878,157 +407,87 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Happy path - Complete data (Personal) with required down payment and sufficient collateral",
+          "test_case": "Request Personal Loan without Collateral (happy path)",
           "preconditions": [
-            "User logged in",
-            "User has at least one collateral account with balance >= 20% of the chosen loan amount"
+            "User logged in"
           ],
           "steps": [
-            "Navigate to the Request Loan page",
-            "Click the Personal loan type card",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Enter <down payment amount at least 10% of the loan amount> in the Down Payment Amount field",
-            "Select <collateral account with balance >= 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
+            "1. Navigate to the Request Loan page",
+            "2. Select Personal in the Loan Type radio group",
+            "3. Enter <valid personal loan amount within Personal range> in the Loan Amount field",
+            "4. Enter <valid down payment amount meeting minimum 10% requirement and less than Loan Amount> in the Down Payment Amount field",
+            "5. Ensure the Collateral Account dropdown is left unselected",
+            "6. Click the Request Loan button"
           ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
+          "expected_result": "Loan approved and created successfully! (no actual balance debits occur)  is displayed and the newly created loan is visible with <loan details> including Loan Type set to Personal and the entered Loan Amount and Down Payment",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Happy path - Minimum required fields only (Auto) without Down Payment",
+          "test_case": "Request Auto Loan with Collateral meeting 20% requirement (happy path)",
           "preconditions": [
             "User logged in",
-            "User has at least one collateral account with balance >= 20% of the chosen loan amount"
+            "<Collateral account with sufficient available funds and collateral value >= 20% of Loan Amount> exists"
           ],
           "steps": [
-            "Navigate to the Request Loan page",
-            "Click the Auto loan type card",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Select <collateral account with balance >= 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
+            "1. Navigate to the Request Loan page",
+            "2. Select Auto in the Loan Type radio group",
+            "3. Enter <valid auto loan amount within Auto range> in the Loan Amount field",
+            "4. Enter <valid down payment amount meeting minimum 10% requirement and less than Loan Amount> in the Down Payment Amount field",
+            "5. Select <collateral account with sufficient available funds and collateral value >= 20% of Loan Amount> from the Collateral Account dropdown",
+            "6. Click the Request Loan button"
           ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
+          "expected_result": "Loan approved and created successfully! (no actual balance debits occur)  is displayed and the newly created loan is visible with <loan details> including Loan Type set to Auto and the selected Collateral Account shown",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Alternative route - change Loan Type after entering amount and submit (edit flow)",
+          "test_case": "Request Home Loan without Collateral (happy path)",
           "preconditions": [
-            "User logged in",
-            "User has at least one collateral account with balance >= 20% of the final chosen loan amount"
+            "User logged in"
           ],
           "steps": [
-            "Navigate to the Request Loan page",
-            "Click the Home loan type card",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Enter <down payment amount at least 10% of the loan amount> in the Down Payment Amount field",
-            "Click the Auto loan type card",
-            "Enter <updated loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Select <collateral account with balance >= 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
+            "1. Navigate to the Request Loan page",
+            "2. Select Home in the Loan Type radio group",
+            "3. Enter <valid home loan amount within Home range> in the Loan Amount field",
+            "4. Enter <valid down payment amount meeting minimum 10% requirement and less than Loan Amount> in the Down Payment Amount field",
+            "5. Ensure the Collateral Account dropdown is left unselected",
+            "6. Click the Request Loan button"
           ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
+          "expected_result": "Loan approved and created successfully! (no actual balance debits occur)  is displayed and the newly created loan is visible with <loan details> including Loan Type set to Home and the entered Loan Amount and Down Payment",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Loan Type options are present and selectable",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Request Loan page"
-          ],
-          "expected_result": "The Loan Type options 'Personal', 'Auto', and 'Home' are visible and selectable.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Collateral selection with balance greater than required 20% enables approval",
+          "test_case": "Request Home Loan with Collateral meeting 20% requirement (happy path)",
           "preconditions": [
             "User logged in",
-            "User has at least one collateral account with balance greater than 20% of the chosen loan amount"
+            "<Collateral account with sufficient available funds and collateral value >= 20% of Loan Amount> exists"
           ],
           "steps": [
-            "Navigate to the Request Loan page",
-            "Select <loan type> from the Loan Type options",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Select <collateral account with balance greater than 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
+            "1. Navigate to the Request Loan page",
+            "2. Select Home in the Loan Type radio group",
+            "3. Enter <valid home loan amount within Home range> in the Loan Amount field",
+            "4. Enter <valid down payment amount meeting minimum 10% requirement and less than Loan Amount> in the Down Payment Amount field",
+            "5. Select <collateral account with sufficient available funds and collateral value >= 20% of Loan Amount> from the Collateral Account dropdown",
+            "6. Click the Request Loan button"
           ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Collateral selection with balance equal to exact 20% required collateral results in approval",
-          "preconditions": [
-            "User logged in",
-            "User has at least one collateral account with balance equal to 20% of the chosen loan amount"
-          ],
-          "steps": [
-            "Navigate to the Request Loan page",
-            "Select <loan type> from the Loan Type options",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Select <collateral account with balance equal to 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
-          ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Primary lifecycle - request loan and verify approval displays account details",
-          "preconditions": [
-            "User logged in",
-            "User has at least one collateral account with balance >= 20% of the chosen loan amount"
-          ],
-          "steps": [
-            "Navigate to the Request Loan page",
-            "Select <loan type> from the Loan Type options",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "If available, enter <down payment amount at least 10% of the loan amount> in the Down Payment Amount field",
-            "Select <collateral account with balance >= 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
-          ],
-          "expected_result": "Loan approved and created successfully! Displays account details.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Alternative lifecycle - denial due to inadequate collateral value",
-          "preconditions": [
-            "User logged in",
-            "User has at least one collateral account with balance less than 20% of the chosen loan amount"
-          ],
-          "steps": [
-            "Navigate to the Request Loan page",
-            "Select <loan type> from the Loan Type options",
-            "Enter <loan amount within the valid range for the selected Loan Type> in the Loan Amount field",
-            "Select <collateral account with balance less than 20% of the loan amount> from the Collateral Account dropdown",
-            "Click the Submit button"
-          ],
-          "expected_result": "The application is denied and displays the reason 'Inadequate collateral value'.",
+          "expected_result": "Loan approved and created successfully! (no actual balance debits occur)  is displayed and the newly created loan is visible with <loan details> including Loan Type set to Home and the selected Collateral Account shown",
           "priority": "high",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 8,
-        "positive": 8,
+        "total": 4,
+        "positive": 4,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 5,
-        "medium_priority": 3,
+        "high_priority": 4,
+        "medium_priority": 0,
         "low_priority": 0
       }
     },
@@ -1037,129 +496,99 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Update all contact fields with valid values (complete data)",
+          "test_case": "Update all profile fields with valid data and submit",
           "preconditions": [
             "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible"
+            "Customer profile page open with pre-filled data"
           ],
           "steps": [
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Enter <phone number> in the Phone Number field",
-            "Click the Update Profile button"
+            "1. Navigate to the Customer Profile page",
+            "2. Enter <first name> in the First Name field",
+            "3. Enter <last name> in the Last Name field",
+            "4. Enter <street address> in the Street Address field",
+            "5. Enter <city> in the City field",
+            "6. Select <state> in the State field",
+            "7. Enter <zip code> in the ZIP Code field",
+            "8. Enter <phone number> in the Phone Number field",
+            "9. Click the Update Profile button"
           ],
-          "expected_result": "Profile updated successfully; refreshes the data",
+          "expected_result": "Profile updated successfully. Refreshes the data. The form displays the updated values for First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number and no inline error banner is shown.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Submit form without changing pre-filled values (minimum viable)",
-          "preconditions": [
-            "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible and fields pre-filled"
-          ],
-          "steps": [
-            "Click the Update Profile button"
-          ],
-          "expected_result": "Profile updated successfully; refreshes the data",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-003",
-          "test_case": "Update only the Phone Number and submit (alternative single-field update)",
-          "preconditions": [
-            "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible"
-          ],
-          "steps": [
-            "Enter <phone number> in the Phone Number field",
-            "Click the Update Profile button"
-          ],
-          "expected_result": "Profile updated successfully; refreshes the data",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Verify form is pre-filled with existing contact info",
+          "test_case": "Verify profile form is pre-filled with existing customer data",
           "preconditions": [
             "User logged in"
           ],
           "steps": [
-            "Navigate to the Customer Profile page"
+            "1. Navigate to the Customer Profile page"
           ],
-          "expected_result": "First Name, Last Name, Street Address, City, State, ZIP Code, and Phone Number fields are pre-filled",
+          "expected_result": "All fields (First Name, Last Name, Street Address, City, State, ZIP Code, Phone Number) are pre-filled with the customer's existing values.",
+          "priority": "medium",
+          "category": "positive"
+        },
+        {
+          "tc_id": "TC-003",
+          "test_case": "Submit profile without making changes (pre-filled values) and confirm success",
+          "preconditions": [
+            "User logged in",
+            "Customer profile page open with pre-filled data"
+          ],
+          "steps": [
+            "1. Navigate to the Customer Profile page",
+            "2. Click the Update Profile button"
+          ],
+          "expected_result": "Profile updated successfully. Refreshes the data. The form remains populated with the existing customer values and no inline error banner is shown.",
+          "priority": "medium",
+          "category": "positive"
+        },
+        {
+          "tc_id": "TC-004",
+          "test_case": "Update address fields only and submit successfully",
+          "preconditions": [
+            "User logged in",
+            "Customer profile page open with pre-filled data"
+          ],
+          "steps": [
+            "1. Navigate to the Customer Profile page",
+            "2. Enter <street address> in the Street Address field",
+            "3. Enter <city> in the City field",
+            "4. Select <state> in the State field",
+            "5. Enter <zip code> in the ZIP Code field",
+            "6. Click the Update Profile button"
+          ],
+          "expected_result": "Profile updated successfully. Refreshes the data. The form displays the updated Street Address, City, State, and ZIP Code values and no inline error banner is shown.",
           "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-005",
-          "test_case": "Update address fields only and submit",
+          "test_case": "Update phone number only and submit successfully",
           "preconditions": [
             "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible"
+            "Customer profile page open with pre-filled data"
           ],
           "steps": [
-            "Enter <street address> in the Street Address field",
-            "Enter <city> in the City field",
-            "Enter <state> in the State field",
-            "Enter <zip code> in the ZIP Code field",
-            "Click the Update Profile button"
+            "1. Navigate to the Customer Profile page",
+            "2. Enter <phone number> in the Phone Number field",
+            "3. Click the Update Profile button"
           ],
-          "expected_result": "Profile updated successfully; refreshes the data",
+          "expected_result": "Profile updated successfully. Refreshes the data. The form displays the updated Phone Number and no inline error banner is shown.",
           "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Update first and last name, submit, and observe data refresh",
-          "preconditions": [
-            "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible"
-          ],
-          "steps": [
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Click the Update Profile button"
-          ],
-          "expected_result": "Profile updated successfully; refreshes the data",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Change multiple fields to different valid values and submit (alternative route)",
-          "preconditions": [
-            "User logged in",
-            "On the Customer Profile page with the Update Contact Info form visible"
-          ],
-          "steps": [
-            "Enter <first name> in the First Name field",
-            "Enter <last name> in the Last Name field",
-            "Enter <phone number> in the Phone Number field",
-            "Enter <zip code> in the ZIP Code field",
-            "Click the Update Profile button"
-          ],
-          "expected_result": "Profile updated successfully; refreshes the data",
-          "priority": "low",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 7,
-        "positive": 7,
+        "total": 5,
+        "positive": 5,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 3,
-        "medium_priority": 3,
-        "low_priority": 1
+        "high_priority": 1,
+        "medium_priority": 4,
+        "low_priority": 0
       }
     },
     {
@@ -1167,290 +596,80 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Card Request Form - Path A (complete data) submits successfully",
+          "test_case": "Submit Card Request with complete address and eligible account",
           "preconditions": [
-            "An <account in good standing> exists"
+            "An account in good standing exists"
           ],
           "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Request form",
-            "Select 'Debit' from the Card Type dropdown",
-            "Select <account in good standing> in the Account to Link field",
-            "Enter <complete shipping address> in the Shipping Address field",
-            "Click the Request Card button"
+            "1. Navigate to the Manage Cards page",
+            "2. Select <card type> from the Card Type dropdown",
+            "3. Select <account to link> from the Account to Link field",
+            "4. Enter <complete shipping address> in the Shipping Address field",
+            "5. Click the Request Card button"
           ],
-          "expected_result": "A card-request ticket is opened and the page shows \"Card request submitted successfully.\" with a tracking ID.",
+          "expected_result": "opens card-request ticket and shows 'Card request submitted successfully.' with tracking ID",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Card Request Form - Path B (minimum viable) submits with no optional fields",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Request form",
-            "Click the Request Card button"
+          "test_case": "Update spending limit within policy for an existing card",
+          "preconditions": [
+            "An existing card is available"
           ],
-          "expected_result": "A card-request ticket is opened and the page shows \"Card request submitted successfully.\" with a tracking ID.",
-          "priority": "high",
+          "steps": [
+            "1. Navigate to the Manage Cards page",
+            "2. Select <existing card> from the Select Existing Card dropdown",
+            "3. Enter <new spending limit within policy> in the New Spending Limit field",
+            "4. Click the Update Controls button"
+          ],
+          "expected_result": "Card controls updated successfully.",
+          "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Card Request Form - Path C (alternate card type) submits successfully",
+          "test_case": "Add a valid travel notice with start/end dates and destinations",
           "preconditions": [
-            "An <account in good standing> exists"
+            "An existing card is available"
           ],
           "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Request form",
-            "Select 'Credit' from the Card Type dropdown",
-            "Select <account in good standing> in the Account to Link field",
-            "Click the Request Card button"
+            "1. Navigate to the Manage Cards page",
+            "2. Select <existing card> from the Select Existing Card dropdown",
+            "3. Enter <start date> in the Travel Notice Start Date field",
+            "4. Enter <end date> in the Travel Notice End Date field",
+            "5. Enter <destinations> in the Travel Notice Destinations field",
+            "6. Click the Update Controls button"
           ],
-          "expected_result": "A card-request ticket is opened and the page shows \"Card request submitted successfully.\" with a tracking ID.",
-          "priority": "high",
+          "expected_result": "Card controls updated successfully. No inline validation errors for Travel Notice; end date is on or after start date.",
+          "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Card Controls Form - Path A (complete data) updates controls successfully",
+          "test_case": "Change card status and verify resulting status is applied",
           "preconditions": [
-            "At least one <existing card> is present"
+            "A card in <current status> status exists"
           ],
           "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Enter <numeric limit within policy> in the New Spending Limit field",
-            "Click Add Travel Notice",
-            "Enter <start date> in the Start Date field for the first Travel Notice item",
-            "Enter <end date> in the End Date field for the first Travel Notice item",
-            "Enter <destination> in the Destination field for the first Travel Notice item",
-            "Select 'Frozen' from the Card Status dropdown",
-            "Click the Update Controls button"
+            "1. Navigate to the Manage Cards page",
+            "2. Select <existing card> from the Select Existing Card dropdown",
+            "3. Select <new status> from the Card Status dropdown",
+            "4. Click the Update Controls button"
           ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
+          "expected_result": "Card controls updated successfully. Card Status displays <new status>.",
           "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Card Controls Form - Path B (minimum viable) updates using only required field",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Card Controls Form - Path C (alternate route: add travel notice) updates successfully",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Click Add Travel Notice",
-            "Enter <start date> in the Start Date field for the Travel Notice item",
-            "Enter <end date> in the End Date field for the Travel Notice item",
-            "Enter <destination> in the Destination field for the Travel Notice item",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Card Status transition: change card from Active to Frozen",
-          "preconditions": [
-            "<existing card> is in 'Active' status"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Select 'Frozen' from the Card Status dropdown",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Travel Notice with valid date range is accepted",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Click Add Travel Notice",
-            "Enter <start date> in the Start Date field where Start_Date is on or before End_Date",
-            "Enter <end date> in the End Date field where End_Date is on or after Start_Date",
-            "Enter <destination> in the Destination field for the Travel Notice item",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-009",
-          "test_case": "Multiple Travel Notices can be added and updated successfully",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Click Add Travel Notice",
-            "Enter <start date> in the Start Date field for the first Travel Notice item",
-            "Enter <end date> in the End Date field for the first Travel Notice item",
-            "Enter <destination> in the Destination field for the first Travel Notice item",
-            "Click Add Travel Notice",
-            "Enter <start date> in the Start Date field for the second Travel Notice item",
-            "Enter <end date> in the End Date field for the second Travel Notice item",
-            "Enter <destination> in the Destination field for the second Travel Notice item",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-010",
-          "test_case": "Card Status transition: change card from Frozen back to Active",
-          "preconditions": [
-            "<existing card> is in 'Frozen' status"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Select 'Active' from the Card Status dropdown",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-011",
-          "test_case": "Card Type dropdown contains and allows selection of 'Debit' and 'Credit'",
-          "preconditions": [],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Request form",
-            "Open the Card Type dropdown",
-            "Select 'Debit' from the Card Type dropdown",
-            "Open the Card Type dropdown",
-            "Select 'Credit' from the Card Type dropdown"
-          ],
-          "expected_result": "Both 'Debit' and 'Credit' are present in the Card Type dropdown and each can be selected.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-012",
-          "test_case": "Card Status dropdown contains and allows selection of 'Active' and 'Frozen'",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Open the Card Status dropdown",
-            "Select 'Active' from the Card Status dropdown",
-            "Open the Card Status dropdown",
-            "Select 'Frozen' from the Card Status dropdown"
-          ],
-          "expected_result": "Both 'Active' and 'Frozen' are present in the Card Status dropdown and each can be selected.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-013",
-          "test_case": "End-to-end: submit a card request then update controls for an existing card",
-          "preconditions": [
-            "An <account in good standing> exists",
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Request form",
-            "Select 'Debit' from the Card Type dropdown",
-            "Select <account in good standing> in the Account to Link field",
-            "Click the Request Card button",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Enter <numeric limit within policy> in the New Spending Limit field",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "First, a card-request ticket is opened and the page shows \"Card request submitted successfully.\" with a tracking ID. Then, \"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-014",
-          "test_case": "Full lifecycle: change card status Active -> Frozen -> Active",
-          "preconditions": [
-            "<existing card> is in 'Active' status"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Select 'Frozen' from the Card Status dropdown",
-            "Click the Update Controls button",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Select 'Active' from the Card Status dropdown",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "After the first update, \"Card controls updated successfully.\" is displayed. After the second update, \"Card controls updated successfully.\" is displayed.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-015",
-          "test_case": "Update New Spending Limit within policy succeeds",
-          "preconditions": [
-            "At least one <existing card> is present"
-          ],
-          "steps": [
-            "Navigate to the Manage Cards page",
-            "Open the Card Controls form",
-            "Select <existing card> from the Select Existing Card dropdown",
-            "Enter <numeric limit within policy> in the New Spending Limit field",
-            "Click the Update Controls button"
-          ],
-          "expected_result": "\"Card controls updated successfully.\" is displayed.",
-          "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 15,
-        "positive": 15,
+        "total": 4,
+        "positive": 4,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 11,
-        "medium_priority": 4,
+        "high_priority": 2,
+        "medium_priority": 2,
         "low_priority": 0
       }
     },
@@ -1459,198 +678,92 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Trade Funds Form - Complete Buy trade (all fields filled)",
+          "test_case": "Execute Buy trade successfully",
           "preconditions": [
-            "User logged in",
-            "Customer has sufficient buying power",
-            "Fund symbol <existing fund symbol> exists",
-            "Funding account <funding account> is available"
+            "<Fund Symbol exists>",
+            "<funding account with sufficient buying power>"
           ],
           "steps": [
-            "Navigate to the Investments page",
-            "Select Buy from the Action dropdown",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <quantity> in the Quantity field",
-            "Select <funding account> from the Funding or Destination Account dropdown",
-            "Click the Execute Trade button"
+            "1. Navigate to the Investments page",
+            "2. In the Trade Funds form, select Buy from the Action dropdown",
+            "3. In the Trade Funds form, enter <Fund Symbol> in the Fund Symbol field",
+            "4. In the Trade Funds form, enter <Quantity> (greater than 0) in the Quantity field",
+            "5. In the Trade Funds form, select <Funding Account> from the Funding or Destination Account dropdown",
+            "6. Click the Execute Trade button"
           ],
-          "expected_result": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "expected_result": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Trade Funds Form - Minimum viable Buy trade (only required fields)",
+          "test_case": "Execute Sell trade successfully",
           "preconditions": [
-            "User logged in",
-            "Customer has sufficient buying power",
-            "Fund symbol <existing fund symbol> exists"
+            "<Fund Symbol exists>",
+            "<account with sufficient share balance of the specified Fund_Symbol>"
           ],
           "steps": [
-            "Navigate to the Investments page",
-            "Select Buy from the Action dropdown",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <quantity> in the Quantity field",
-            "Select <funding account> from the Funding or Destination Account dropdown",
-            "Click the Execute Trade button"
+            "1. Navigate to the Investments page",
+            "2. In the Trade Funds form, select Sell from the Action dropdown",
+            "3. In the Trade Funds form, enter <Fund Symbol> in the Fund Symbol field",
+            "4. In the Trade Funds form, enter <Quantity> (greater than 0 and less than or equal to share balance) in the Quantity field",
+            "5. In the Trade Funds form, select <Destination Account> from the Funding or Destination Account dropdown",
+            "6. Click the Execute Trade button"
           ],
-          "expected_result": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "expected_result": "executes same-day trade; updates holdings; displays \"Trade executed successfully.\" with order ID",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Trade Funds Form - Alternative route: Sell trade with sufficient share balance",
+          "test_case": "Create recurring investment plan successfully",
           "preconditions": [
-            "User logged in",
-            "Customer has sufficient share balance for the selected fund",
-            "Fund symbol <existing fund symbol> exists"
+            "<Fund Symbol exists>",
+            "<funding account with adequate balance for the first contribution>"
           ],
           "steps": [
-            "Navigate to the Investments page",
-            "Select Sell from the Action dropdown",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <quantity> in the Quantity field",
-            "Select <destination account> from the Funding or Destination Account dropdown",
-            "Click the Execute Trade button"
+            "1. Navigate to the Investments page",
+            "2. In the Recurring Investment Plan form, enter <Fund Symbol> in the Fund Symbol field",
+            "3. In the Recurring Investment Plan form, enter <Contribution Amount> (meets minimum contribution) in the Contribution Amount field",
+            "4. In the Recurring Investment Plan form, select Monthly from the Frequency dropdown",
+            "5. In the Recurring Investment Plan form, enter <Start Date in the future> in the Start Date field",
+            "6. In the Recurring Investment Plan form, select <Funding Account> from the Funding Account dropdown",
+            "7. Click the Create Plan button"
           ],
-          "expected_result": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
+          "expected_result": "stores schedule; displays \"Plan created successfully.\"",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Recurring Investment Plan Form - Complete Weekly plan (all fields filled)",
+          "test_case": "Investments workspace shows portfolio snapshot and both forms",
           "preconditions": [
-            "User logged in",
-            "Funding account <funding account> has adequate balance for initial contribution",
-            "Fund symbol <existing fund symbol> exists",
-            "Contribution amount meets minimum contribution amount"
+            "<portfolio with holdings>"
           ],
           "steps": [
-            "Navigate to the Investments page",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <contribution amount> in the Contribution Amount field",
-            "Select Weekly from the Frequency dropdown",
-            "Enter <future date> in the Start Date field",
-            "Select <funding account> from the Funding Account dropdown",
-            "Click the Create Plan button"
+            "1. Navigate to the Investments page",
+            "2. Verify the portfolio snapshot panel is visible",
+            "3. Verify the portfolio snapshot displays current fund holdings",
+            "4. Verify the portfolio snapshot displays market value",
+            "5. Verify the portfolio snapshot displays unrealised gain or loss",
+            "6. Verify the Trade Funds form is visible",
+            "7. Verify the Trade Funds form contains Action, Fund Symbol, Quantity, Funding or Destination Account fields and an Execute Trade button",
+            "8. Verify the Recurring Investment Plan form is visible",
+            "9. Verify the Recurring Investment Plan form contains Fund Symbol, Contribution Amount, Frequency, Start Date, Funding Account fields and a Create Plan button"
           ],
-          "expected_result": "stores schedule and shows \"Plan created successfully.\"",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Recurring Investment Plan Form - Minimum viable plan (only required fields)",
-          "preconditions": [
-            "User logged in",
-            "Funding account <funding account> has adequate balance for initial contribution",
-            "Fund symbol <existing fund symbol> exists",
-            "Contribution amount meets minimum contribution amount"
-          ],
-          "steps": [
-            "Navigate to the Investments page",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <contribution amount> in the Contribution Amount field",
-            "Select Monthly from the Frequency dropdown",
-            "Enter <future date> in the Start Date field",
-            "Select <funding account> from the Funding Account dropdown",
-            "Click the Create Plan button"
-          ],
-          "expected_result": "stores schedule and shows \"Plan created successfully.\"",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Recurring Investment Plan Form - Alternative route: Monthly frequency selection",
-          "preconditions": [
-            "User logged in",
-            "Funding account <funding account> has adequate balance for initial contribution",
-            "Fund symbol <existing fund symbol> exists",
-            "Contribution amount meets minimum contribution amount"
-          ],
-          "steps": [
-            "Navigate to the Investments page",
-            "Enter <existing fund symbol> in the Fund Symbol field",
-            "Enter <contribution amount> in the Contribution Amount field",
-            "Select Monthly from the Frequency dropdown",
-            "Enter <future date> in the Start Date field",
-            "Select <funding account> from the Funding Account dropdown",
-            "Click the Create Plan button"
-          ],
-          "expected_result": "stores schedule and shows \"Plan created successfully.\"",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Verify Action dropdown contains Buy and Sell options",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Investments page",
-            "Open the Action dropdown"
-          ],
-          "expected_result": "Action dropdown displays the options \"Buy\" and \"Sell\" and each option is selectable",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Verify Frequency dropdown contains Weekly and Monthly options",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Investments page",
-            "Open the Frequency dropdown"
-          ],
-          "expected_result": "Frequency dropdown displays the options \"Weekly\" and \"Monthly\" and each option is selectable",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-009",
-          "test_case": "Fund Symbol search/autocomplete in Trade Funds Form selects an existing symbol",
-          "preconditions": [
-            "User logged in",
-            "Fund symbol <existing fund symbol> exists"
-          ],
-          "steps": [
-            "Navigate to the Investments page",
-            "Focus the Fund Symbol search field in the Trade Funds Form",
-            "Enter <existing fund symbol> into the Fund Symbol search field",
-            "Select the matching entry from the autocomplete suggestions"
-          ],
-          "expected_result": "Fund Symbol field is populated with the selected symbol from the suggestions",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-010",
-          "test_case": "Portfolio snapshot is visible and read-only",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Investments page"
-          ],
-          "expected_result": "Portfolio snapshot panel is visible and displays current fund holdings, market value, and unrealised gain or loss and is read-only",
+          "expected_result": "Portfolio snapshot is visible and shows current fund holdings, market value, and unrealised gain or loss; Trade Funds form and Recurring Investment Plan form are visible with their respective fields and buttons",
           "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 10,
-        "positive": 10,
+        "total": 4,
+        "positive": 4,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 6,
-        "medium_priority": 4,
+        "high_priority": 3,
+        "medium_priority": 1,
         "low_priority": 0
       }
     },
@@ -1659,145 +772,96 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Generate statement using Month-and-year with Account selected (complete data)",
+          "test_case": "Generate statement using Custom Date Range",
           "preconditions": [
-            "Statements page is open"
+            "User on the Statements page"
           ],
           "steps": [
-            "Navigate to the Statements page",
-            "Select \"Month-and-year\" in the Statement_Period radio",
-            "Enter <month-and-year> in the Month field",
-            "Select <account> from the Account dropdown",
-            "Click the Generate Statement button"
+            "1. Select \"Custom Date Range\" for the Statement Period",
+            "2. Enter <start date> in the Start Date field",
+            "3. Enter <end date> in the End Date field",
+            "4. Select <account> from the Account dropdown",
+            "5. Click the Generate Statement button"
           ],
-          "expected_result": "Statement generated successfully; retrieves relevant transactions",
+          "expected_result": "retrieves relevant transactions and displays \"Statement generated successfully.\"",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Generate statement using Month-and-year with only required fields (minimum viable)",
+          "test_case": "Generate statement using Month-and-Year selection",
           "preconditions": [
-            "Statements page is open"
+            "User on the Statements page"
           ],
           "steps": [
-            "Navigate to the Statements page",
-            "Select \"Month-and-year\" in the Statement_Period radio",
-            "Enter <month-and-year> in the Month field",
-            "Click the Generate Statement button"
+            "1. Select \"Month-and-Year\" for the Statement Period",
+            "2. Select <account> from the Account dropdown",
+            "3. Click the Generate Statement button"
           ],
-          "expected_result": "Statement generated successfully; retrieves relevant transactions",
+          "expected_result": "retrieves relevant transactions and displays \"Statement generated successfully.\"",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Generate statement using Custom date range with Account selected (alternative route)",
+          "test_case": "Save e-Statement preference with paperless opt-in",
           "preconditions": [
-            "Statements page is open"
+            "User on the Statements page"
           ],
           "steps": [
-            "Navigate to the Statements page",
-            "Select \"Custom date range\" in the Statement_Period radio",
-            "Enter <start date> in the Start_Date field",
-            "Enter <end date> in the End_Date field",
-            "Select <account> from the Account dropdown",
-            "Click the Generate Statement button"
+            "1. Click the Paperless_Opt_In checkbox to opt in to paperless statements",
+            "2. Enter <email address> in the Email Address field",
+            "3. Click the Save Preference button"
           ],
-          "expected_result": "Statement generated successfully; retrieves relevant transactions",
+          "expected_result": "displays \"e-Statement preference updated.\"",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Enable paperless and save preference with valid email (complete data)",
+          "test_case": "Verify both forms are visible side by side on the Statements page",
           "preconditions": [
-            "Statements page is open"
+            "User on the Statements page"
           ],
           "steps": [
-            "Navigate to the Statements page",
-            "Check the Paperless_Opt_In checkbox",
-            "Enter <valid email address> in the Email_Address field",
-            "Click the Save Preference button"
+            "1. Navigate to the Statements page",
+            "2. Observe that the Statement Period radio and the Generate Statement button are visible",
+            "3. Observe that the Account dropdown is visible",
+            "4. Observe that the Paperless_Opt_In checkbox, Email Address field, and Save Preference button are visible"
           ],
-          "expected_result": "e-Statement preference updated.",
-          "priority": "high",
+          "expected_result": "Both forms are visible side by side: Statement Period, Account, Generate Statement; Paperless_Opt_In, Email Address, Save Preference are present.",
+          "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-005",
-          "test_case": "Save preference with Paperless_Opt_In left unchecked (minimum viable)",
+          "test_case": "End-to-end: generate statement then update e-Statement preference",
           "preconditions": [
-            "Statements page is open"
+            "User on the Statements page"
           ],
           "steps": [
-            "Navigate to the Statements page",
-            "Ensure the Paperless_Opt_In checkbox is unchecked",
-            "Click the Save Preference button"
+            "1. Select \"Custom Date Range\" for the Statement Period",
+            "2. Enter <start date> in the Start Date field",
+            "3. Enter <end date> in the End Date field",
+            "4. Select <account> from the Account dropdown",
+            "5. Click the Generate Statement button",
+            "6. Click the Paperless_Opt_In checkbox to opt in to paperless statements",
+            "7. Enter <email address> in the Email Address field",
+            "8. Click the Save Preference button"
           ],
-          "expected_result": "e-Statement preference updated.",
+          "expected_result": "retrieves relevant transactions and displays \"Statement generated successfully.\" Then displays \"e-Statement preference updated.\"",
           "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Toggle paperless preference both directions: opt-in then opt-out (bidirectional)",
-          "preconditions": [
-            "Statements page is open"
-          ],
-          "steps": [
-            "Navigate to the Statements page",
-            "Check the Paperless_Opt_In checkbox",
-            "Enter <valid email address> in the Email_Address field",
-            "Click the Save Preference button",
-            "Uncheck the Paperless_Opt_In checkbox",
-            "Click the Save Preference button"
-          ],
-          "expected_result": "The system displays \"e-Statement preference updated.\" after the first Save Preference; after unchecking and clicking Save Preference again the system displays \"e-Statement preference updated.\" again.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Generate statement for a single-day custom range where Start_Date equals End_Date",
-          "preconditions": [
-            "Statements page is open"
-          ],
-          "steps": [
-            "Navigate to the Statements page",
-            "Select \"Custom date range\" in the Statement_Period radio",
-            "Enter <start date> in the Start_Date field",
-            "Enter the same <start date> in the End_Date field",
-            "Click the Generate Statement button"
-          ],
-          "expected_result": "Statement generated successfully; retrieves relevant transactions",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Both forms are visible side by side on the Statements page",
-          "preconditions": [
-            "Statements page is open"
-          ],
-          "steps": [
-            "Navigate to the Statements page",
-            "Verify the Generate Statement form is visible",
-            "Verify the E-Statement Preference form is visible"
-          ],
-          "expected_result": "Generate Statement form is visible and E-Statement Preference form is visible, displayed side by side",
-          "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 8,
-        "positive": 8,
+        "total": 5,
+        "positive": 5,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 5,
-        "medium_priority": 3,
+        "high_priority": 4,
+        "medium_priority": 1,
         "low_priority": 0
       }
     },
@@ -1806,144 +870,49 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Change password with complete valid data (happy path - complete data)",
+          "test_case": "Change password happy path",
           "preconditions": [
-            "User logged in"
+            "User logged in",
+            "User's current password is <current password>"
           ],
           "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <new strong password> in the New Password field",
-            "Enter <confirm new password matching new password> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
+            "1. Navigate to the Security Settings page",
+            "2. Click the Toggle Panel control on the Change Password panel to expand it",
+            "3. Enter <current password> in the Current Password field",
+            "4. Enter <strong password> in the New Password field",
+            "5. Enter <strong password> in the Confirm New Password field",
+            "6. Click the Change Password button"
           ],
-          "expected_result": "The UI displays the message \"Password changed successfully.\" and credentials are updated.",
+          "expected_result": "Credentials are updated and the success message \"Password changed successfully.\" is displayed.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Change password using only required fields (happy path - minimum viable)",
+          "test_case": "Change Password panel expand and collapse",
           "preconditions": [
             "User logged in"
           ],
           "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <new strong password> in the New Password field",
-            "Enter <confirm new password matching new password> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
+            "1. Navigate to the Security Settings page",
+            "2. Click the Toggle Panel control on the Change Password panel to expand it",
+            "3. Verify the Change Password form is visible and shows fields Current Password, New Password, Confirm New Password",
+            "4. Click the Toggle Panel control on the Change Password panel to collapse it",
+            "5. Verify the Change Password form is hidden"
           ],
-          "expected_result": "The UI displays the message \"Password changed successfully.\" and credentials are updated.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-003",
-          "test_case": "Change password using an alternative valid strong password (happy path - alternative route)",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <different valid strong password> in the New Password field",
-            "Enter <confirm new password matching different valid strong password> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
-          ],
-          "expected_result": "The UI displays the message \"Password changed successfully.\" and credentials are updated.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-004",
-          "test_case": "Collapsible panel reveals and hides the change password form",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Security Settings page",
-            "Click to expand the Security Settings panel",
-            "Verify the Current Password field is visible",
-            "Verify the New Password field is visible",
-            "Verify the Confirm New Password field is visible",
-            "Verify the \"Change Password\" button is visible",
-            "Click to collapse the Security Settings panel"
-          ],
-          "expected_result": "Expanding the Security Settings panel reveals the Current Password, New Password, and Confirm New Password fields and the \"Change Password\" button. Collapsing the panel hides these elements.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Sequential password changes to confirm credentials are updated (end-to-end lifecycle)",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <new strong password A> in the New Password field",
-            "Enter <confirm new password matching new strong password A> in the Confirm New Password field",
-            "Click the \"Change Password\" button",
-            "Enter <new strong password A> in the Current Password field",
-            "Enter <new strong password B> in the New Password field",
-            "Enter <confirm new password matching new strong password B> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
-          ],
-          "expected_result": "After the first submission the UI displays \"Password changed successfully.\" and credentials are updated. After the second submission the UI again displays \"Password changed successfully.\" and credentials are updated, demonstrating the updated credentials were accepted.",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Change password with matching confirmation (positive confirmation match check)",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <new strong password> in the New Password field",
-            "Enter <confirm new password matching new password> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
-          ],
-          "expected_result": "The UI displays the message \"Password changed successfully.\" and credentials are updated, confirming the Confirm New Password matched the New Password.",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Success message is shown after valid change password submission",
-          "preconditions": [
-            "User logged in"
-          ],
-          "steps": [
-            "Navigate to the Security Settings page",
-            "Expand the Security Settings panel",
-            "Enter <current password> in the Current Password field",
-            "Enter <new strong password> in the New Password field",
-            "Enter <confirm new password matching new password> in the Confirm New Password field",
-            "Click the \"Change Password\" button"
-          ],
-          "expected_result": "The success message \"Password changed successfully.\" is displayed on the page after submission.",
+          "expected_result": "The Change Password panel expands to reveal the form with fields Current Password, New Password, Confirm New Password, and collapses to hide the form when toggled.",
           "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 7,
-        "positive": 7,
+        "total": 2,
+        "positive": 2,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 4,
-        "medium_priority": 3,
+        "high_priority": 1,
+        "medium_priority": 1,
         "low_priority": 0
       }
     },
@@ -1952,164 +921,88 @@
       "test_cases": [
         {
           "tc_id": "TC-001",
-          "test_case": "Secure Message - Path A (Complete data: all fields filled including optional attachment and subject)",
+          "test_case": "Send secure message with subject, category, rich-text body and valid attachment",
           "preconditions": [
-            "User on Support Center page"
+            "User logged in"
           ],
           "steps": [
-            "Enter <subject> in the Subject field",
-            "Select <category> from the Category dropdown",
-            "Enter <message body> in the Message Body field",
-            "Upload <valid file> to the Attachment field",
-            "Click the Send Message button"
+            "1. Navigate to the Support Center page",
+            "2. Enter <subject> in the Subject field",
+            "3. Select <Category> from the Category dropdown",
+            "4. Enter <message body> in the Message Body field",
+            "5. Upload <valid attachment file> to the Attachment field",
+            "6. Click the Send Message button"
           ],
-          "expected_result": "Message sent successfully with ticket ID",
+          "expected_result": "Message sent successfully. Returns ticket ID.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-002",
-          "test_case": "Secure Message - Path B (Minimum viable: only required Message Body provided)",
+          "test_case": "Request callback with preferred date at least next business day",
           "preconditions": [
-            "User on Support Center page"
+            "User logged in"
           ],
           "steps": [
-            "Enter <message body> in the Message Body field",
-            "Click the Send Message button"
+            "1. Navigate to the Support Center page",
+            "2. Enter <preferred date at least next business day> in the Preferred Date field",
+            "3. Enter <preferred time window> in the Preferred Time Window field",
+            "4. Click the Request Callback button"
           ],
-          "expected_result": "Message sent successfully with ticket ID",
+          "expected_result": "Callback request submitted. Sends email confirmation.",
           "priority": "high",
           "category": "positive"
         },
         {
           "tc_id": "TC-003",
-          "test_case": "Secure Message - Path C (Alternative route: select a different category and include optional attachment)",
+          "test_case": "Phone Number field is pre-filled from user profile in Schedule Callback form",
           "preconditions": [
-            "User on Support Center page"
+            "User logged in"
           ],
           "steps": [
-            "Enter <message body> in the Message Body field",
-            "Select <alternative category> from the Category dropdown",
-            "Upload <valid file> to the Attachment field",
-            "Click the Send Message button"
+            "1. Navigate to the Support Center page",
+            "2. Observe the Phone Number field in the Schedule Callback form"
           ],
-          "expected_result": "Message sent successfully with ticket ID",
+          "expected_result": "Phone Number field is pre-filled with <phone number from user profile>.",
           "priority": "medium",
           "category": "positive"
         },
         {
           "tc_id": "TC-004",
-          "test_case": "Category dropdown - verify listed options are present and selectable",
+          "test_case": "Category dropdown displays all expected options",
           "preconditions": [
-            "User on Support Center page"
+            "User logged in"
           ],
           "steps": [
-            "Open the Category dropdown"
+            "1. Navigate to the Support Center page",
+            "2. Open the Category dropdown in the Secure Message form"
           ],
-          "expected_result": "Category dropdown shows options: Account, Technical, Security, Other and each option is selectable",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-005",
-          "test_case": "Schedule Callback - Path A (Complete data: all fields filled including optional Reason and Time Window, edit phone if desired)",
-          "preconditions": [
-            "User on Support Center page"
-          ],
-          "steps": [
-            "Select <reason for call> from the Reason for Call dropdown",
-            "Enter <preferred date on or after the next business day> in the Preferred Date field",
-            "Enter <preferred time window> in the Preferred Time Window field",
-            "Enter <phone number> in the Phone Number field",
-            "Click the Request Callback button"
-          ],
-          "expected_result": "Callback request submitted and sends an email confirmation",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-006",
-          "test_case": "Schedule Callback - Path B (Minimum viable: only required fields provided; phone number is pre-filled)",
-          "preconditions": [
-            "User on Support Center page",
-            "Phone Number field is pre-filled"
-          ],
-          "steps": [
-            "Enter <preferred date on or after the next business day> in the Preferred Date field",
-            "Click the Request Callback button"
-          ],
-          "expected_result": "Callback request submitted and sends an email confirmation",
-          "priority": "high",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-007",
-          "test_case": "Schedule Callback - Path C (Alternative route: edit pre-filled phone number and select a Reason for Call)",
-          "preconditions": [
-            "User on Support Center page",
-            "Phone Number field is pre-filled"
-          ],
-          "steps": [
-            "Select <reason for call> from the Reason for Call dropdown",
-            "Enter <preferred date on or after the next business day> in the Preferred Date field",
-            "Enter <preferred time window> in the Preferred Time Window field",
-            "Enter <phone number> in the Phone Number field",
-            "Click the Request Callback button"
-          ],
-          "expected_result": "Callback request submitted and sends an email confirmation",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-008",
-          "test_case": "Schedule Callback - Preferred Date boundary accepted (use the next business day)",
-          "preconditions": [
-            "User on Support Center page",
-            "Phone Number field is pre-filled"
-          ],
-          "steps": [
-            "Enter <preferred date equal to the next business day> in the Preferred Date field",
-            "Click the Request Callback button"
-          ],
-          "expected_result": "Callback request submitted and sends an email confirmation",
-          "priority": "medium",
-          "category": "positive"
-        },
-        {
-          "tc_id": "TC-009",
-          "test_case": "Phone Number field pre-population - verify phone number is pre-filled and editable",
-          "preconditions": [
-            "User on Support Center page"
-          ],
-          "steps": [
-            "Focus the Phone Number field"
-          ],
-          "expected_result": "Phone Number field displays a pre-filled phone number value and the value is editable",
+          "expected_result": "Category dropdown displays the options Account, Technical, Security, and Other.",
           "priority": "medium",
           "category": "positive"
         }
       ],
       "summary": {
-        "total": 9,
-        "positive": 9,
+        "total": 4,
+        "positive": 4,
         "negative": 0,
         "boundary": 0,
         "edge": 0,
-        "high_priority": 4,
-        "medium_priority": 5,
+        "high_priority": 2,
+        "medium_priority": 2,
         "low_priority": 0
       }
     }
   ],
   "total_summary": {
     "total_modules": 13,
-    "total_tests": 105,
-    "positive": 105,
+    "total_tests": 46,
+    "positive": 46,
     "negative": 0,
     "boundary": 0,
     "edge": 0,
-    "high_priority": 64,
-    "medium_priority": 39,
-    "low_priority": 2
+    "high_priority": 26,
+    "medium_priority": 19,
+    "low_priority": 1
   }
 }

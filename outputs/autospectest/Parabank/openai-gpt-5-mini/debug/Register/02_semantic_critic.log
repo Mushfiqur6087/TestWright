@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-10T04:48:44.136213
+DEBUG SESSION STARTED: 2026-05-10T05:26:09.843762
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[04:49:07] Semantic Critic - SYSTEM PROMPT
+[05:27:23] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[04:49:07] Semantic Critic - USER PROMPT
+[05:27:23] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The registration page presents a comprehensive sign-up form with required inputs for First Name, Last Name, Street Address, City, State (dropdown with all US states), ZIP Code, Phone Number, Social Security Number, Username (email format), Password, and Confirm Password, plus a "Register" button. The system enforces specific validation constraints: Username must be a valid email format, Phone Number must follow the format (123) 456-7890 with automatic formatting, ZIP Code must be 5 digits or 5+4 format (12345 or 12345-6789), SSN must follow the format 123-45-6789 with automatic formatting, Password must be at least 8 characters, and Confirm Password must match the Password field. On submission, the system validates field completeness, pattern conformance, and password match. Success produces "Account created successfully — please sign in," then redirects to the login page, otherwise specific field-level errors are displayed for correction.
@@ -123,19 +123,23 @@ The registration page presents a comprehensive sign-up form with required inputs
       "fields": {
         "First_Name": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": []
         },
         "Last_Name": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": []
         },
         "Street_Address": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": []
         },
         "City": {
           "type": "unspecified",
-          "required": true
+          "required": true,
+          "constraints": []
         },
         "State": {
           "type": "dropdown",
@@ -191,13 +195,14 @@ The registration page presents a comprehensive sign-up form with required inputs
             "West Virginia",
             "Wisconsin",
             "Wyoming"
-          ]
+          ],
+          "constraints": []
         },
         "ZIP_Code": {
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match 5-digit or 5+4 format",
+            "must match 5-digit or 5+4 format (12345 or 12345-6789)",
             "pattern: ^\\d{5}(-\\d{4})?$"
           ]
         },
@@ -207,7 +212,7 @@ The registration page presents a comprehensive sign-up form with required inputs
           "constraints": [
             "must match pattern (123) 456-7890",
             "pattern: ^\\(\\d{3}\\) \\d{3}-\\d{4}$",
-            "auto_format: formats input as (123) 456-7890 on entry"
+            "automatic formatting on input to (123) 456-7890"
           ]
         },
         "SSN": {
@@ -216,7 +221,7 @@ The registration page presents a comprehensive sign-up form with required inputs
           "constraints": [
             "must match pattern 123-45-6789",
             "pattern: ^\\d{3}-\\d{2}-\\d{4}$",
-            "auto_format: formats input as 123-45-6789 on entry"
+            "automatic formatting on input to 123-45-6789"
           ]
         },
         "Username": {
@@ -230,29 +235,31 @@ The registration page presents a comprehensive sign-up form with required inputs
           "type": "password",
           "required": true,
           "constraints": [
-            "must be at least 8 characters"
+            "must be at least 8 characters",
+            "min_length: 8"
           ]
         },
         "Confirm_Password": {
           "type": "password",
           "required": true,
           "constraints": [
-            "must match Password field"
+            "must match Password",
+            "cross_field: matches field Password"
           ]
         }
       },
-      "constraints": [
-        "validates field completeness on submit",
-        "validates pattern conformance on submit",
-        "validates password match on submit"
-      ],
       "submit_actions": [
         {
           "element_name": "Register",
           "type": "button",
+          "constraints": [
+            "on_submit validates required fields completeness",
+            "on_submit validates pattern conformance for Phone_Number, ZIP_Code, SSN, Username",
+            "on_submit validates Password and Confirm_Password match"
+          ],
           "on_success": "Account created successfully \u2014 please sign in",
-          "redirect_to": "Login Page",
-          "on_failure": "displays field-level errors for correction"
+          "on_success_redirect": "redirects to login page",
+          "on_failure": "displays specific field-level errors for correction"
         }
       ]
     }
@@ -263,22 +270,22 @@ The registration page presents a comprehensive sign-up form with required inputs
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[04:49:20] Semantic Critic - LLM RESPONSE
+[05:27:28] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST accurately includes all required form fields, validation constraints (patterns, formats, password rules), state options, Register submit action with success message and redirect, and failure behavior.",
+  "summary": "AST accurately captures all interactive fields, constraints, state dropdown options, submit behavior, success message and redirect, with no significant missing items or extraneous elements.",
   "missing": [],
   "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[04:49:20] Semantic Critic - PARSED JSON
+[05:27:28] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST accurately includes all required form fields, validation constraints (patterns, formats, password rules), state options, Register submit action with success message and redirect, and failure behavior.",
+  "summary": "AST accurately captures all interactive fields, constraints, state dropdown options, submit behavior, success message and redirect, with no significant missing items or extraneous elements.",
   "missing": [],
   "phantoms": [],
   "fixes": []

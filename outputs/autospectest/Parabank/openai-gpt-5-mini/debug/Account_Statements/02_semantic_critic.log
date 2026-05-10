@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-10T04:48:44.152984
+DEBUG SESSION STARTED: 2026-05-10T05:26:09.858783
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[04:49:17] Semantic Critic - SYSTEM PROMPT
+[05:26:42] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[04:49:17] Semantic Critic - USER PROMPT
+[05:26:42] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The Statements page provides two coordinated forms displayed side by side.The generate statement form includes Statement Period (month-and-year or custom date range), Account (dropdown), and a “Generate Statement” button. The system validates the dates and retrieves the relevant transactions. On success it displays “Statement generated successfully.”; if generation fails it shows “Unable to generate statement — please try again later.”The e-statement preference form includes a checkbox to opt into paperless statements, an Email Address field, and a “Save Preference” button. The system validates the email address; success displays “e-Statement preference updated.”, while a failure highlights the email field with guidance.
@@ -123,46 +123,46 @@ The Statements page provides two coordinated forms displayed side by side.The ge
       "fields": {
         "Statement_Period": {
           "type": "radio",
-          "required": false,
+          "required": true,
           "options": [
-            "Month-and-year",
-            "Custom date range"
+            "Month-and-Year",
+            "Custom Date Range"
           ]
         },
-        "Month": {
-          "type": "date",
-          "required": true,
-          "visible_when": "Statement_Period == Month-and-year",
+        "Month_Year": {
+          "type": "unspecified",
+          "visible_when": "Statement_Period == Month-and-Year",
+          "required_when": "Statement_Period == Month-and-Year",
           "constraints": [
-            "granularity: month-year"
+            "must be in month-and-year format (e.g., March 2026)"
           ]
         },
         "Start_Date": {
           "type": "date",
-          "required": true,
-          "visible_when": "Statement_Period == Custom date range"
+          "visible_when": "Statement_Period == Custom Date Range",
+          "required_when": "Statement_Period == Custom Date Range"
         },
         "End_Date": {
           "type": "date",
-          "required": true,
-          "visible_when": "Statement_Period == Custom date range"
+          "visible_when": "Statement_Period == Custom Date Range",
+          "required_when": "Statement_Period == Custom Date Range"
         },
         "Account": {
           "type": "dropdown",
-          "required": false
+          "required": true
         }
       },
       "constraints": [
-        "If Statement_Period == Custom date range then Start_Date <= End_Date",
-        "System validates provided dates before retrieval"
+        "when Statement_Period == Custom Date Range: Start_Date and End_Date must be valid dates",
+        "when Statement_Period == Custom Date Range: End_Date must be on or after Start_Date"
       ],
       "submit_actions": [
         {
           "element_name": "Generate Statement",
-          "on_success": "Statement generated successfully; retrieves relevant transactions",
-          "on_failure": "Unable to generate statement \u2014 please try again later.",
+          "on_success": "retrieves relevant transactions; displays \"Statement generated successfully.\"",
+          "on_failure": "displays \"Unable to generate statement \u2014 please try again later.\"",
           "constraints": [
-            "applies date validation rules above before attempting generation"
+            "dates are validated before retrieval"
           ]
         }
       ]
@@ -170,13 +170,14 @@ The Statements page provides two coordinated forms displayed side by side.The ge
     "E_Statement_Preference_Form": {
       "type": "form",
       "fields": {
-        "Paperless_Opt_In": {
+        "Paperless_OptIn": {
           "type": "checkbox",
           "required": false
         },
         "Email_Address": {
           "type": "email",
-          "required_when": "Paperless_Opt_In == true",
+          "required": false,
+          "required_when": "Paperless_OptIn == true",
           "constraints": [
             "must be a valid email address"
           ]
@@ -188,7 +189,7 @@ The Statements page provides two coordinated forms displayed side by side.The ge
           "on_success": "e-Statement preference updated.",
           "on_failure": "highlights Email_Address field with guidance",
           "constraints": [
-            "Email_Address must be valid if Paperless_Opt_In is checked"
+            "email is validated; if Paperless_OptIn == true Email_Address must be valid"
           ]
         }
       ]
@@ -200,22 +201,154 @@ The Statements page provides two coordinated forms displayed side by side.The ge
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[04:49:28] Semantic Critic - LLM RESPONSE
+[05:27:03] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "AST includes inferred conditional visibility/required rules and a named Month_Year field that are not explicitly specified in the description (multiple phantoms); regenerate with conditionals only if the description states them explicitly.",
+  "missing": [],
+  "phantoms": [
+    "components.Generate_Statement_Form.fields.Month_Year (field name/invention not explicitly named in description)",
+    "components.Generate_Statement_Form.fields.Month_Year.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Month_Year.required_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Start_Date.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Start_Date.required_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.End_Date.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.End_Date.required_when (inferred conditional not explicitly stated)",
+    "components.E_Statement_Preference_Form.fields.Email_Address.required_when (inferred conditional that Email is required only when Paperless_OptIn is checked is not explicitly stated)"
+  ],
+  "fixes": [
+    "components.Generate_Statement_Form.fields.Month_Year: remove this field or rename only if the description explicitly names a 'Month_Year' input; otherwise represent the Statement Period selection as a single chooser (radio/options) and do NOT invent separate fields unless the spec explicitly requires them.",
+    "components.Generate_Statement_Form.fields.Month_Year.visible_when: remove this property; do not add visibility conditions unless the description explicitly states 'when X is selected show Y' or equivalent.",
+    "components.Generate_Statement_Form.fields.Month_Year.required_when: remove this property for the same reason as above.",
+    "components.Generate_Statement_Form.fields.Start_Date.visible_when: remove this property; keep Start_Date and End_Date as date fields only if the description explicitly requires conditional display when 'Custom Date Range' is selected, otherwise omit visibility logic.",
+    "components.Generate_Statement_Form.fields.Start_Date.required_when: remove this property; enforce validation only if the description explicitly states 'required when...' or similar.",
+    "components.Generate_Statement_Form.fields.End_Date.visible_when: remove this property; as above do not infer conditional visibility.",
+    "components.Generate_Statement_Form.fields.End_Date.required_when: remove this property; as above do not infer conditional requirement.",
+    "components.E_Statement_Preference_Form.fields.Email_Address.required_when: remove this conditional; only mark Email_Address as required if the description explicitly states it is required when opting into paperless statements.",
+    "General: when regenerating, include only interactive elements explicitly named in the description (Statement Period chooser, Account dropdown, Generate Statement button, Start/End date fields if description explicitly requires them, Paperless checkbox, Email Address field, Save Preference button), and include conditional show/require rules only if the description contains explicit trigger language such as 'when', 'if', or 'required if'."
+  ]
+}
+
+------------------------------------------------------------
+[05:27:03] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "AST includes inferred conditional visibility/required rules and a named Month_Year field that are not explicitly specified in the description (multiple phantoms); regenerate with conditionals only if the description states them explicitly.",
+  "missing": [],
+  "phantoms": [
+    "components.Generate_Statement_Form.fields.Month_Year (field name/invention not explicitly named in description)",
+    "components.Generate_Statement_Form.fields.Month_Year.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Month_Year.required_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Start_Date.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.Start_Date.required_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.End_Date.visible_when (inferred conditional not explicitly stated)",
+    "components.Generate_Statement_Form.fields.End_Date.required_when (inferred conditional not explicitly stated)",
+    "components.E_Statement_Preference_Form.fields.Email_Address.required_when (inferred conditional that Email is required only when Paperless_OptIn is checked is not explicitly stated)"
+  ],
+  "fixes": [
+    "components.Generate_Statement_Form.fields.Month_Year: remove this field or rename only if the description explicitly names a 'Month_Year' input; otherwise represent the Statement Period selection as a single chooser (radio/options) and do NOT invent separate fields unless the spec explicitly requires them.",
+    "components.Generate_Statement_Form.fields.Month_Year.visible_when: remove this property; do not add visibility conditions unless the description explicitly states 'when X is selected show Y' or equivalent.",
+    "components.Generate_Statement_Form.fields.Month_Year.required_when: remove this property for the same reason as above.",
+    "components.Generate_Statement_Form.fields.Start_Date.visible_when: remove this property; keep Start_Date and End_Date as date fields only if the description explicitly requires conditional display when 'Custom Date Range' is selected, otherwise omit visibility logic.",
+    "components.Generate_Statement_Form.fields.Start_Date.required_when: remove this property; enforce validation only if the description explicitly states 'required when...' or similar.",
+    "components.Generate_Statement_Form.fields.End_Date.visible_when: remove this property; as above do not infer conditional visibility.",
+    "components.Generate_Statement_Form.fields.End_Date.required_when: remove this property; as above do not infer conditional requirement.",
+    "components.E_Statement_Preference_Form.fields.Email_Address.required_when: remove this conditional; only mark Email_Address as required if the description explicitly states it is required when opting into paperless statements.",
+    "General: when regenerating, include only interactive elements explicitly named in the description (Statement Period chooser, Account dropdown, Generate Statement button, Start/End date fields if description explicitly requires them, Paperless checkbox, Email Address field, Save Preference button), and include conditional show/require rules only if the description contains explicit trigger language such as 'when', 'if', or 'required if'."
+  ]
+}
+
+------------------------------------------------------------
+[05:27:26] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The Statements page provides two coordinated forms displayed side by side.The generate statement form includes Statement Period (month-and-year or custom date range), Account (dropdown), and a “Generate Statement” button. The system validates the dates and retrieves the relevant transactions. On success it displays “Statement generated successfully.”; if generation fails it shows “Unable to generate statement — please try again later.”The e-statement preference form includes a checkbox to opt into paperless statements, an Email Address field, and a “Save Preference” button. The system validates the email address; success displays “e-Statement preference updated.”, while a failure highlights the email field with guidance.
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Account Statements",
+  "components": {
+    "Generate_Statement_Form": {
+      "type": "form",
+      "fields": {
+        "Statement_Period": {
+          "type": "radio",
+          "options": [
+            "Month-and-Year",
+            "Custom Date Range"
+          ]
+        },
+        "Start_Date": {
+          "type": "date"
+        },
+        "End_Date": {
+          "type": "date"
+        },
+        "Account": {
+          "type": "dropdown"
+        }
+      },
+      "constraints": [
+        "dates must be valid",
+        "Start_Date must be on or before End_Date"
+      ],
+      "submit_actions": [
+        {
+          "element_name": "Generate Statement",
+          "on_success": "retrieves relevant transactions and displays \"Statement generated successfully.\"",
+          "on_failure": "displays \"Unable to generate statement \u2014 please try again later.\""
+        }
+      ]
+    },
+    "E_Statement_Preference_Form": {
+      "type": "form",
+      "fields": {
+        "Paperless_Opt_In": {
+          "type": "checkbox"
+        },
+        "Email_Address": {
+          "type": "email",
+          "constraints": [
+            "must be a valid email address"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Save Preference",
+          "on_success": "displays \"e-Statement preference updated.\"",
+          "on_failure": "highlights Email_Address field with guidance"
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[05:27:34] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both forms, their fields, validation rules, conditional behaviors, and success/failure messages as described.",
+  "summary": "The AST correctly captures both side-by-side forms, their fields, validations, submit actions, and success/failure messages as described.",
   "missing": [],
   "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[04:49:28] Semantic Critic - PARSED JSON
+[05:27:34] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both forms, their fields, validation rules, conditional behaviors, and success/failure messages as described.",
+  "summary": "The AST correctly captures both side-by-side forms, their fields, validations, submit actions, and success/failure messages as described.",
   "missing": [],
   "phantoms": [],
   "fixes": []

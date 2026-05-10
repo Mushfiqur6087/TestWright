@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-10T04:48:44.153402
+DEBUG SESSION STARTED: 2026-05-10T05:26:09.859070
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[04:48:44] UI-AST Agent - SYSTEM PROMPT
+[05:26:09] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[04:48:44] UI-AST Agent - USER PROMPT
+[05:26:09] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Support Center
 
@@ -215,7 +215,7 @@ The Support Center page integrates two communication forms.The secure message fo
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[04:49:16] UI-AST Agent - LLM RESPONSE
+[05:26:46] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Support Center",
@@ -227,7 +227,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": false,
           "constraints": [
-            "must meet subject length limits (system checks subject length)"
+            "validates subject length"
           ]
         },
         "Category": {
@@ -244,22 +244,23 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be present (non-empty)"
-          ]
+            "must be present"
+          ],
+          "ui_format": "rich_text"
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "must be an allowed file type (system validates attachment types)"
+            "validates attachment types"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline guidance for validation and submission errors"
+          "on_success": "Message sent successfully. Returns ticket ID.",
+          "on_failure": "displays inline guidance"
         }
       ]
     },
@@ -274,7 +275,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "date",
           "required": true,
           "constraints": [
-            "must be on or after the next business day"
+            "must be at least the next business day"
           ]
         },
         "Preferred_Time_Window": {
@@ -284,17 +285,19 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
-          "prefilled": true,
+          "pre_filled": true,
+          "default_value_source": "user_profile",
+          "editable": true,
           "constraints": [
-            "must match valid phone number format (system validates phone number format)"
+            "must match phone number format"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "on_success": "Callback request submitted and sends an email confirmation",
-          "on_failure": "validation errors shown inline"
+          "on_success": "Callback request submitted. Sends email confirmation.",
+          "on_failure": "displays inline guidance"
         }
       ]
     }
@@ -302,7 +305,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[04:49:16] UI-AST Agent - PARSED JSON
+[05:26:46] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Support Center",
@@ -314,7 +317,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": false,
           "constraints": [
-            "must meet subject length limits (system checks subject length)"
+            "validates subject length"
           ]
         },
         "Category": {
@@ -331,22 +334,23 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must be present (non-empty)"
-          ]
+            "must be present"
+          ],
+          "ui_format": "rich_text"
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "must be an allowed file type (system validates attachment types)"
+            "validates attachment types"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline guidance for validation and submission errors"
+          "on_success": "Message sent successfully. Returns ticket ID.",
+          "on_failure": "displays inline guidance"
         }
       ]
     },
@@ -361,7 +365,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "date",
           "required": true,
           "constraints": [
-            "must be on or after the next business day"
+            "must be at least the next business day"
           ]
         },
         "Preferred_Time_Window": {
@@ -371,17 +375,19 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
-          "prefilled": true,
+          "pre_filled": true,
+          "default_value_source": "user_profile",
+          "editable": true,
           "constraints": [
-            "must match valid phone number format (system validates phone number format)"
+            "must match phone number format"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "on_success": "Callback request submitted and sends an email confirmation",
-          "on_failure": "validation errors shown inline"
+          "on_success": "Callback request submitted. Sends email confirmation.",
+          "on_failure": "displays inline guidance"
         }
       ]
     }
