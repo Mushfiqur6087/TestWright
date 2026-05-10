@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.151950
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.151619
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - SYSTEM PROMPT
+[04:48:44] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - USER PROMPT
+[04:48:44] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Investments
 
@@ -215,34 +215,32 @@ The Investments page is a multi-section workspace.The portfolio snapshot is a re
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:09:23] UI-AST Agent - LLM RESPONSE
+[04:49:02] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Investments",
   "components": {
     "Trade_Funds_Form": {
       "type": "form",
+      "validation_mode": "inline",
       "fields": {
         "Action": {
           "type": "dropdown",
           "required": true,
-          "options": [
-            "Buy",
-            "Sell"
-          ]
+          "options": ["Buy", "Sell"]
         },
         "Fund_Symbol": {
           "type": "search",
           "required": true,
           "constraints": [
-            "must resolve to an existing fund symbol"
+            "symbol must exist"
           ]
         },
         "Quantity": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must be greater than 0"
+            "must be greater than zero"
           ]
         },
         "Funding_or_Destination_Account": {
@@ -253,26 +251,24 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Execute Trade",
-          "type": "button",
           "constraints": [
-            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
-            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
-            "Fund_Symbol must resolve to an existing fund symbol",
-            "Quantity must be greater than 0"
+            "if Action == Buy then customer must have sufficient buying power",
+            "if Action == Sell then customer must have sufficient share balance"
           ],
           "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
-          "on_error": "validation failures appear inline"
+          "on_failure": "validation failures appear inline highlighting the problematic fields (e.g., invalid symbol, insufficient buying power, insufficient share balance)"
         }
       ]
     },
     "Recurring_Investment_Plan_Form": {
       "type": "form",
+      "validation_mode": "inline",
       "fields": {
         "Fund_Symbol": {
           "type": "search",
           "required": true,
           "constraints": [
-            "must resolve to an existing fund symbol"
+            "symbol must exist"
           ]
         },
         "Contribution_Amount": {
@@ -285,38 +281,30 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
         "Frequency": {
           "type": "dropdown",
           "required": true,
-          "options": [
-            "Weekly",
-            "Monthly"
-          ]
+          "options": ["Weekly", "Monthly"]
         },
         "Start_Date": {
           "type": "date",
           "required": true,
           "constraints": [
-            "must be a future date",
+            "must be in the future",
             "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true,
-          "constraints": [
-            "Funding_Account must have adequate balance to fund initial contribution"
-          ]
+          "required": true
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
-          "type": "button",
           "constraints": [
-            "Start_Date must be in the future",
-            "Contribution_Amount must meet the minimum contribution amount",
-            "Funding_Account must have adequate balance"
+            "funding account must have adequate balance for initial contribution",
+            "contribution amount must meet minimum contribution amount"
           ],
           "on_success": "stores schedule and shows \"Plan created successfully.\"",
-          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
+          "on_failure": "errors highlight the problematic fields with inline messages (for example, \"Start date must be in the future\")"
         }
       ]
     }
@@ -324,13 +312,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[23:09:23] UI-AST Agent - PARSED JSON
+[04:49:02] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Investments",
   "components": {
     "Trade_Funds_Form": {
       "type": "form",
+      "validation_mode": "inline",
       "fields": {
         "Action": {
           "type": "dropdown",
@@ -344,14 +333,14 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "search",
           "required": true,
           "constraints": [
-            "must resolve to an existing fund symbol"
+            "symbol must exist"
           ]
         },
         "Quantity": {
           "type": "number",
           "required": true,
           "constraints": [
-            "must be greater than 0"
+            "must be greater than zero"
           ]
         },
         "Funding_or_Destination_Account": {
@@ -362,26 +351,24 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Execute Trade",
-          "type": "button",
           "constraints": [
-            "If Action == Buy then selected Funding_or_Destination_Account must have sufficient buying power to cover the purchase",
-            "If Action == Sell then customer must have sufficient share balance of the Fund_Symbol to cover Quantity",
-            "Fund_Symbol must resolve to an existing fund symbol",
-            "Quantity must be greater than 0"
+            "if Action == Buy then customer must have sufficient buying power",
+            "if Action == Sell then customer must have sufficient share balance"
           ],
           "on_success": "executes same-day trade, updates holdings, displays \"Trade executed successfully.\" with order ID",
-          "on_error": "validation failures appear inline"
+          "on_failure": "validation failures appear inline highlighting the problematic fields (e.g., invalid symbol, insufficient buying power, insufficient share balance)"
         }
       ]
     },
     "Recurring_Investment_Plan_Form": {
       "type": "form",
+      "validation_mode": "inline",
       "fields": {
         "Fund_Symbol": {
           "type": "search",
           "required": true,
           "constraints": [
-            "must resolve to an existing fund symbol"
+            "symbol must exist"
           ]
         },
         "Contribution_Amount": {
@@ -403,29 +390,24 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "date",
           "required": true,
           "constraints": [
-            "must be a future date",
+            "must be in the future",
             "Start date must be in the future"
           ]
         },
         "Funding_Account": {
           "type": "dropdown",
-          "required": true,
-          "constraints": [
-            "Funding_Account must have adequate balance to fund initial contribution"
-          ]
+          "required": true
         }
       },
       "submit_actions": [
         {
           "element_name": "Create Plan",
-          "type": "button",
           "constraints": [
-            "Start_Date must be in the future",
-            "Contribution_Amount must meet the minimum contribution amount",
-            "Funding_Account must have adequate balance"
+            "funding account must have adequate balance for initial contribution",
+            "contribution amount must meet minimum contribution amount"
           ],
           "on_success": "stores schedule and shows \"Plan created successfully.\"",
-          "on_error": "errors highlight the problematic fields (for example, \"Start date must be in the future\")"
+          "on_failure": "errors highlight the problematic fields with inline messages (for example, \"Start date must be in the future\")"
         }
       ]
     }

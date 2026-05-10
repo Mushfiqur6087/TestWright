@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:11:21.555306
+DEBUG SESSION STARTED: 2026-05-10T04:50:35.266752
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:11:21] Test-Positive - SYSTEM PROMPT
+[04:50:35] Test-Positive - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Positive Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
 
 ---
 
@@ -19,37 +19,110 @@ You are a Positive Test Case Generator. You receive a UI-AST JSON for one module
 {Module UI-AST JSON}
 </ast>
 
+<description>
+{Original functional description text for this module}
+</description>
+
 ---
 
 **ASSERTION STYLE:**
 
-- When the AST's `on_success` field provides exact success text → use it verbatim.
+- When the description quotes exact success text → use it verbatim.
 - When generic → write specific assertions describing the visible outcome.
 - Always use `on_success` from the AST when available.
 
 ---
 
+**GENERIC DATA RULE (CRITICAL):**
+
+Never invent specific data values in steps or preconditions.
+Always use generic role-based placeholders enclosed in angle brackets.
+
+Examples of CORRECT step wording:
+  - "Enter <first name> in the First Name field"
+  - "Enter <last name> in the Last Name field"
+  - "Enter <valid email address> in the Email field"
+  - "Enter <password> in the Password field"
+  - "Select <account type> from the Account Type dropdown"
+  - "Enter <amount> in the Amount field"
+  - "Upload <valid file>"
+
+Examples of WRONG step wording (never do this):
+  - "Enter 'John' in the First Name field"
+  - "Enter 'Doe' in the Last Name field"
+  - "Enter 'john.doe@example.com' in the Email field"
+  - "Enter 'Password123!' in the Password field"
+  - "Enter '500.00' in the Amount field"
+
+This rule applies everywhere: steps, preconditions, and expected_result.
+The only exception is values explicitly quoted in the spec (e.g., exact UI labels or messages).
+
+---
+
+**STEP GRANULARITY RULE (CRITICAL):**
+
+Each step in the `steps` array must be ONE atomic user action.
+Never consolidate multiple actions into a single step.
+Each field fill, each click, each navigation is its own step.
+
+Example of CORRECT atomic steps (Registration form):
+  "steps": [
+    "Navigate to the Registration page",
+    "Enter <first name> in the First Name field",
+    "Enter <last name> in the Last Name field",
+    "Enter <address> in the Address field",
+    "Enter <city> in the City field",
+    "Enter <state> in the State field",
+    "Enter <zip code> in the Zip Code field",
+    "Enter <phone number> in the Phone field",
+    "Enter <SSN> in the SSN field",
+    "Enter <username> in the Username field",
+    "Enter <password> in the Password field",
+    "Enter <password> in the Confirm Password field",
+    "Click the Register button"
+  ]
+
+Example of WRONG consolidated steps (never do this):
+  "steps": [
+    "Fill in all required fields with valid data",
+    "Submit the form"
+  ]
+
+  "steps": [
+    "Enter first name, last name, and address",
+    "Enter username and password",
+    "Click Register"
+  ]
+
+One action per step. No "and". No "all fields". No grouping.
+
+---
+
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-You receive only the UI-AST. The AST is the complete source of truth.
-Every test case you generate MUST trace to a specific JSON element:
-  - A field name in `fields: []`
-  - A constraint string in `constraints: []`
-  - An action name in `available_actions: []` or `submit_actions: []`
-  - A state key in `state_bound_action_bar`
-  - An `on_success` value
-  - A step in a wizard
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
 
-There is no prose to interpret. DO NOT use general knowledge about
-how similar UIs typically behave. If it is not in the AST, it does not exist.
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
 
-Banned reasoning:
-  ✗ "Name fields typically restrict special characters" — not in AST, skip
-  ✗ "State machines usually have blocked transitions" — use available_actions as truth
-  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
-  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
 
-The AST is authoritative. Stay inside it.
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
 
 ---
 
@@ -107,21 +180,7 @@ Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
   - Wizards: navigate forward to last step → back to step 1 → verify all data persists → submit
   - Forms with dropdowns/options: select a DIFFERENT option than Path A, verify flow still completes
   - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
-  - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
-
-**PATH vs DATA VARIATION — CRITICAL DISTINCTION:**
-
-A new PATH exercises a different code branch (different conditional, different
-action, different state sequence, different navigation route).
-
-A DATA VARIATION exercises the SAME code branch with different input values:
-  ✗ Different email addresses (same authentication code path)
-  ✗ Different names or phone number formats (same text field handling)
-  ✗ Different account numbers (same numeric field code path)
-
-Path A + Path B + Path C exhaust all meaningful code paths for a single-action
-form. If you are about to generate TC-004+, ask: "Does this exercise a code
-branch not exercised by Path A/B/C?" If no, stop.
+  - State-bound modules: take an alternative state path (e.g., follow a non-default branch in the state machine instead of the primary one)
 
 **2. State transition tests:**
 
@@ -131,11 +190,11 @@ For EACH state in a `state_bound_action_bar`:
 
 **BIDIRECTIONAL STATE / TOGGLE RULE:**
 
-For toggles and bidirectional controls (Active/Frozen,
-enable/disable, opt-in/opt-out, check/uncheck), test
-BOTH directions:
-  - Forward: initial state → changed state (e.g., Active → Frozen)
-  - Reverse: changed state → original state (e.g., Frozen → Active)
+For toggles and bidirectional controls (enable/disable,
+opt-in/opt-out, check/uncheck, any two-way state pair),
+test BOTH directions:
+  - Forward: initial state → changed state
+  - Reverse: changed state → original state
 
 If a state_bound_action_bar shows an action available in
 State A that transitions to State B, AND State B has an action
@@ -144,11 +203,11 @@ that transitions back to State A — test both transitions.
 For checkboxes and toggles: test check → submit, then
 uncheck → submit.
 
-**3. End-to-end lifecycle flows:**
+**3. End-to-end lifecycle flows (from description context):**
 
 If the module has multiple states, produce:
-  - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
-  - One alternative lifecycle: a different valid path through states (Create → Reject, Create → Withdraw)
+  - Primary lifecycle: the full expected journey through every state from creation to terminal state
+  - One alternative lifecycle: a different valid path through states (e.g., a rejection or early-termination branch)
 
 These are multi-step tests spanning several state transitions. Include every precondition, navigation step, and intermediate verification.
 
@@ -170,19 +229,19 @@ For each `data_table`:
 For each field with `options: []`:
   - One test verifying all listed options are present and selectable
 
-**7. Search and filter:**
+**7. Search and filter (from description):**
 
-If AST contains a `search_input` or filter component:
+If description mentions search or filter:
   - One test: search/filter with matching criteria → correct results shown
 
-**8. Navigation and redirect:**
+**8. Navigation and redirect (from description):**
 
-If AST has an `on_success` containing "redirect", "navigates to", or "opens":
+If description mentions "redirected to X" or "opens Y page":
   - One test per unique redirect verifying navigation occurs
 
-**9. Pre-population:**
+**9. Pre-population (from description):**
 
-If AST has a field with `default` or `pre_filled` attribute:
+If description mentions "pre-filled", "auto-populated", "defaults to":
   - One test verifying pre-fill behavior
 
 ---
@@ -228,7 +287,7 @@ If AST has a field with `default` or `pre_filled` attribute:
 
 
 ------------------------------------------------------------
-[23:11:21] Test-Positive - USER PROMPT
+[04:50:35] Test-Positive - USER PROMPT
 ------------------------------------------------------------
 <module_name>Transfer Funds</module_name>
 
@@ -251,45 +310,45 @@ If AST has a field with `default` or `pre_filled` attribute:
           "type": "number",
           "required": true,
           "constraints": [
-            "validated by system"
+            "must be greater than 0",
+            "system validates transfer amount"
           ]
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true,
           "constraints": [
-            "account selection filtered to account_type in [Checking, Savings]"
+            "options filtered to Checking and Savings accounts only"
           ]
         },
         "Destination_Account_Internal": {
           "type": "dropdown",
-          "visible_when": "Transfer_Type == My ParaBank Account",
-          "required_when": "Transfer_Type == My ParaBank Account"
+          "required": true,
+          "visible_when": "Transfer_Type == My ParaBank Account"
         },
-        "Destination_Account_External_Number": {
+        "External_Account_Number": {
           "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
-          "required_when": "Transfer_Type == External Account"
-        },
-        "Destination_Account_External_Confirm": {
-          "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
           "required_when": "Transfer_Type == External Account",
+          "visible_when": "Transfer_Type == External Account",
+          "constraints": []
+        },
+        "Confirm_Account_Number": {
+          "type": "unspecified",
+          "required_when": "Transfer_Type == External Account",
+          "visible_when": "Transfer_Type == External Account",
           "constraints": [
-            "must match Destination_Account_External_Number"
+            "must match External_Account_Number"
           ]
         }
       },
       "submit_actions": [
         {
-          "element_name": "Submit Transfer",
-          "on_success": "Transfer completed successfully. Returns transaction ID",
-          "on_failure_messages": [
-            "Insufficient funds",
-            "Account numbers do not match."
-          ],
+          "element_name": "unspecified_submit",
+          "on_success": "Transfer completed successfully and returns a transaction ID",
+          "on_failure": "displays contextual errors such as 'Insufficient funds' or 'Account numbers do not match.'",
           "constraints": [
-            "system checks sufficient funds before completing transfer"
+            "system validates sufficient funds for Source_Account and Transfer_Amount",
+            "for External Account transfers, External_Account_Number and Confirm_Account_Number must match"
           ]
         }
       ]
@@ -298,10 +357,16 @@ If AST has a field with `default` or `pre_filled` attribute:
 }
 </ast>
 
+<description>
+The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
+
+
+</description>
+
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:12:23] Test-Positive - LLM RESPONSE
+[04:51:14] Test-Positive - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -309,161 +374,168 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Path A - Complete data for internal transfer (My ParaBank Account)",
+      "test_case": "Internal transfer - complete data (My ParaBank Account)",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-123' of type Checking has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 100.00",
-        "Open Source_Account dropdown and select 'Checking-123' (an account of type Checking)",
-        "Open Destination_Account_Internal dropdown and select 'Savings-456'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select <destination account> from the Destination Account dropdown",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Path B - Minimum required fields for external transfer (External Account) with matching confirmation",
+      "test_case": "External transfer - complete data with matching account numbers",
       "preconditions": [
-        "User logged in",
-        "Source account 'Savings-789' of type Savings has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 50.00",
-        "Open Source_Account dropdown and select 'Savings-789' (an account of type Savings)",
-        "Enter Destination_Account_External_Number = 'EXT-0001'",
-        "Enter Destination_Account_External_Confirm = 'EXT-0001' (must match Destination_Account_External_Number constraint)",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Enter <external account number> in the External Account Number field",
+        "Enter <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Path C - Alternative route: start as External Account then switch to My ParaBank Account before submit",
+      "test_case": "Alternative route: switch from internal to external transfer and complete",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-321' of type Checking has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 75.00",
-        "Open Source_Account dropdown and select 'Checking-321'",
-        "Enter Destination_Account_External_Number = 'EXT-2002' and Destination_Account_External_Confirm = 'EXT-2002'",
-        "Change radio selection to Transfer_Type = 'My ParaBank Account'",
-        "Verify Destination_Account_External_Number and Destination_Account_External_Confirm are no longer visible and Destination_Account_Internal is visible",
-        "Select Destination_Account_Internal = 'Savings-654'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select <destination account> from the Destination Account dropdown",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <external account number> in the External Account Number field",
+        "Enter <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Source_Account dropdown is filtered to account_type in [Checking, Savings] and allows selecting a Checking account",
-      "preconditions": [
-        "User logged in",
-        "User has multiple accounts including at least one Checking and one Savings account"
-      ],
+      "test_case": "Transfer Type options present and conditional fields visibility",
+      "preconditions": [],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Open Source_Account dropdown",
-        "Observe the listed accounts and select an account of type Checking (e.g., 'Checking-123')",
-        "Fill required remaining fields: select Transfer_Type = 'My ParaBank Account', enter Transfer_Amount = 10.00, select Destination_Account_Internal",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Verify the radio option \"My ParaBank Account\" is present in the Transfer Type group",
+        "Verify the radio option \"External Account\" is present in the Transfer Type group",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Verify the Destination Account dropdown is visible",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Verify the External Account Number field is visible",
+        "Verify the Confirm Account Number field is visible"
       ],
-      "expected_result": "Source_Account selection is filtered to account_type in [Checking, Savings] (as per field constraint) and the selected Checking account is accepted; upon submit: Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer type options are present; selecting \"My ParaBank Account\" shows the internal Destination Account dropdown; selecting \"External Account\" shows External Account Number and Confirm Account Number fields",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Transfer_Type radio options present and selecting each reveals the correct conditional fields",
+      "test_case": "Source Account dropdown is filtered to Checking and Savings accounts",
       "preconditions": [
-        "User logged in"
+        "User has at least one Checking account and at least one Savings account"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Verify radio options for Transfer_Type include 'My ParaBank Account' and 'External Account'",
-        "Select Transfer_Type = 'My ParaBank Account' and verify Destination_Account_Internal becomes visible and Destination_Account_External_Number / Destination_Account_External_Confirm are hidden",
-        "Select Transfer_Type = 'External Account' and verify Destination_Account_External_Number and Destination_Account_External_Confirm become visible and Destination_Account_Internal is hidden"
+        "Navigate to the Transfer page",
+        "Open the Source Account dropdown"
       ],
-      "expected_result": "Both Transfer_Type options are present and selecting each option reveals the corresponding conditional fields (Destination_Account_Internal when My ParaBank Account, Destination_Account_External_Number and Destination_Account_External_Confirm when External Account)",
+      "expected_result": "All options in the Source Account dropdown are Checking or Savings accounts",
       "priority": "medium"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Transfer_Amount validated by system and accepted when amount is valid and funds are sufficient",
+      "test_case": "Internal transfer between two different ParaBank accounts completes successfully",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-500' of type Checking has sufficient funds for amount entered",
-        "System enforces 'Transfer_Amount' field constraint (validated by system)"
+        "User has at least two ParaBank accounts (e.g., Checking and Savings)",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 20.50",
-        "Select Source_Account = 'Checking-500'",
-        "Select Destination_Account_Internal",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select a different <destination account> from the Destination Account dropdown",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID (Transfer_Amount passes system validation and sufficient funds check)",
-      "priority": "medium"
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
+      "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Internal transfer minimum required fields only (My ParaBank Account) - minimal viable required submission",
+      "test_case": "External transfer requires matching account numbers and completes when they match",
       "preconditions": [
-        "User logged in",
-        "Source account 'Savings-222' of type Savings has sufficient funds"
+        "User has a Checking account or a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 5.00",
-        "Select Source_Account = 'Savings-222'",
-        "Select Destination_Account_Internal = 'Checking-888'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Enter <external account number> in the External Account Number field",
+        "Enter the same <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "External transfer with matching Destination_Account_External_Confirm demonstrates constraint 'must match Destination_Account_External_Number' satisfied",
+      "test_case": "Successful transfer displays success message and transaction ID",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-999' of type Checking has sufficient funds"
+        "User has a Checking account or a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 200.00",
-        "Select Source_Account = 'Checking-999'",
-        "Enter Destination_Account_External_Number = 'EXTERN-42'",
-        "Enter Destination_Account_External_Confirm = 'EXTERN-42' (fulfills constraint: must match Destination_Account_External_Number)",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select a valid Transfer Type",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "If Transfer Type is \"My ParaBank Account\", select <destination account> from the Destination Account dropdown",
+        "If Transfer Type is \"External Account\", enter <external account number> in the External Account Number field and enter the same <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
-      "priority": "medium"
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
+      "priority": "high"
     }
   ],
   "summary": {
     "total": 8,
-    "high_priority": 4,
-    "medium_priority": 4,
+    "high_priority": 5,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[23:12:23] Test-Positive - PARSED JSON
+[04:51:14] Test-Positive - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Transfer Funds",
@@ -471,155 +543,162 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Path A - Complete data for internal transfer (My ParaBank Account)",
+      "test_case": "Internal transfer - complete data (My ParaBank Account)",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-123' of type Checking has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 100.00",
-        "Open Source_Account dropdown and select 'Checking-123' (an account of type Checking)",
-        "Open Destination_Account_Internal dropdown and select 'Savings-456'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select <destination account> from the Destination Account dropdown",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Path B - Minimum required fields for external transfer (External Account) with matching confirmation",
+      "test_case": "External transfer - complete data with matching account numbers",
       "preconditions": [
-        "User logged in",
-        "Source account 'Savings-789' of type Savings has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 50.00",
-        "Open Source_Account dropdown and select 'Savings-789' (an account of type Savings)",
-        "Enter Destination_Account_External_Number = 'EXT-0001'",
-        "Enter Destination_Account_External_Confirm = 'EXT-0001' (must match Destination_Account_External_Number constraint)",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Enter <external account number> in the External Account Number field",
+        "Enter <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Path C - Alternative route: start as External Account then switch to My ParaBank Account before submit",
+      "test_case": "Alternative route: switch from internal to external transfer and complete",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-321' of type Checking has sufficient funds"
+        "User has a Checking account and a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select radio option Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 75.00",
-        "Open Source_Account dropdown and select 'Checking-321'",
-        "Enter Destination_Account_External_Number = 'EXT-2002' and Destination_Account_External_Confirm = 'EXT-2002'",
-        "Change radio selection to Transfer_Type = 'My ParaBank Account'",
-        "Verify Destination_Account_External_Number and Destination_Account_External_Confirm are no longer visible and Destination_Account_Internal is visible",
-        "Select Destination_Account_Internal = 'Savings-654'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select <destination account> from the Destination Account dropdown",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <external account number> in the External Account Number field",
+        "Enter <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Source_Account dropdown is filtered to account_type in [Checking, Savings] and allows selecting a Checking account",
-      "preconditions": [
-        "User logged in",
-        "User has multiple accounts including at least one Checking and one Savings account"
-      ],
+      "test_case": "Transfer Type options present and conditional fields visibility",
+      "preconditions": [],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Open Source_Account dropdown",
-        "Observe the listed accounts and select an account of type Checking (e.g., 'Checking-123')",
-        "Fill required remaining fields: select Transfer_Type = 'My ParaBank Account', enter Transfer_Amount = 10.00, select Destination_Account_Internal",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Verify the radio option \"My ParaBank Account\" is present in the Transfer Type group",
+        "Verify the radio option \"External Account\" is present in the Transfer Type group",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Verify the Destination Account dropdown is visible",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Verify the External Account Number field is visible",
+        "Verify the Confirm Account Number field is visible"
       ],
-      "expected_result": "Source_Account selection is filtered to account_type in [Checking, Savings] (as per field constraint) and the selected Checking account is accepted; upon submit: Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer type options are present; selecting \"My ParaBank Account\" shows the internal Destination Account dropdown; selecting \"External Account\" shows External Account Number and Confirm Account Number fields",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Transfer_Type radio options present and selecting each reveals the correct conditional fields",
+      "test_case": "Source Account dropdown is filtered to Checking and Savings accounts",
       "preconditions": [
-        "User logged in"
+        "User has at least one Checking account and at least one Savings account"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Verify radio options for Transfer_Type include 'My ParaBank Account' and 'External Account'",
-        "Select Transfer_Type = 'My ParaBank Account' and verify Destination_Account_Internal becomes visible and Destination_Account_External_Number / Destination_Account_External_Confirm are hidden",
-        "Select Transfer_Type = 'External Account' and verify Destination_Account_External_Number and Destination_Account_External_Confirm become visible and Destination_Account_Internal is hidden"
+        "Navigate to the Transfer page",
+        "Open the Source Account dropdown"
       ],
-      "expected_result": "Both Transfer_Type options are present and selecting each option reveals the corresponding conditional fields (Destination_Account_Internal when My ParaBank Account, Destination_Account_External_Number and Destination_Account_External_Confirm when External Account)",
+      "expected_result": "All options in the Source Account dropdown are Checking or Savings accounts",
       "priority": "medium"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Transfer_Amount validated by system and accepted when amount is valid and funds are sufficient",
+      "test_case": "Internal transfer between two different ParaBank accounts completes successfully",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-500' of type Checking has sufficient funds for amount entered",
-        "System enforces 'Transfer_Amount' field constraint (validated by system)"
+        "User has at least two ParaBank accounts (e.g., Checking and Savings)",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 20.50",
-        "Select Source_Account = 'Checking-500'",
-        "Select Destination_Account_Internal",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"My ParaBank Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Open the Destination Account dropdown",
+        "Select a different <destination account> from the Destination Account dropdown",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID (Transfer_Amount passes system validation and sufficient funds check)",
-      "priority": "medium"
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
+      "priority": "high"
     },
     {
       "tc_id": "P-007",
-      "test_case": "Internal transfer minimum required fields only (My ParaBank Account) - minimal viable required submission",
+      "test_case": "External transfer requires matching account numbers and completes when they match",
       "preconditions": [
-        "User logged in",
-        "Source account 'Savings-222' of type Savings has sufficient funds"
+        "User has a Checking account or a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'My ParaBank Account'",
-        "Enter Transfer_Amount = 5.00",
-        "Select Source_Account = 'Savings-222'",
-        "Select Destination_Account_Internal = 'Checking-888'",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select \"External Account\" in the Transfer Type radio group",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "Enter <external account number> in the External Account Number field",
+        "Enter the same <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
       "priority": "high"
     },
     {
       "tc_id": "P-008",
-      "test_case": "External transfer with matching Destination_Account_External_Confirm demonstrates constraint 'must match Destination_Account_External_Number' satisfied",
+      "test_case": "Successful transfer displays success message and transaction ID",
       "preconditions": [
-        "User logged in",
-        "Source account 'Checking-999' of type Checking has sufficient funds"
+        "User has a Checking account or a Savings account",
+        "<source account> has sufficient funds"
       ],
       "steps": [
-        "Open Transfer Funds form (Transfer_Form)",
-        "Select Transfer_Type = 'External Account'",
-        "Enter Transfer_Amount = 200.00",
-        "Select Source_Account = 'Checking-999'",
-        "Enter Destination_Account_External_Number = 'EXTERN-42'",
-        "Enter Destination_Account_External_Confirm = 'EXTERN-42' (fulfills constraint: must match Destination_Account_External_Number)",
-        "Click the 'Submit Transfer' button (submit_actions element_name)"
+        "Navigate to the Transfer page",
+        "Select a valid Transfer Type",
+        "Enter <transfer amount> in the Transfer Amount field",
+        "Open the Source Account dropdown",
+        "Select <source account> from the Source Account dropdown",
+        "If Transfer Type is \"My ParaBank Account\", select <destination account> from the Destination Account dropdown",
+        "If Transfer Type is \"External Account\", enter <external account number> in the External Account Number field and enter the same <external account number> in the Confirm Account Number field",
+        "Click the Submit button"
       ],
-      "expected_result": "Transfer completed successfully. Returns transaction ID",
-      "priority": "medium"
+      "expected_result": "Transfer completed successfully and returns a transaction ID",
+      "priority": "high"
     }
   ],
   "summary": {
     "total": 8,
-    "high_priority": 4,
-    "medium_priority": 4,
+    "high_priority": 5,
+    "medium_priority": 2,
     "low_priority": 0
   }
 }

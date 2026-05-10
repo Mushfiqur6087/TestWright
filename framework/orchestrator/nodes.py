@@ -131,28 +131,36 @@ async def generate_tests_node(state: PipelineState) -> Dict[str, Any]:
     ui_ast_results = state.get("ui_ast_results", [])
 
     ast_by_id = {r["module_id"]: r.get("ast", {}) for r in ui_ast_results}
+    desc_by_id = {m["id"]: m["description"] for m in modules}
+
+    test_types = state.get("test_types") or {"positive", "negative", "edge"}
 
     # Skip modules that failed AST generation (empty ast)
     runnable = [m for m in modules if ast_by_id.get(m["id"])]
     skipped = len(modules) - len(runnable)
 
-    total_calls = len(runnable) * 3
-    print(f"\n[2/3] Generating test cases ({total_calls} calls across {len(runnable)} module(s))...")
+    total_calls = len(runnable) * len(test_types)
+    type_label = "/".join(sorted(test_types))
+    print(f"\n[2/3] Generating test cases ({total_calls} calls across {len(runnable)} module(s), types: {type_label})...")
     if skipped:
         print(f"  Skipping {skipped} module(s) with no AST.")
 
     async def _process_module(module: Dict[str, Any]) -> Dict[str, Any]:
         title = module["title"]
         ast = ast_by_id[module["id"]]
+        desc = desc_by_id.get(module["id"], "")
         module_dir = _module_debug_dir(state, title)
-        pos_agent = TestPositiveAgent(**_agent_kwargs(state, "03_test_positive.log", module_dir))
-        neg_agent = TestNegativeAgent(**_agent_kwargs(state, "04_test_negative.log", module_dir))
-        edge_agent = TestEdgeAgent(**_agent_kwargs(state, "05_test_edge.log", module_dir))
+
+        async def _run_if(agent_cls, log_file, type_name):
+            if type_name not in test_types:
+                return None
+            agent = agent_cls(**_agent_kwargs(state, log_file, module_dir))
+            return await agent.arun(title, ast, desc)
 
         pos, neg, edge = await asyncio.gather(
-            pos_agent.arun(title, ast),
-            neg_agent.arun(title, ast),
-            edge_agent.arun(title, ast),
+            _run_if(TestPositiveAgent, "03_test_positive.log", "positive"),
+            _run_if(TestNegativeAgent, "04_test_negative.log", "negative"),
+            _run_if(TestEdgeAgent, "05_test_edge.log", "edge"),
             return_exceptions=True,
         )
 

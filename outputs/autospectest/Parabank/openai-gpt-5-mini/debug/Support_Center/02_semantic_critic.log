@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.153770
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.153438
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:09:36] Semantic Critic - SYSTEM PROMPT
+[04:49:16] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,149 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[23:09:36] Semantic Critic - USER PROMPT
-------------------------------------------------------------
-<description>
-
-The Support Center page integrates two communication forms.The secure message form includes Subject, Category (dropdown: Account, Technical, Security, Other), Message Body (rich text), optional Attachment, and a “Send Message” button. The system checks subject length, ensures a message body is present, and validates attachment types. On success it shows “Message sent successfully.” with a ticket ID; failures display inline guidance. The schedule callback form includes Reason for Call (dropdown), Preferred Date, Preferred Time Window, Phone Number (pre-filled but editable), and a “Request Callback” button. The system ensures the date is at least the next business day and validates the phone number format. Success returns “Callback request submitted.” and sends an email confirmation; validation errors are shown inline.
-
-</description>
-
-<ast>
-{
-  "module_name": "Support Center",
-  "components": {
-    "Secure_Message_Form": {
-      "type": "form",
-      "fields": {
-        "Subject": {
-          "type": "unspecified",
-          "required": true,
-          "constraints": [
-            "subject length must meet system limits (validated on submit)"
-          ]
-        },
-        "Category": {
-          "type": "dropdown",
-          "required": false,
-          "options": [
-            "Account",
-            "Technical",
-            "Security",
-            "Other"
-          ]
-        },
-        "Message_Body": {
-          "type": "unspecified",
-          "required": true,
-          "constraints": [
-            "message body must be present"
-          ]
-        },
-        "Attachment": {
-          "type": "file_upload",
-          "required": false,
-          "constraints": [
-            "attachment file type must be an allowed type",
-            "attachment file size must meet system limits"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Send Message",
-          "on_success": "Message sent successfully. Returns ticket ID",
-          "on_error": "validation errors shown inline"
-        }
-      ]
-    },
-    "Schedule_Callback_Form": {
-      "type": "form",
-      "fields": {
-        "Reason_for_Call": {
-          "type": "dropdown",
-          "required": false
-        },
-        "Preferred_Date": {
-          "type": "date",
-          "required": true,
-          "constraints": [
-            "date must be at least the next business day"
-          ]
-        },
-        "Preferred_Time_Window": {
-          "type": "unspecified",
-          "required": false
-        },
-        "Phone_Number": {
-          "type": "unspecified",
-          "required": true,
-          "prefilled": true,
-          "constraints": [
-            "must match valid phone number format"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Request Callback",
-          "on_success": "Callback request submitted and sends email confirmation",
-          "on_error": "validation errors shown inline"
-        }
-      ]
-    }
-  }
-}
-</ast>
-
-IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
-
-------------------------------------------------------------
-[23:09:56] Semantic Critic - LLM RESPONSE
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "AST is missing specific field types and an editable flag, and includes a phantom constraint not in the description; regenerate with the requested corrections.",
-  "missing": [
-    "components.Secure_Message_Form.fields.Message_Body.type",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.type",
-    "components.Schedule_Callback_Form.fields.Phone_Number.editable"
-  ],
-  "phantoms": [
-    "components.Secure_Message_Form.fields.Attachment.constraints[1] (attachment file size must meet system limits)"
-  ],
-  "fixes": [
-    "components.Secure_Message_Form.fields.Message_Body.type — set to the explicit type 'rich_text' (currently 'unspecified').",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.type — set to an explicit time-window type such as 'time_window' or 'time_range' (currently 'unspecified').",
-    "components.Schedule_Callback_Form.fields.Phone_Number.editable — add boolean 'editable': true to reflect 'pre-filled but editable'.",
-    "components.Secure_Message_Form.fields.Attachment.constraints — remove the constraint 'attachment file size must meet system limits' since the description only specifies validation of attachment types."
-  ]
-}
-
-------------------------------------------------------------
-[23:09:56] Semantic Critic - PARSED JSON
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "AST is missing specific field types and an editable flag, and includes a phantom constraint not in the description; regenerate with the requested corrections.",
-  "missing": [
-    "components.Secure_Message_Form.fields.Message_Body.type",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.type",
-    "components.Schedule_Callback_Form.fields.Phone_Number.editable"
-  ],
-  "phantoms": [
-    "components.Secure_Message_Form.fields.Attachment.constraints[1] (attachment file size must meet system limits)"
-  ],
-  "fixes": [
-    "components.Secure_Message_Form.fields.Message_Body.type \u2014 set to the explicit type 'rich_text' (currently 'unspecified').",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.type \u2014 set to an explicit time-window type such as 'time_window' or 'time_range' (currently 'unspecified').",
-    "components.Schedule_Callback_Form.fields.Phone_Number.editable \u2014 add boolean 'editable': true to reflect 'pre-filled but editable'.",
-    "components.Secure_Message_Form.fields.Attachment.constraints \u2014 remove the constraint 'attachment file size must meet system limits' since the description only specifies validation of attachment types."
-  ]
-}
-
-------------------------------------------------------------
-[23:10:21] Semantic Critic - USER PROMPT
+[04:49:16] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 
@@ -267,7 +125,7 @@ The Support Center page integrates two communication forms.The secure message fo
           "type": "unspecified",
           "required": false,
           "constraints": [
-            "validates subject length"
+            "must meet subject length limits (system checks subject length)"
           ]
         },
         "Category": {
@@ -281,23 +139,25 @@ The Support Center page integrates two communication forms.The secure message fo
           ]
         },
         "Message_Body": {
-          "type": "rich_text",
-          "required": true
+          "type": "unspecified",
+          "required": true,
+          "constraints": [
+            "must be present (non-empty)"
+          ]
         },
         "Attachment": {
           "type": "file_upload",
           "required": false,
           "constraints": [
-            "validates attachment types"
+            "must be an allowed file type (system validates attachment types)"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Send Message",
-          "type": "button",
           "on_success": "Message sent successfully with ticket ID",
-          "on_failure": "displays inline validation guidance"
+          "on_failure": "displays inline guidance for validation and submission errors"
         }
       ]
     },
@@ -312,174 +172,26 @@ The Support Center page integrates two communication forms.The secure message fo
           "type": "date",
           "required": true,
           "constraints": [
-            "date must be at least the next business day"
+            "must be on or after the next business day"
           ]
         },
         "Preferred_Time_Window": {
-          "type": "time_window",
-          "required": true
+          "type": "unspecified",
+          "required": false
         },
         "Phone_Number": {
           "type": "unspecified",
           "required": true,
           "prefilled": true,
-          "editable": true,
           "constraints": [
-            "validates phone number format"
+            "must match valid phone number format (system validates phone number format)"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Callback",
-          "type": "button",
-          "on_success": "Callback request submitted and email confirmation sent",
-          "on_failure": "displays inline validation guidance"
-        }
-      ]
-    }
-  }
-}
-</ast>
-
-IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
-
-------------------------------------------------------------
-[23:10:42] Semantic Critic - LLM RESPONSE
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "The AST mostly captures the described forms and behaviors but includes multiple inferred 'required' flags that are not specified in the description (phantoms); remove or align these and re-run.",
-  "missing": [],
-  "phantoms": [
-    "components.Secure_Message_Form.fields.Subject.required (required flag not stated in description)",
-    "components.Secure_Message_Form.fields.Category.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Reason_for_Call.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Preferred_Date.required (required flag not explicitly stated in description)",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Phone_Number.required (required flag not explicitly stated in description)"
-  ],
-  "fixes": [
-    "components.Secure_Message_Form.fields.Subject: remove the 'required' property (the description only says subject length is validated, but does not state it is required).",
-    "components.Secure_Message_Form.fields.Category: remove the 'required' property (description lists the field and options but does not mark it required).",
-    "components.Schedule_Callback_Form.fields.Reason_for_Call: remove the 'required' property (description lists the dropdown but does not state it is required).",
-    "components.Schedule_Callback_Form.fields.Preferred_Date: remove the 'required' property (description enforces a date constraint — 'at least the next business day' — but does not explicitly mark the field as required; if intended required, explicitly state 'Preferred Date is required' in the description).",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window: remove the 'required' property (description lists the field but does not state it is required).",
-    "components.Schedule_Callback_Form.fields.Phone_Number: remove the 'required' property unless the description is updated to explicitly state the phone number is required (the description only states it is pre-filled and editable and that its format is validated).",
-    "After applying the above removals, regenerate the AST so requiredness is present only where explicitly specified in the description (e.g., Message_Body required true and Attachment explicitly optional)."
-  ]
-}
-
-------------------------------------------------------------
-[23:10:42] Semantic Critic - PARSED JSON
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "The AST mostly captures the described forms and behaviors but includes multiple inferred 'required' flags that are not specified in the description (phantoms); remove or align these and re-run.",
-  "missing": [],
-  "phantoms": [
-    "components.Secure_Message_Form.fields.Subject.required (required flag not stated in description)",
-    "components.Secure_Message_Form.fields.Category.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Reason_for_Call.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Preferred_Date.required (required flag not explicitly stated in description)",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window.required (required flag not stated in description)",
-    "components.Schedule_Callback_Form.fields.Phone_Number.required (required flag not explicitly stated in description)"
-  ],
-  "fixes": [
-    "components.Secure_Message_Form.fields.Subject: remove the 'required' property (the description only says subject length is validated, but does not state it is required).",
-    "components.Secure_Message_Form.fields.Category: remove the 'required' property (description lists the field and options but does not mark it required).",
-    "components.Schedule_Callback_Form.fields.Reason_for_Call: remove the 'required' property (description lists the dropdown but does not state it is required).",
-    "components.Schedule_Callback_Form.fields.Preferred_Date: remove the 'required' property (description enforces a date constraint \u2014 'at least the next business day' \u2014 but does not explicitly mark the field as required; if intended required, explicitly state 'Preferred Date is required' in the description).",
-    "components.Schedule_Callback_Form.fields.Preferred_Time_Window: remove the 'required' property (description lists the field but does not state it is required).",
-    "components.Schedule_Callback_Form.fields.Phone_Number: remove the 'required' property unless the description is updated to explicitly state the phone number is required (the description only states it is pre-filled and editable and that its format is validated).",
-    "After applying the above removals, regenerate the AST so requiredness is present only where explicitly specified in the description (e.g., Message_Body required true and Attachment explicitly optional)."
-  ]
-}
-
-------------------------------------------------------------
-[23:10:58] Semantic Critic - USER PROMPT
-------------------------------------------------------------
-<description>
-
-The Support Center page integrates two communication forms.The secure message form includes Subject, Category (dropdown: Account, Technical, Security, Other), Message Body (rich text), optional Attachment, and a “Send Message” button. The system checks subject length, ensures a message body is present, and validates attachment types. On success it shows “Message sent successfully.” with a ticket ID; failures display inline guidance. The schedule callback form includes Reason for Call (dropdown), Preferred Date, Preferred Time Window, Phone Number (pre-filled but editable), and a “Request Callback” button. The system ensures the date is at least the next business day and validates the phone number format. Success returns “Callback request submitted.” and sends an email confirmation; validation errors are shown inline.
-
-</description>
-
-<ast>
-{
-  "module_name": "Support Center",
-  "components": {
-    "Secure_Message_Form": {
-      "type": "form",
-      "fields": {
-        "Subject": {
-          "type": "unspecified",
-          "constraints": [
-            "subject length validated"
-          ]
-        },
-        "Category": {
-          "type": "dropdown",
-          "options": [
-            "Account",
-            "Technical",
-            "Security",
-            "Other"
-          ]
-        },
-        "Message_Body": {
-          "type": "unspecified",
-          "required": true,
-          "constraints": [
-            "must be present"
-          ]
-        },
-        "Attachment": {
-          "type": "file_upload",
-          "required": false,
-          "constraints": [
-            "validates attachment types"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Send Message",
-          "type": "button",
-          "on_success": "Message sent successfully; returns ticket ID",
-          "on_failure": "displays inline guidance"
-        }
-      ]
-    },
-    "Schedule_Callback_Form": {
-      "type": "form",
-      "fields": {
-        "Reason_for_Call": {
-          "type": "dropdown"
-        },
-        "Preferred_Date": {
-          "type": "date",
-          "constraints": [
-            "must be at least the next business day"
-          ]
-        },
-        "Preferred_Time_Window": {
-          "type": "unspecified"
-        },
-        "Phone_Number": {
-          "type": "unspecified",
-          "prefilled": true,
-          "editable": true,
-          "constraints": [
-            "phone number format validation"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "Request Callback",
-          "type": "button",
-          "on_success": "Callback request submitted; email confirmation sent",
+          "on_success": "Callback request submitted and sends an email confirmation",
           "on_failure": "validation errors shown inline"
         }
       ]
@@ -491,29 +203,23 @@ The Support Center page integrates two communication forms.The secure message fo
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:11:11] Semantic Critic - LLM RESPONSE
+[04:49:25] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both forms, fields, validations, and submit behaviors; only minor field-type specifics are left unspecified.",
-  "missing": [
-    "Secure_Message_Form.fields.Message_Body.type (should be 'rich_text' per description)",
-    "Schedule_Callback_Form.fields.Preferred_Time_Window.type (should indicate time window/time-range control)"
-  ],
+  "summary": "The AST accurately represents both forms, their interactive fields, validations, and submit behaviors described; no critical elements are missing and there are no extraneous items.",
+  "missing": [],
   "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[23:11:11] Semantic Critic - PARSED JSON
+[04:49:25] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "AST correctly captures both forms, fields, validations, and submit behaviors; only minor field-type specifics are left unspecified.",
-  "missing": [
-    "Secure_Message_Form.fields.Message_Body.type (should be 'rich_text' per description)",
-    "Schedule_Callback_Form.fields.Preferred_Time_Window.type (should indicate time window/time-range control)"
-  ],
+  "summary": "The AST accurately represents both forms, their interactive fields, validations, and submit behaviors described; no critical elements are missing and there are no extraneous items.",
+  "missing": [],
   "phantoms": [],
   "fixes": []
 }

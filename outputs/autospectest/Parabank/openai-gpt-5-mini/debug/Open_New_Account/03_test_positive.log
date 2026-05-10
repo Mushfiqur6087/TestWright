@@ -1,13 +1,13 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:11:21.555112
+DEBUG SESSION STARTED: 2026-05-10T04:50:35.264934
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:11:21] Test-Positive - SYSTEM PROMPT
+[04:50:35] Test-Positive - SYSTEM PROMPT
 ------------------------------------------------------------
-You are a Positive Test Case Generator. You receive a UI-AST JSON for one module. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
+You are a Positive Test Case Generator. You receive (1) a UI-AST JSON for one module and (2) the original functional description. Your job is to produce ONLY positive/functional test cases — tests where valid input is provided and the system behaves correctly.
 
 ---
 
@@ -19,37 +19,110 @@ You are a Positive Test Case Generator. You receive a UI-AST JSON for one module
 {Module UI-AST JSON}
 </ast>
 
+<description>
+{Original functional description text for this module}
+</description>
+
 ---
 
 **ASSERTION STYLE:**
 
-- When the AST's `on_success` field provides exact success text → use it verbatim.
+- When the description quotes exact success text → use it verbatim.
 - When generic → write specific assertions describing the visible outcome.
 - Always use `on_success` from the AST when available.
 
 ---
 
+**GENERIC DATA RULE (CRITICAL):**
+
+Never invent specific data values in steps or preconditions.
+Always use generic role-based placeholders enclosed in angle brackets.
+
+Examples of CORRECT step wording:
+  - "Enter <first name> in the First Name field"
+  - "Enter <last name> in the Last Name field"
+  - "Enter <valid email address> in the Email field"
+  - "Enter <password> in the Password field"
+  - "Select <account type> from the Account Type dropdown"
+  - "Enter <amount> in the Amount field"
+  - "Upload <valid file>"
+
+Examples of WRONG step wording (never do this):
+  - "Enter 'John' in the First Name field"
+  - "Enter 'Doe' in the Last Name field"
+  - "Enter 'john.doe@example.com' in the Email field"
+  - "Enter 'Password123!' in the Password field"
+  - "Enter '500.00' in the Amount field"
+
+This rule applies everywhere: steps, preconditions, and expected_result.
+The only exception is values explicitly quoted in the spec (e.g., exact UI labels or messages).
+
+---
+
+**STEP GRANULARITY RULE (CRITICAL):**
+
+Each step in the `steps` array must be ONE atomic user action.
+Never consolidate multiple actions into a single step.
+Each field fill, each click, each navigation is its own step.
+
+Example of CORRECT atomic steps (Registration form):
+  "steps": [
+    "Navigate to the Registration page",
+    "Enter <first name> in the First Name field",
+    "Enter <last name> in the Last Name field",
+    "Enter <address> in the Address field",
+    "Enter <city> in the City field",
+    "Enter <state> in the State field",
+    "Enter <zip code> in the Zip Code field",
+    "Enter <phone number> in the Phone field",
+    "Enter <SSN> in the SSN field",
+    "Enter <username> in the Username field",
+    "Enter <password> in the Password field",
+    "Enter <password> in the Confirm Password field",
+    "Click the Register button"
+  ]
+
+Example of WRONG consolidated steps (never do this):
+  "steps": [
+    "Fill in all required fields with valid data",
+    "Submit the form"
+  ]
+
+  "steps": [
+    "Enter first name, last name, and address",
+    "Enter username and password",
+    "Click Register"
+  ]
+
+One action per step. No "and". No "all fields". No grouping.
+
+---
+
 **ANTI-HALLUCINATION RULE (CRITICAL):**
 
-You receive only the UI-AST. The AST is the complete source of truth.
-Every test case you generate MUST trace to a specific JSON element:
-  - A field name in `fields: []`
-  - A constraint string in `constraints: []`
-  - An action name in `available_actions: []` or `submit_actions: []`
-  - A state key in `state_bound_action_bar`
-  - An `on_success` value
-  - A step in a wizard
+Every test case you generate MUST trace back to a specific
+statement in the description or a specific element in the AST.
 
-There is no prose to interpret. DO NOT use general knowledge about
-how similar UIs typically behave. If it is not in the AST, it does not exist.
+Before writing any test, mentally answer: "Which exact sentence
+in the description or which exact field/constraint/state in the
+AST justifies this test?" If you cannot point to one, DO NOT
+generate the test.
 
-Banned reasoning:
-  ✗ "Name fields typically restrict special characters" — not in AST, skip
-  ✗ "State machines usually have blocked transitions" — use available_actions as truth
-  ✗ "Financial forms usually validate positive numbers" — only if constraints says so
-  ✗ "Registration usually needs email confirmation" — only if AST has confirm_email field
+DO NOT generate tests for:
+  - Backend data integrity scenarios the description doesn't mention
+    (e.g., "what if the server returns invalid data")
+  - Security vulnerabilities not described (e.g., "account number
+    exposed in DOM", "session hijacking")
+  - Infrastructure behavior (e.g., "race condition between two users",
+    "API returns 500 error")
+  - Error recovery scenarios not described (e.g., "server timeout
+    during submission")
 
-The AST is authoritative. Stay inside it.
+If the description says "the page displays X" and nothing more,
+that produces a POSITIVE display test — not 9 negative tests
+about what happens when X is malformed, missing, or tampered with.
+
+The spec is the boundary. Stay inside it.
 
 ---
 
@@ -107,21 +180,7 @@ Path C — ALTERNATIVE ROUTE: Take a meaningfully different journey:
   - Wizards: navigate forward to last step → back to step 1 → verify all data persists → submit
   - Forms with dropdowns/options: select a DIFFERENT option than Path A, verify flow still completes
   - Forms with conditional fields: trigger the conditional reveal, fill the revealed fields, submit
-  - State-bound modules: take an alternative state path (e.g., Create → Reject instead of Create → Activate)
-
-**PATH vs DATA VARIATION — CRITICAL DISTINCTION:**
-
-A new PATH exercises a different code branch (different conditional, different
-action, different state sequence, different navigation route).
-
-A DATA VARIATION exercises the SAME code branch with different input values:
-  ✗ Different email addresses (same authentication code path)
-  ✗ Different names or phone number formats (same text field handling)
-  ✗ Different account numbers (same numeric field code path)
-
-Path A + Path B + Path C exhaust all meaningful code paths for a single-action
-form. If you are about to generate TC-004+, ask: "Does this exercise a code
-branch not exercised by Path A/B/C?" If no, stop.
+  - State-bound modules: take an alternative state path (e.g., follow a non-default branch in the state machine instead of the primary one)
 
 **2. State transition tests:**
 
@@ -131,11 +190,11 @@ For EACH state in a `state_bound_action_bar`:
 
 **BIDIRECTIONAL STATE / TOGGLE RULE:**
 
-For toggles and bidirectional controls (Active/Frozen,
-enable/disable, opt-in/opt-out, check/uncheck), test
-BOTH directions:
-  - Forward: initial state → changed state (e.g., Active → Frozen)
-  - Reverse: changed state → original state (e.g., Frozen → Active)
+For toggles and bidirectional controls (enable/disable,
+opt-in/opt-out, check/uncheck, any two-way state pair),
+test BOTH directions:
+  - Forward: initial state → changed state
+  - Reverse: changed state → original state
 
 If a state_bound_action_bar shows an action available in
 State A that transitions to State B, AND State B has an action
@@ -144,11 +203,11 @@ that transitions back to State A — test both transitions.
 For checkboxes and toggles: test check → submit, then
 uncheck → submit.
 
-**3. End-to-end lifecycle flows:**
+**3. End-to-end lifecycle flows (from description context):**
 
 If the module has multiple states, produce:
-  - Primary lifecycle: the full expected journey (Create → Activate → use features → Close)
-  - One alternative lifecycle: a different valid path through states (Create → Reject, Create → Withdraw)
+  - Primary lifecycle: the full expected journey through every state from creation to terminal state
+  - One alternative lifecycle: a different valid path through states (e.g., a rejection or early-termination branch)
 
 These are multi-step tests spanning several state transitions. Include every precondition, navigation step, and intermediate verification.
 
@@ -170,19 +229,19 @@ For each `data_table`:
 For each field with `options: []`:
   - One test verifying all listed options are present and selectable
 
-**7. Search and filter:**
+**7. Search and filter (from description):**
 
-If AST contains a `search_input` or filter component:
+If description mentions search or filter:
   - One test: search/filter with matching criteria → correct results shown
 
-**8. Navigation and redirect:**
+**8. Navigation and redirect (from description):**
 
-If AST has an `on_success` containing "redirect", "navigates to", or "opens":
+If description mentions "redirected to X" or "opens Y page":
   - One test per unique redirect verifying navigation occurs
 
-**9. Pre-population:**
+**9. Pre-population (from description):**
 
-If AST has a field with `default` or `pre_filled` attribute:
+If description mentions "pre-filled", "auto-populated", "defaults to":
   - One test verifying pre-fill behavior
 
 ---
@@ -228,7 +287,7 @@ If AST has a field with `default` or `pre_filled` attribute:
 
 
 ------------------------------------------------------------
-[23:11:21] Test-Positive - USER PROMPT
+[04:50:35] Test-Positive - USER PROMPT
 ------------------------------------------------------------
 <module_name>Open New Account</module_name>
 
@@ -246,9 +305,6 @@ If AST has a field with `default` or `pre_filled` attribute:
           "options": [
             "Checking",
             "Savings"
-          ],
-          "constraints": [
-            "must be selected"
           ]
         },
         "Initial_Deposit_Amount": {
@@ -264,21 +320,16 @@ If AST has a field with `default` or `pre_filled` attribute:
           "type": "dropdown",
           "required": true,
           "constraints": [
-            "funding account must have sufficient balance for the requested Initial_Deposit_Amount"
+            "Funding_Source_Account balance must be >= Initial_Deposit_Amount (validated in real-time)"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Open Account",
-          "preconditions": [
-            "Account_Type must be selected",
-            "Initial_Deposit_Amount must satisfy minimum for selected Account_Type",
-            "Funding_Source_Account must have sufficient balance"
-          ],
-          "enabled_when": "Account_Type is selected AND Initial_Deposit_Amount meets selected account minimum AND Funding_Source_Account is selected",
+          "type": "button",
           "on_success": "Account opened successfully!",
-          "post_success": "redirects to accounts overview"
+          "redirect_to": "accounts overview"
         }
       ]
     }
@@ -286,10 +337,16 @@ If AST has a field with `default` or `pre_filled` attribute:
 }
 </ast>
 
+<description>
+This page contains an account-opening form with interactive account type selection cards (Checking or Savings) showing features and minimum deposit requirements, Initial Deposit Amount field, Funding Source Account dropdown, and an "Open Account" button. The system validates that account type is selected, deposit amount is numeric and meets minimums ($25 for Checking, $100 for Savings), funding account has sufficient balance, and displays real-time validation errors. Success shows "Account opened successfully!" and redirects to accounts overview.
+
+
+</description>
+
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:11:56] Test-Positive - LLM RESPONSE
+[04:51:05] Test-Positive - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module": "Open New Account",
@@ -297,113 +354,158 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Path A — Complete data (Checking, amount above minimum) and successful open",
+      "test_case": "Happy path - Complete data for Checking account",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
       ],
       "steps": [
-        "Select Account_Type = Checking",
-        "Enter Initial_Deposit_Amount = 50",
-        "Select a Funding_Source_Account that has balance >= 50",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Path B — Minimum viable input (Checking with exact minimum) and successful open",
+      "test_case": "Happy path - Minimum viable required fields for Savings account",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
       ],
       "steps": [
-        "Select Account_Type = Checking",
-        "Enter Initial_Deposit_Amount = 25 (exact Checking minimum per constraint)",
-        "Select a Funding_Source_Account that has balance >= 25",
-        "Click the 'Open Account' submit action"
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Path C — Alternative route: choose Savings (different constraint path) and successful open",
+      "test_case": "Alternative route - switch account type after entering deposit and complete",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
       ],
       "steps": [
-        "Select Account_Type = Savings",
-        "Enter Initial_Deposit_Amount = 150 (meets Savings minimum constraint)",
-        "Select a Funding_Source_Account that has balance >= 150",
-        "Click the 'Open Account' submit action"
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Select Checking in the Account Type radio options",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
-      "priority": "high"
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+      "priority": "medium"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Account_Type radio options present and selectable",
+      "test_case": "Account type options are present and selectable",
       "preconditions": [
-        "Open_New_Account_Form is displayed"
+        "User on the Open New Account page"
       ],
       "steps": [
-        "Inspect Account_Type radio field",
-        "Verify the options 'Checking' and 'Savings' are visible",
-        "Select Account_Type = Checking and verify selection is set",
-        "Select Account_Type = Savings and verify selection is set"
+        "Click the Checking option in the Account Type radio options",
+        "Click the Savings option in the Account Type radio options"
       ],
-      "expected_result": "Both Account_Type options listed in the AST ('Checking', 'Savings') are present and each can be selected (field: Account_Type, options: ['Checking','Savings'])",
+      "expected_result": "Radio options \"Checking\" and \"Savings\" are visible and can be selected",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Submit button enablement via real_time_validation and enabled_when expression (Savings below then meets minimum)",
+      "test_case": "Minimum deposit requirements display updates with account type selection",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account exists and can be selected"
+        "User on the Open New Account page"
       ],
       "steps": [
-        "Select Account_Type = Savings (triggers constraint: Initial_Deposit_Amount must be >= 100 when Account_Type == Savings)",
-        "Select a Funding_Source_Account (satisfies part of enabled_when)",
-        "Enter Initial_Deposit_Amount = 50 (below Savings minimum)",
-        "Observe that the 'Open Account' submit action is not enabled (check enabled_when: Account_Type is selected AND Initial_Deposit_Amount meets selected account minimum AND Funding_Source_Account is selected)",
-        "Update Initial_Deposit_Amount = 100 (meets Savings minimum) — real_time_validation should validate updated amount",
-        "Observe that the 'Open Account' submit action becomes enabled",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Select Savings in the Account Type radio options"
       ],
-      "expected_result": "When Initial_Deposit_Amount is below the Savings minimum the 'Open Account' action remains disabled; after entering a value that meets the constraint (100) real_time_validation allows the enabled_when conditions to be satisfied and the 'Open Account' action becomes enabled. After clicking, the on_success text \"Account opened successfully!\" is shown and the UI redirects to accounts overview (post_success: redirects to accounts overview).",
-      "priority": "high"
+      "expected_result": "The UI displays the Checking minimum deposit \"$25\" and the Savings minimum deposit \"$100\" as part of the account selection cards",
+      "priority": "medium"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Savings exact minimum boundary (Initial_Deposit_Amount == 100) and successful open",
+      "test_case": "Real-time validation passes when deposit meets account minimum and funding balance",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
       ],
       "steps": [
-        "Select Account_Type = Savings",
-        "Enter Initial_Deposit_Amount = 100 (exact Savings minimum per constraint)",
-        "Select a Funding_Source_Account that has balance >= 100",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown"
       ],
-      "expected_result": "The form submits successfully at the Savings minimum boundary and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "No real-time validation error messages are visible for Account Type, Initial Deposit Amount, or Funding Source Account, and the Open Account button is enabled",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-007",
+      "test_case": "Funding source balance validated in real-time before submission",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
+      ],
+      "steps": [
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown"
+      ],
+      "expected_result": "Real-time validation confirms the Funding Source Account balance is sufficient (no funding-related validation errors are shown)",
       "priority": "medium"
+    },
+    {
+      "tc_id": "P-008",
+      "test_case": "Successful submission redirects to accounts overview (redirect verification)",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
+      ],
+      "steps": [
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
+      ],
+      "expected_result": "After displaying \"Account opened successfully!\", the application navigates to the accounts overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-009",
+      "test_case": "End-to-end lifecycle - open account using Savings path and confirm success message and redirect",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
+      ],
+      "steps": [
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
+      ],
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 9,
     "high_priority": 4,
-    "medium_priority": 2,
+    "medium_priority": 4,
     "low_priority": 0
   }
 }
 
 ------------------------------------------------------------
-[23:11:56] Test-Positive - PARSED JSON
+[04:51:05] Test-Positive - PARSED JSON
 ------------------------------------------------------------
 {
   "module": "Open New Account",
@@ -411,107 +513,152 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
   "test_cases": [
     {
       "tc_id": "P-001",
-      "test_case": "Path A \u2014 Complete data (Checking, amount above minimum) and successful open",
+      "test_case": "Happy path - Complete data for Checking account",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
       ],
       "steps": [
-        "Select Account_Type = Checking",
-        "Enter Initial_Deposit_Amount = 50",
-        "Select a Funding_Source_Account that has balance >= 50",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
       "priority": "high"
     },
     {
       "tc_id": "P-002",
-      "test_case": "Path B \u2014 Minimum viable input (Checking with exact minimum) and successful open",
+      "test_case": "Happy path - Minimum viable required fields for Savings account",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
       ],
       "steps": [
-        "Select Account_Type = Checking",
-        "Enter Initial_Deposit_Amount = 25 (exact Checking minimum per constraint)",
-        "Select a Funding_Source_Account that has balance >= 25",
-        "Click the 'Open Account' submit action"
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
       "priority": "high"
     },
     {
       "tc_id": "P-003",
-      "test_case": "Path C \u2014 Alternative route: choose Savings (different constraint path) and successful open",
+      "test_case": "Alternative route - switch account type after entering deposit and complete",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
       ],
       "steps": [
-        "Select Account_Type = Savings",
-        "Enter Initial_Deposit_Amount = 150 (meets Savings minimum constraint)",
-        "Select a Funding_Source_Account that has balance >= 150",
-        "Click the 'Open Account' submit action"
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Select Checking in the Account Type radio options",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
       ],
-      "expected_result": "The form submits successfully and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
-      "priority": "high"
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+      "priority": "medium"
     },
     {
       "tc_id": "P-004",
-      "test_case": "Account_Type radio options present and selectable",
+      "test_case": "Account type options are present and selectable",
       "preconditions": [
-        "Open_New_Account_Form is displayed"
+        "User on the Open New Account page"
       ],
       "steps": [
-        "Inspect Account_Type radio field",
-        "Verify the options 'Checking' and 'Savings' are visible",
-        "Select Account_Type = Checking and verify selection is set",
-        "Select Account_Type = Savings and verify selection is set"
+        "Click the Checking option in the Account Type radio options",
+        "Click the Savings option in the Account Type radio options"
       ],
-      "expected_result": "Both Account_Type options listed in the AST ('Checking', 'Savings') are present and each can be selected (field: Account_Type, options: ['Checking','Savings'])",
+      "expected_result": "Radio options \"Checking\" and \"Savings\" are visible and can be selected",
       "priority": "medium"
     },
     {
       "tc_id": "P-005",
-      "test_case": "Submit button enablement via real_time_validation and enabled_when expression (Savings below then meets minimum)",
+      "test_case": "Minimum deposit requirements display updates with account type selection",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account exists and can be selected"
+        "User on the Open New Account page"
       ],
       "steps": [
-        "Select Account_Type = Savings (triggers constraint: Initial_Deposit_Amount must be >= 100 when Account_Type == Savings)",
-        "Select a Funding_Source_Account (satisfies part of enabled_when)",
-        "Enter Initial_Deposit_Amount = 50 (below Savings minimum)",
-        "Observe that the 'Open Account' submit action is not enabled (check enabled_when: Account_Type is selected AND Initial_Deposit_Amount meets selected account minimum AND Funding_Source_Account is selected)",
-        "Update Initial_Deposit_Amount = 100 (meets Savings minimum) \u2014 real_time_validation should validate updated amount",
-        "Observe that the 'Open Account' submit action becomes enabled",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Select Savings in the Account Type radio options"
       ],
-      "expected_result": "When Initial_Deposit_Amount is below the Savings minimum the 'Open Account' action remains disabled; after entering a value that meets the constraint (100) real_time_validation allows the enabled_when conditions to be satisfied and the 'Open Account' action becomes enabled. After clicking, the on_success text \"Account opened successfully!\" is shown and the UI redirects to accounts overview (post_success: redirects to accounts overview).",
-      "priority": "high"
+      "expected_result": "The UI displays the Checking minimum deposit \"$25\" and the Savings minimum deposit \"$100\" as part of the account selection cards",
+      "priority": "medium"
     },
     {
       "tc_id": "P-006",
-      "test_case": "Savings exact minimum boundary (Initial_Deposit_Amount == 100) and successful open",
+      "test_case": "Real-time validation passes when deposit meets account minimum and funding balance",
       "preconditions": [
-        "Open_New_Account_Form is displayed",
-        "Funding_Source_Account has sufficient balance for the requested Initial_Deposit_Amount"
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
       ],
       "steps": [
-        "Select Account_Type = Savings",
-        "Enter Initial_Deposit_Amount = 100 (exact Savings minimum per constraint)",
-        "Select a Funding_Source_Account that has balance >= 100",
-        "Click the 'Open Account' submit action"
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown"
       ],
-      "expected_result": "The form submits successfully at the Savings minimum boundary and shows the on_success text: \"Account opened successfully!\" and then redirects to accounts overview (post_success: redirects to accounts overview)",
+      "expected_result": "No real-time validation error messages are visible for Account Type, Initial Deposit Amount, or Funding Source Account, and the Open Account button is enabled",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-007",
+      "test_case": "Funding source balance validated in real-time before submission",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
+      ],
+      "steps": [
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown"
+      ],
+      "expected_result": "Real-time validation confirms the Funding Source Account balance is sufficient (no funding-related validation errors are shown)",
       "priority": "medium"
+    },
+    {
+      "tc_id": "P-008",
+      "test_case": "Successful submission redirects to accounts overview (redirect verification)",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount>"
+      ],
+      "steps": [
+        "Select Checking in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
+      ],
+      "expected_result": "After displaying \"Account opened successfully!\", the application navigates to the accounts overview page",
+      "priority": "high"
+    },
+    {
+      "tc_id": "P-009",
+      "test_case": "End-to-end lifecycle - open account using Savings path and confirm success message and redirect",
+      "preconditions": [
+        "User on the Open New Account page",
+        "Funding source account <funding source account> exists with balance >= <initial deposit amount meeting Savings minimum>"
+      ],
+      "steps": [
+        "Select Savings in the Account Type radio options",
+        "Enter <initial deposit amount> in the Initial Deposit Amount field",
+        "Open the Funding Source Account dropdown",
+        "Select <funding source account> from the Funding Source Account dropdown",
+        "Click the Open Account button"
+      ],
+      "expected_result": "\"Account opened successfully!\" is displayed and the user is redirected to accounts overview",
+      "priority": "high"
     }
   ],
   "summary": {
-    "total": 6,
+    "total": 9,
     "high_priority": 4,
-    "medium_priority": 2,
+    "medium_priority": 4,
     "low_priority": 0
   }
 }

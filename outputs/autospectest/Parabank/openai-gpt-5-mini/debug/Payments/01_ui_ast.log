@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.146512
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.145017
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - SYSTEM PROMPT
+[04:48:44] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - USER PROMPT
+[04:48:44] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Payments
 
@@ -215,7 +215,7 @@ The bill-payment page houses a payment form with fields for Payee Name, Street A
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:09:18] UI-AST Agent - LLM RESPONSE
+[04:49:00] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Payments",
@@ -255,37 +255,30 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match Payee_Account_Number"
+            "must match Payee_Account_Number",
+            "error_message: 'Account numbers do not match'"
           ]
         },
         "Payment_Amount": {
           "type": "number",
-          "required": true,
-          "constraints": [
-            "must be greater than 0"
-          ]
+          "required": true
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true
         }
       },
-      "constraints": [
-        "Account numbers must match: Payee_Account_Number == Confirm_Account_Number",
-        "all required fields must be present and pass field-level validation on submit"
-      ],
       "submit_actions": [
         {
           "element_name": "Pay",
-          "preconditions": [
-            "sufficient funds available in selected Source_Account to cover Payment_Amount",
-            "Account numbers must match: Payee_Account_Number == Confirm_Account_Number"
-          ],
+          "type": "button",
           "constraints": [
-            "validates all entries before executing payment"
+            "Payee_Account_Number must match Confirm_Account_Number (error: 'Account numbers do not match')",
+            "available_funds_in_Source_Account >= Payment_Amount (error: 'Insufficient funds')",
+            "validates all fields before executing payment"
           ],
-          "on_success": "executes payment; returns \"Payment submitted successfully.\" with a reference code; updates balances",
-          "on_failure": "displays inline errors (e.g., \"Account numbers do not match\", \"Insufficient funds\"); form remains editable"
+          "on_success": "Payment submitted successfully. Returns a reference code and updates account balances.",
+          "on_error": "Displays inline errors (e.g., 'Account numbers do not match', 'Insufficient funds') and keeps the form editable"
         }
       ]
     }
@@ -293,7 +286,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[23:09:18] UI-AST Agent - PARSED JSON
+[04:49:00] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Payments",
@@ -333,37 +326,30 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match Payee_Account_Number"
+            "must match Payee_Account_Number",
+            "error_message: 'Account numbers do not match'"
           ]
         },
         "Payment_Amount": {
           "type": "number",
-          "required": true,
-          "constraints": [
-            "must be greater than 0"
-          ]
+          "required": true
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true
         }
       },
-      "constraints": [
-        "Account numbers must match: Payee_Account_Number == Confirm_Account_Number",
-        "all required fields must be present and pass field-level validation on submit"
-      ],
       "submit_actions": [
         {
           "element_name": "Pay",
-          "preconditions": [
-            "sufficient funds available in selected Source_Account to cover Payment_Amount",
-            "Account numbers must match: Payee_Account_Number == Confirm_Account_Number"
-          ],
+          "type": "button",
           "constraints": [
-            "validates all entries before executing payment"
+            "Payee_Account_Number must match Confirm_Account_Number (error: 'Account numbers do not match')",
+            "available_funds_in_Source_Account >= Payment_Amount (error: 'Insufficient funds')",
+            "validates all fields before executing payment"
           ],
-          "on_success": "executes payment; returns \"Payment submitted successfully.\" with a reference code; updates balances",
-          "on_failure": "displays inline errors (e.g., \"Account numbers do not match\", \"Insufficient funds\"); form remains editable"
+          "on_success": "Payment submitted successfully. Returns a reference code and updates account balances.",
+          "on_error": "Displays inline errors (e.g., 'Account numbers do not match', 'Insufficient funds') and keeps the form editable"
         }
       ]
     }

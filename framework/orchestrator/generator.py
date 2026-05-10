@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set
 
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -31,6 +31,7 @@ class UIASTGenerator:
         functional_desc: Dict[str, Any],
         output_dir: str = "output",
         resume: bool = False,
+        test_types: Optional[Set[str]] = None,
     ) -> Optional[Dict[str, Any]]:
         print("=" * 60)
         print("AUTOSPECTEST  (UI-AST Pipeline)")
@@ -52,12 +53,12 @@ class UIASTGenerator:
             CHECKPOINT_DB.parent.mkdir(parents=True, exist_ok=True)
             async with AsyncSqliteSaver.from_conn_string(str(CHECKPOINT_DB)) as checkpointer:
                 graph = build_graph(checkpointer=checkpointer)
-                return await self._invoke(graph, functional_desc, output_dir, resume)
+                return await self._invoke(graph, functional_desc, output_dir, resume, test_types)
         else:
             graph = build_graph()
-            return await self._invoke(graph, functional_desc, output_dir, resume)
+            return await self._invoke(graph, functional_desc, output_dir, resume, test_types)
 
-    async def _invoke(self, graph, functional_desc, output_dir: str, resume: bool):
+    async def _invoke(self, graph, functional_desc, output_dir: str, resume: bool, test_types: Optional[Set[str]] = None):
         config = {"configurable": {"thread_id": self.run_id}} if self.run_id else None
 
         if resume:
@@ -71,6 +72,7 @@ class UIASTGenerator:
                 "debug_file": self.debug_file,
                 "debug_dir": self.debug_dir,
                 "output_dir": output_dir,
+                "test_types": test_types or {"positive", "negative", "edge"},
             }
             final_state = (
                 await graph.ainvoke(initial_state, config=config)

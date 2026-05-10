@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.145063
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.143267
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:09:17] Semantic Critic - SYSTEM PROMPT
+[04:49:00] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[23:09:17] Semantic Critic - USER PROMPT
+[04:49:00] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
@@ -143,44 +143,46 @@ The transfer page presents a form with radio buttons to select transfer type (My
             "Checking",
             "Savings"
           ],
-          "constraints": [
-            "only Checking and Savings account types are selectable"
-          ]
+          "constraints": []
         },
         "Destination_Account_Internal": {
           "type": "dropdown",
-          "visible_when": "Transfer_Type == My ParaBank Account",
           "required_when": "Transfer_Type == My ParaBank Account",
+          "visible_when": "Transfer_Type == My ParaBank Account",
+          "options": [],
           "constraints": [
-            "selects one of the user's own accounts"
+            "select from user's own accounts"
           ]
         },
-        "Destination_Account_External_Number": {
+        "External_Account_Number": {
           "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
           "required_when": "Transfer_Type == External Account",
-          "constraints": [
-            "account number format validated by system"
-          ]
+          "visible_when": "Transfer_Type == External Account",
+          "constraints": []
         },
-        "Destination_Account_External_Confirm": {
+        "Confirm_Account_Number": {
           "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
           "required_when": "Transfer_Type == External Account",
+          "visible_when": "Transfer_Type == External Account",
           "constraints": [
-            "must match Destination_Account_External_Number"
+            "must match External_Account_Number"
           ]
         }
       },
       "constraints": [
-        "sufficient funds in Source_Account for Transfer_Amount (error: 'Insufficient funds')",
-        "for External Account transfers, Destination_Account_External_Number and Destination_Account_External_Confirm must match (error: 'Account numbers do not match')"
+        "sufficient funds in selected Source_Account for Transfer_Amount"
       ],
       "submit_actions": [
         {
           "element_name": "Transfer",
-          "on_success": "Transfer completed successfully. returns transaction ID",
-          "on_failure": "displays contextual errors such as 'Insufficient funds' or 'Account numbers do not match.'"
+          "preconditions": [
+            "sufficient funds in selected Source_Account for Transfer_Amount"
+          ],
+          "on_success": "Transfer completed successfully; returns transaction ID",
+          "on_failure": [
+            "Insufficient funds",
+            "Account numbers do not match"
+          ]
         }
       ]
     }
@@ -191,53 +193,53 @@ The transfer page presents a form with radio buttons to select transfer type (My
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:09:52] Semantic Critic - LLM RESPONSE
+[04:49:27] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "retry",
-  "summary": "AST mostly covers the form and conditional fields but has missing concrete field types and an incorrect/static representation of Source_Account options; also includes a submit button label not specified in the description.",
+  "summary": "AST is mostly aligned but has several missing/underspecified field properties (types/options) and one invented submit element; please clarify types and option sources and avoid inventing unlabeled UI elements.",
   "missing": [
-    "components.Transfer_Form.fields.Source_Account.options (should be a dynamic list of the user's accounts filtered to account_type IN [Checking, Savings], not literal 'Checking'/'Savings' strings)",
-    "components.Transfer_Form.fields.Destination_Account_External_Number.type (should be a textual/account-number input type, e.g., 'text' or 'string')",
-    "components.Transfer_Form.fields.Destination_Account_External_Confirm.type (should be a textual/account-number input type, e.g., 'text' or 'string')"
+    "Transfer_Form.fields.External_Account_Number.type",
+    "Transfer_Form.fields.Confirm_Account_Number.type",
+    "Transfer_Form.fields.Destination_Account_Internal.options"
   ],
   "phantoms": [
-    "components.Transfer_Form.fields.Source_Account.options (literal values ['Checking','Savings'] are not described as the dropdown options — description says the dropdown is filtered to accounts of those types)",
-    "components.Transfer_Form.submit_actions[0].element_name (button label 'Transfer' is not specified in the description)"
+    "Transfer_Form.submit_actions[0] (element_name: 'Transfer' — submit button label not specified in description)"
   ],
   "fixes": [
-    "Replace components.Transfer_Form.fields.Source_Account.options with a dynamic source and filter rule: { \"data_source\": \"user_accounts\", \"filter\": \"account_type IN ['Checking','Savings']\", \"display\": \"account_nickname_or_number\" } so options come from the user's accounts filtered to Checking and Savings.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Number.type to 'text' (or 'string') and add a placeholder/format hint (e.g., 'numeric account number'), replacing its current type 'unspecified'.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Confirm.type to 'text' (or 'string') and add a validation rule tying it to Destination_Account_External_Number (already present in constraints), replacing its current type 'unspecified'.",
-    "Remove or make optional components.Transfer_Form.submit_actions[0].element_name, or mark it as unspecified in the regenerated AST so the submit button text is not invented; allow generation to omit a concrete label if the description does not provide one."
+    "Set a concrete input type for the external account fields: update Transfer_Form.fields.External_Account_Number.type from 'unspecified' to 'text' (or 'number' if account numbers are strictly numeric) and add a validation pattern; path: Transfer_Form.fields.External_Account_Number.type (and add Transfer_Form.fields.External_Account_Number.constraints: ['numeric or pattern constraint as appropriate']).",
+    "Set a concrete input type for the confirm field: update Transfer_Form.fields.Confirm_Account_Number.type from 'unspecified' to 'text' (or 'number') and keep the existing constraint 'must match External_Account_Number'; path: Transfer_Form.fields.Confirm_Account_Number.type and Transfer_Form.fields.Confirm_Account_Number.constraints.",
+    "Provide a source for internal destination options rather than leaving options empty: replace Transfer_Form.fields.Destination_Account_Internal.options: [] with a dynamic options source, e.g. { \"options_source\": \"user_accounts\", \"filter\": \"all user's accounts (exclude Source_Account if applicable)\" } or a concrete list if test data is required; path: Transfer_Form.fields.Destination_Account_Internal.options.",
+    "Clarify the Source_Account dropdown semantics: if the dropdown should list the user's accounts filtered to Checking and Savings, represent that explicitly instead of literal values 'Checking'/'Savings' — e.g. Transfer_Form.fields.Source_Account.options: { \"options_source\": \"user_accounts\", \"filter\": \"account_type in [Checking, Savings]\" }; path: Transfer_Form.fields.Source_Account.options.",
+    "Either remove or justify the invented submit button label: the description didn't name a submit button; either remove Transfer_Form.submit_actions[0].element_name or ensure the description includes the label 'Transfer' (or set a neutral 'Submit' label). If keeping, ensure submit action includes explicit UI text and error-to-field mappings; path: Transfer_Form.submit_actions[0].element_name and Transfer_Form.submit_actions[0].on_failure (map errors to specific fields)."
   ]
 }
 
 ------------------------------------------------------------
-[23:09:52] Semantic Critic - PARSED JSON
+[04:49:27] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "retry",
-  "summary": "AST mostly covers the form and conditional fields but has missing concrete field types and an incorrect/static representation of Source_Account options; also includes a submit button label not specified in the description.",
+  "summary": "AST is mostly aligned but has several missing/underspecified field properties (types/options) and one invented submit element; please clarify types and option sources and avoid inventing unlabeled UI elements.",
   "missing": [
-    "components.Transfer_Form.fields.Source_Account.options (should be a dynamic list of the user's accounts filtered to account_type IN [Checking, Savings], not literal 'Checking'/'Savings' strings)",
-    "components.Transfer_Form.fields.Destination_Account_External_Number.type (should be a textual/account-number input type, e.g., 'text' or 'string')",
-    "components.Transfer_Form.fields.Destination_Account_External_Confirm.type (should be a textual/account-number input type, e.g., 'text' or 'string')"
+    "Transfer_Form.fields.External_Account_Number.type",
+    "Transfer_Form.fields.Confirm_Account_Number.type",
+    "Transfer_Form.fields.Destination_Account_Internal.options"
   ],
   "phantoms": [
-    "components.Transfer_Form.fields.Source_Account.options (literal values ['Checking','Savings'] are not described as the dropdown options \u2014 description says the dropdown is filtered to accounts of those types)",
-    "components.Transfer_Form.submit_actions[0].element_name (button label 'Transfer' is not specified in the description)"
+    "Transfer_Form.submit_actions[0] (element_name: 'Transfer' \u2014 submit button label not specified in description)"
   ],
   "fixes": [
-    "Replace components.Transfer_Form.fields.Source_Account.options with a dynamic source and filter rule: { \"data_source\": \"user_accounts\", \"filter\": \"account_type IN ['Checking','Savings']\", \"display\": \"account_nickname_or_number\" } so options come from the user's accounts filtered to Checking and Savings.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Number.type to 'text' (or 'string') and add a placeholder/format hint (e.g., 'numeric account number'), replacing its current type 'unspecified'.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Confirm.type to 'text' (or 'string') and add a validation rule tying it to Destination_Account_External_Number (already present in constraints), replacing its current type 'unspecified'.",
-    "Remove or make optional components.Transfer_Form.submit_actions[0].element_name, or mark it as unspecified in the regenerated AST so the submit button text is not invented; allow generation to omit a concrete label if the description does not provide one."
+    "Set a concrete input type for the external account fields: update Transfer_Form.fields.External_Account_Number.type from 'unspecified' to 'text' (or 'number' if account numbers are strictly numeric) and add a validation pattern; path: Transfer_Form.fields.External_Account_Number.type (and add Transfer_Form.fields.External_Account_Number.constraints: ['numeric or pattern constraint as appropriate']).",
+    "Set a concrete input type for the confirm field: update Transfer_Form.fields.Confirm_Account_Number.type from 'unspecified' to 'text' (or 'number') and keep the existing constraint 'must match External_Account_Number'; path: Transfer_Form.fields.Confirm_Account_Number.type and Transfer_Form.fields.Confirm_Account_Number.constraints.",
+    "Provide a source for internal destination options rather than leaving options empty: replace Transfer_Form.fields.Destination_Account_Internal.options: [] with a dynamic options source, e.g. { \"options_source\": \"user_accounts\", \"filter\": \"all user's accounts (exclude Source_Account if applicable)\" } or a concrete list if test data is required; path: Transfer_Form.fields.Destination_Account_Internal.options.",
+    "Clarify the Source_Account dropdown semantics: if the dropdown should list the user's accounts filtered to Checking and Savings, represent that explicitly instead of literal values 'Checking'/'Savings' \u2014 e.g. Transfer_Form.fields.Source_Account.options: { \"options_source\": \"user_accounts\", \"filter\": \"account_type in [Checking, Savings]\" }; path: Transfer_Form.fields.Source_Account.options.",
+    "Either remove or justify the invented submit button label: the description didn't name a submit button; either remove Transfer_Form.submit_actions[0].element_name or ensure the description includes the label 'Transfer' (or set a neutral 'Submit' label). If keeping, ensure submit action includes explicit UI text and error-to-field mappings; path: Transfer_Form.submit_actions[0].element_name and Transfer_Form.submit_actions[0].on_failure (map errors to specific fields)."
   ]
 }
 
 ------------------------------------------------------------
-[23:10:20] Semantic Critic - USER PROMPT
+[04:49:46] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
@@ -260,183 +262,203 @@ The transfer page presents a form with radio buttons to select transfer type (My
             "External Account"
           ]
         },
+        "Transfer_Amount": {
+          "type": "number",
+          "required": true,
+          "constraints": [
+            "must be > 0",
+            "max two decimal places"
+          ]
+        },
         "Source_Account": {
           "type": "dropdown",
           "required": true,
-          "data_source": {
-            "data_source": "user_accounts",
-            "filter": "account_type IN ['Checking','Savings']",
-            "display": "account_nickname_or_number"
+          "options": {
+            "options_source": "user_accounts",
+            "filter": "account_type in [Checking, Savings]"
           }
+        },
+        "Destination_Account_Internal": {
+          "type": "dropdown",
+          "visible_when": "Transfer_Type == My ParaBank Account",
+          "required_when": "Transfer_Type == My ParaBank Account",
+          "options": {
+            "options_source": "user_accounts",
+            "filter": "all user's accounts (exclude Source_Account if applicable)"
+          }
+        },
+        "External_Account_Number": {
+          "type": "text",
+          "visible_when": "Transfer_Type == External Account",
+          "required_when": "Transfer_Type == External Account",
+          "constraints": [
+            "pattern: ^[0-9]{8,20}$",
+            "numeric only; 8-20 digits"
+          ]
+        },
+        "Confirm_Account_Number": {
+          "type": "text",
+          "visible_when": "Transfer_Type == External Account",
+          "required_when": "Transfer_Type == External Account",
+          "constraints": [
+            "must match External_Account_Number",
+            "pattern: ^[0-9]{8,20}$"
+          ]
+        }
+      },
+      "submit_actions": [
+        {
+          "element_name": "Transfer",
+          "type": "button",
+          "constraints": [
+            "sufficient funds in Source_Account for Transfer_Amount",
+            "if Transfer_Type == External Account then External_Account_Number and Confirm_Account_Number must be present and match"
+          ],
+          "on_success": "Transfer completed successfully with transaction ID",
+          "on_failure": [
+            {
+              "error": "Insufficient funds",
+              "maps_to": "Source_Account"
+            },
+            {
+              "error": "Insufficient funds",
+              "maps_to": "Transfer_Amount"
+            },
+            {
+              "error": "Account numbers do not match",
+              "maps_to": "Confirm_Account_Number"
+            },
+            {
+              "error": "Invalid external account format",
+              "maps_to": "External_Account_Number"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+</ast>
+
+IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
+
+------------------------------------------------------------
+[04:50:08] Semantic Critic - LLM RESPONSE
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "Rejecting AST because several constraint and implementation details were inferred beyond the provided description (multiple phantoms).",
+  "missing": [],
+  "phantoms": [
+    "Transfer_Form.fields.Transfer_Amount.constraints[1] (\"max two decimal places\" was inferred but not specified in the description)",
+    "Transfer_Form.fields.External_Account_Number.constraints[0] (regex pattern '^[0-9]{8,20}$' was inferred but not specified in the description)",
+    "Transfer_Form.fields.External_Account_Number.constraints[1] (\"numeric only; 8-20 digits\" was inferred but not specified in the description)",
+    "Transfer_Form.fields.Confirm_Account_Number.constraints[1] (regex pattern '^[0-9]{8,20}$' was inferred but not specified in the description)",
+    "Transfer_Form.fields.Destination_Account_Internal.options.filter (the clause 'exclude Source_Account if applicable' is an inference not present in the description)",
+    "Transfer_Form.submit_actions[0].element_name (button label 'Transfer' is not specified in the description)"
+  ],
+  "fixes": [
+    "Transfer_Form.fields.Transfer_Amount.constraints[1]: remove the 'max two decimal places' constraint unless the specification explicitly requires a decimal-places limit; if a decimal precision requirement exists, replace with the exact constraint phrasing provided in the description.",
+    "Transfer_Form.fields.External_Account_Number.constraints[0]: remove the regex pattern '^\\\\d{8,20}$' (or replace it) unless the description explicitly defines an account-number format; if a format is required, supply the exact allowed pattern in the description so it can be added verbatim.",
+    "Transfer_Form.fields.External_Account_Number.constraints[1]: remove the 'numeric only; 8-20 digits' constraint unless the description specifies those length and character rules; if such rules exist, provide the exact rule text.",
+    "Transfer_Form.fields.Confirm_Account_Number.constraints[1]: remove the regex pattern constraint unless the description specifies an exact format to validate against; if needed, provide the exact pattern or rule.",
+    "Transfer_Form.fields.Destination_Account_Internal.options.filter: remove the parenthetical 'exclude Source_Account if applicable' inference or replace it with an explicit requirement from the description; only include exclusion logic if the spec explicitly says to exclude the source account from destination choices.",
+    "Transfer_Form.submit_actions[0].element_name: either remove the explicit 'Transfer' label or change it to a neutral placeholder (e.g., unspecified submit action) unless the description provides the exact button label; update the description to specify the button text if a particular label is required."
+  ]
+}
+
+------------------------------------------------------------
+[04:50:08] Semantic Critic - PARSED JSON
+------------------------------------------------------------
+{
+  "verdict": "retry",
+  "summary": "Rejecting AST because several constraint and implementation details were inferred beyond the provided description (multiple phantoms).",
+  "missing": [],
+  "phantoms": [
+    "Transfer_Form.fields.Transfer_Amount.constraints[1] (\"max two decimal places\" was inferred but not specified in the description)",
+    "Transfer_Form.fields.External_Account_Number.constraints[0] (regex pattern '^[0-9]{8,20}$' was inferred but not specified in the description)",
+    "Transfer_Form.fields.External_Account_Number.constraints[1] (\"numeric only; 8-20 digits\" was inferred but not specified in the description)",
+    "Transfer_Form.fields.Confirm_Account_Number.constraints[1] (regex pattern '^[0-9]{8,20}$' was inferred but not specified in the description)",
+    "Transfer_Form.fields.Destination_Account_Internal.options.filter (the clause 'exclude Source_Account if applicable' is an inference not present in the description)",
+    "Transfer_Form.submit_actions[0].element_name (button label 'Transfer' is not specified in the description)"
+  ],
+  "fixes": [
+    "Transfer_Form.fields.Transfer_Amount.constraints[1]: remove the 'max two decimal places' constraint unless the specification explicitly requires a decimal-places limit; if a decimal precision requirement exists, replace with the exact constraint phrasing provided in the description.",
+    "Transfer_Form.fields.External_Account_Number.constraints[0]: remove the regex pattern '^\\\\d{8,20}$' (or replace it) unless the description explicitly defines an account-number format; if a format is required, supply the exact allowed pattern in the description so it can be added verbatim.",
+    "Transfer_Form.fields.External_Account_Number.constraints[1]: remove the 'numeric only; 8-20 digits' constraint unless the description specifies those length and character rules; if such rules exist, provide the exact rule text.",
+    "Transfer_Form.fields.Confirm_Account_Number.constraints[1]: remove the regex pattern constraint unless the description specifies an exact format to validate against; if needed, provide the exact pattern or rule.",
+    "Transfer_Form.fields.Destination_Account_Internal.options.filter: remove the parenthetical 'exclude Source_Account if applicable' inference or replace it with an explicit requirement from the description; only include exclusion logic if the spec explicitly says to exclude the source account from destination choices.",
+    "Transfer_Form.submit_actions[0].element_name: either remove the explicit 'Transfer' label or change it to a neutral placeholder (e.g., unspecified submit action) unless the description provides the exact button label; update the description to specify the button text if a particular label is required."
+  ]
+}
+
+------------------------------------------------------------
+[04:50:23] Semantic Critic - USER PROMPT
+------------------------------------------------------------
+<description>
+The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
+
+
+</description>
+
+<ast>
+{
+  "module_name": "Transfer Funds",
+  "components": {
+    "Transfer_Form": {
+      "type": "form",
+      "fields": {
+        "Transfer_Type": {
+          "type": "radio",
+          "required": true,
+          "options": [
+            "My ParaBank Account",
+            "External Account"
+          ]
         },
         "Transfer_Amount": {
           "type": "number",
           "required": true,
           "constraints": [
             "must be greater than 0",
-            "must be a valid currency amount"
-          ]
-        },
-        "Destination_Account_Internal": {
-          "type": "dropdown",
-          "visible_when": "Transfer_Type == My ParaBank Account",
-          "required_when": "Transfer_Type == My ParaBank Account",
-          "data_source": {
-            "data_source": "user_accounts",
-            "display": "account_nickname_or_number"
-          }
-        },
-        "Destination_Account_External_Number": {
-          "type": "text",
-          "visible_when": "Transfer_Type == External Account",
-          "required_when": "Transfer_Type == External Account",
-          "placeholder": "numeric account number",
-          "constraints": [
-            "numeric account format expected"
-          ]
-        },
-        "Destination_Account_External_Confirm": {
-          "type": "text",
-          "visible_when": "Transfer_Type == External Account",
-          "required_when": "Transfer_Type == External Account",
-          "placeholder": "re-enter numeric account number",
-          "constraints": [
-            "must match Destination_Account_External_Number"
-          ]
-        }
-      },
-      "submit_actions": [
-        {
-          "element_name": "unspecified",
-          "type": "submit",
-          "constraints": [
-            "sufficient funds in Source_Account will be validated",
-            "if Transfer_Type == External Account then Destination_Account_External_Confirm must match Destination_Account_External_Number"
-          ],
-          "on_success": "shows 'Transfer completed successfully.' with transaction ID",
-          "on_failure_messages": [
-            "Insufficient funds",
-            "Account numbers do not match",
-            "Other contextual validation errors returned by the system"
-          ]
-        }
-      ]
-    }
-  }
-}
-</ast>
-
-IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
-
-------------------------------------------------------------
-[23:10:33] Semantic Critic - LLM RESPONSE
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "AST mostly matches the description but includes multiple inferred/extra properties (phantoms) not grounded in the text and should be removed or anchored to the spec before accepting.",
-  "missing": [],
-  "phantoms": [
-    "Transfer_Form.fields.Source_Account.data_source.display (account_nickname_or_number not specified in description)",
-    "Transfer_Form.fields.Destination_Account_Internal.data_source.display (account_nickname_or_number not specified in description)",
-    "Transfer_Form.fields.Transfer_Amount.constraints (specific constraints 'must be greater than 0' and 'must be a valid currency amount' were inferred but not specified)",
-    "Transfer_Form.fields.Destination_Account_External_Number.placeholder (placeholder text not in description)",
-    "Transfer_Form.fields.Destination_Account_External_Confirm.placeholder (placeholder text not in description)"
-  ],
-  "fixes": [
-    "Remove or neutralize display hints: delete Transfer_Form.fields.Source_Account.data_source.display and Transfer_Form.fields.Destination_Account_Internal.data_source.display, unless the description is updated to explicitly specify the account display format.",
-    "Remove overly-specific Transfer_Amount constraints: delete Transfer_Form.fields.Transfer_Amount.constraints or replace with a single, explicitly-described validation from the spec (e.g., 'validated by system') if the description is updated to include exact constraints.",
-    "Remove placeholder properties that were inferred: delete Transfer_Form.fields.Destination_Account_External_Number.placeholder and Transfer_Form.fields.Destination_Account_External_Confirm.placeholder, or update the description to include the exact placeholder strings to keep them."
-  ]
-}
-
-------------------------------------------------------------
-[23:10:33] Semantic Critic - PARSED JSON
-------------------------------------------------------------
-{
-  "verdict": "retry",
-  "summary": "AST mostly matches the description but includes multiple inferred/extra properties (phantoms) not grounded in the text and should be removed or anchored to the spec before accepting.",
-  "missing": [],
-  "phantoms": [
-    "Transfer_Form.fields.Source_Account.data_source.display (account_nickname_or_number not specified in description)",
-    "Transfer_Form.fields.Destination_Account_Internal.data_source.display (account_nickname_or_number not specified in description)",
-    "Transfer_Form.fields.Transfer_Amount.constraints (specific constraints 'must be greater than 0' and 'must be a valid currency amount' were inferred but not specified)",
-    "Transfer_Form.fields.Destination_Account_External_Number.placeholder (placeholder text not in description)",
-    "Transfer_Form.fields.Destination_Account_External_Confirm.placeholder (placeholder text not in description)"
-  ],
-  "fixes": [
-    "Remove or neutralize display hints: delete Transfer_Form.fields.Source_Account.data_source.display and Transfer_Form.fields.Destination_Account_Internal.data_source.display, unless the description is updated to explicitly specify the account display format.",
-    "Remove overly-specific Transfer_Amount constraints: delete Transfer_Form.fields.Transfer_Amount.constraints or replace with a single, explicitly-described validation from the spec (e.g., 'validated by system') if the description is updated to include exact constraints.",
-    "Remove placeholder properties that were inferred: delete Transfer_Form.fields.Destination_Account_External_Number.placeholder and Transfer_Form.fields.Destination_Account_External_Confirm.placeholder, or update the description to include the exact placeholder strings to keep them."
-  ]
-}
-
-------------------------------------------------------------
-[23:10:56] Semantic Critic - USER PROMPT
-------------------------------------------------------------
-<description>
-The transfer page presents a form with radio buttons to select transfer type (My ParaBank Account or External Account), Transfer Amount field, Source Account dropdown (filtered to Checking and Savings accounts only), and destination options that change based on transfer type. For internal transfers, users select from their own accounts; for external transfers, users enter and confirm the account number. The system validates transfer amount, sufficient funds, and account number matching for external transfers. Successful transfers show "Transfer completed successfully." with a transaction ID; failures display contextual errors such as "Insufficient funds" or "Account numbers do not match." 
-
-
-</description>
-
-<ast>
-{
-  "module_name": "Transfer Funds",
-  "components": {
-    "Transfer_Form": {
-      "type": "form",
-      "fields": {
-        "Transfer_Type": {
-          "type": "radio",
-          "required": true,
-          "options": [
-            "My ParaBank Account",
-            "External Account"
-          ]
-        },
-        "Transfer_Amount": {
-          "type": "number",
-          "required": true,
-          "constraints": [
-            "validated by system"
+            "system validates transfer amount"
           ]
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true,
           "constraints": [
-            "account selection filtered to account_type in [Checking, Savings]"
+            "options filtered to Checking and Savings accounts only"
           ]
         },
         "Destination_Account_Internal": {
           "type": "dropdown",
-          "visible_when": "Transfer_Type == My ParaBank Account",
-          "required_when": "Transfer_Type == My ParaBank Account"
+          "required": true,
+          "visible_when": "Transfer_Type == My ParaBank Account"
         },
-        "Destination_Account_External_Number": {
+        "External_Account_Number": {
           "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
-          "required_when": "Transfer_Type == External Account"
-        },
-        "Destination_Account_External_Confirm": {
-          "type": "unspecified",
-          "visible_when": "Transfer_Type == External Account",
           "required_when": "Transfer_Type == External Account",
+          "visible_when": "Transfer_Type == External Account",
+          "constraints": []
+        },
+        "Confirm_Account_Number": {
+          "type": "unspecified",
+          "required_when": "Transfer_Type == External Account",
+          "visible_when": "Transfer_Type == External Account",
           "constraints": [
-            "must match Destination_Account_External_Number"
+            "must match External_Account_Number"
           ]
         }
       },
       "submit_actions": [
         {
-          "element_name": "Submit Transfer",
-          "on_success": "Transfer completed successfully. Returns transaction ID",
-          "on_failure_messages": [
-            "Insufficient funds",
-            "Account numbers do not match."
-          ],
+          "element_name": "unspecified_submit",
+          "on_success": "Transfer completed successfully and returns a transaction ID",
+          "on_failure": "displays contextual errors such as 'Insufficient funds' or 'Account numbers do not match.'",
           "constraints": [
-            "system checks sufficient funds before completing transfer"
+            "system validates sufficient funds for Source_Account and Transfer_Amount",
+            "for External Account transfers, External_Account_Number and Confirm_Account_Number must match"
           ]
         }
       ]
@@ -448,41 +470,29 @@ The transfer page presents a form with radio buttons to select transfer type (My
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:11:21] Semantic Critic - LLM RESPONSE
+[04:50:35] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
-  "verdict": "retry",
-  "summary": "External account fields lack explicit input types and the submit action has a labeled button not mentioned in the description; regenerate with those fixes.",
-  "missing": [
-    "components.Transfer_Form.fields.Destination_Account_External_Number.type",
-    "components.Transfer_Form.fields.Destination_Account_External_Confirm.type"
-  ],
+  "verdict": "yes",
+  "summary": "AST accurately captures the interactive elements, conditional logic, and validations from the description; only two minor inferred artifacts were added.",
+  "missing": [],
   "phantoms": [
-    "components.Transfer_Form.submit_actions[0].element_name (Submit Transfer button not specified in the description)"
+    "Transfer_Form.fields.Transfer_Amount.constraints[0] (\"must be greater than 0\" is an inferred constraint not explicitly stated in the description)",
+    "Transfer_Form.submit_actions[0].element_name (\"unspecified_submit\"—submit button name/label was not provided in the description)"
   ],
-  "fixes": [
-    "Set components.Transfer_Form.fields.Destination_Account_External_Number.type to a concrete input type (e.g., \"text\" or \"account_number\") and add any explicit validation pattern if account numbers are numeric.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Confirm.type to the same concrete input type as the external number (e.g., \"text\" or \"account_number\") so the matching constraint applies to a defined input.",
-    "Update components.Transfer_Form.submit_actions[0].element_name to a generic \"Submit\" label or remove the explicit element_name; alternatively, include the submit button label in the functional description so the AST can accurately reflect the named button."
-  ]
+  "fixes": []
 }
 
 ------------------------------------------------------------
-[23:11:21] Semantic Critic - PARSED JSON
+[04:50:35] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
-  "verdict": "retry",
-  "summary": "External account fields lack explicit input types and the submit action has a labeled button not mentioned in the description; regenerate with those fixes.",
-  "missing": [
-    "components.Transfer_Form.fields.Destination_Account_External_Number.type",
-    "components.Transfer_Form.fields.Destination_Account_External_Confirm.type"
-  ],
+  "verdict": "yes",
+  "summary": "AST accurately captures the interactive elements, conditional logic, and validations from the description; only two minor inferred artifacts were added.",
+  "missing": [],
   "phantoms": [
-    "components.Transfer_Form.submit_actions[0].element_name (Submit Transfer button not specified in the description)"
+    "Transfer_Form.fields.Transfer_Amount.constraints[0] (\"must be greater than 0\" is an inferred constraint not explicitly stated in the description)",
+    "Transfer_Form.submit_actions[0].element_name (\"unspecified_submit\"\u2014submit button name/label was not provided in the description)"
   ],
-  "fixes": [
-    "Set components.Transfer_Form.fields.Destination_Account_External_Number.type to a concrete input type (e.g., \"text\" or \"account_number\") and add any explicit validation pattern if account numbers are numeric.",
-    "Set components.Transfer_Form.fields.Destination_Account_External_Confirm.type to the same concrete input type as the external number (e.g., \"text\" or \"account_number\") so the matching constraint applies to a defined input.",
-    "Update components.Transfer_Form.submit_actions[0].element_name to a generic \"Submit\" label or remove the explicit element_name; alternatively, include the submit button label in the functional description so the AST can accurately reflect the named button."
-  ]
+  "fixes": []
 }

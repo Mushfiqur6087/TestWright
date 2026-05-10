@@ -1,4 +1,4 @@
-from typing import Annotated, Any, Dict, List, TypedDict
+from typing import Annotated, Any, Dict, List, Set, TypedDict
 
 
 def _last_value(old, new):
@@ -24,6 +24,9 @@ class PipelineState(TypedDict, total=False):
     debug_file: Annotated[str, _last_value]
     debug_dir: Annotated[str, _last_value]
     output_dir: Annotated[str, _last_value]
+
+    # Test type filter — subset of {"positive", "negative", "edge"}
+    test_types: Annotated[Set[str], _last_value]
 
     # UI-AST results (one entry per module)
     ui_ast_results: Annotated[List[Dict[str, Any]], _last_value]

@@ -50,6 +50,13 @@ def main():
     )
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--debug-file", default="debug_log.txt", help="Debug log file path")
+    parser.add_argument(
+        "--type",
+        nargs="+",
+        choices=["positive", "negative", "edge"],
+        metavar="TYPE",
+        help="Test types to generate: positive, negative, edge (default: all). Example: --type positive negative",
+    )
 
     args = parser.parse_args()
 
@@ -139,11 +146,14 @@ def _generate(args):
         run_id=run_id,
     )
 
+    test_types = set(args.type) if args.type else {"positive", "negative", "edge"}
+
     try:
         output = asyncio.run(generator.generate(
             functional_desc,
             output_dir=output_dir,
             resume=resume,
+            test_types=test_types,
         ))
     finally:
         generator.close()

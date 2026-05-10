@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.150767
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.150245
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - SYSTEM PROMPT
+[04:48:44] UI-AST Agent - SYSTEM PROMPT
 ------------------------------------------------------------
 You are an Expert UI/UX Architect and Systems Analyst. Parse natural language functional specifications into a strict, deterministic UI Abstract Syntax Tree (UI-AST) formatted as a JSON Component Schema.
 
@@ -204,7 +204,7 @@ Mentally enumerate every interactive element in the source. Every field, button,
 }
 
 ------------------------------------------------------------
-[23:08:55] UI-AST Agent - USER PROMPT
+[04:48:44] UI-AST Agent - USER PROMPT
 ------------------------------------------------------------
 Module: Manage Cards
 
@@ -215,7 +215,7 @@ The Manage Cards page contains two separate forms presented in stacked cards.The
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:09:28] UI-AST Agent - LLM RESPONSE
+[04:49:04] UI-AST Agent - LLM RESPONSE
 ------------------------------------------------------------
 {
   "module_name": "Manage Cards",
@@ -226,31 +226,26 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
         "Card_Type": {
           "type": "dropdown",
           "required": false,
-          "options": [
-            "Debit",
-            "Credit"
-          ]
+          "options": ["Debit", "Credit"]
         },
         "Account_to_Link": {
-          "type": "dropdown",
-          "required": false
+          "type": "unspecified",
+          "required": false,
+          "constraints": ["selected account must be in good standing"]
         },
         "Shipping_Address": {
           "type": "unspecified",
-          "required": true,
-          "constraints": [
-            "address must be complete"
-          ]
+          "required": false,
+          "constraints": ["address must be complete"]
         }
       },
       "submit_actions": [
         {
           "element_name": "Request Card",
-          "preconditions": [
-            "selected account must be in good standing"
-          ],
-          "on_success": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID",
-          "on_failure": "validation failures shown inline; form remains editable"
+          "type": "button",
+          "constraints": [],
+          "on_success": "opens a card-request ticket and shows \"Card request submitted successfully.\" with a tracking ID",
+          "on_failure": "displays inline validation errors and keeps form editable"
         }
       ]
     },
@@ -259,20 +254,20 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "fields": {
         "Select_Existing_Card": {
           "type": "dropdown",
-          "required": false
+          "required": true
         },
         "New_Spending_Limit": {
           "type": "number",
           "required": false,
           "constraints": [
             "must be numeric",
-            "must be <= policy maximum"
+            "must be within policy limit"
           ]
         },
         "Travel_Notice": {
-          "type": "unspecified",
+          "type": "repeating_group",
           "required": false,
-          "fields": {
+          "item_fields": {
             "Start_Date": {
               "type": "date",
               "required": false
@@ -281,43 +276,32 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
               "type": "date",
               "required": false
             },
-            "Destinations": {
-              "type": "repeating_group",
-              "min": 0,
-              "item_fields": {
-                "Destination": {
-                  "type": "unspecified",
-                  "required": false
-                }
-              }
+            "Destination": {
+              "type": "unspecified",
+              "required": false
             }
           },
           "constraints": [
-            "if dates provided, Start_Date must be on or before End_Date"
+            "Start_Date must be on or before End_Date"
           ]
         },
         "Card_Status": {
           "type": "dropdown",
           "required": false,
-          "options": [
-            "Active",
-            "Frozen"
-          ],
-          "constraints": [
-            "allowable card-status transitions will be validated on update"
-          ]
+          "options": ["Active", "Frozen"]
         }
       },
       "submit_actions": [
         {
           "element_name": "Update Controls",
+          "type": "button",
           "constraints": [
-            "numeric limits validated against policy (e.g., New_Spending_Limit must be <= policy maximum)",
-            "date ranges validated (Start_Date <= End_Date)",
-            "allowable card-status transitions validated"
+            "numeric limits must be within policy",
+            "date ranges must be valid",
+            "card-status transitions must be allowable"
           ],
           "on_success": "Card controls updated successfully.",
-          "on_failure": "validation failures displayed inline; form remains editable"
+          "on_failure": "displays inline validation errors and keeps form editable"
         }
       ]
     }
@@ -325,7 +309,7 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
 }
 
 ------------------------------------------------------------
-[23:09:28] UI-AST Agent - PARSED JSON
+[04:49:04] UI-AST Agent - PARSED JSON
 ------------------------------------------------------------
 {
   "module_name": "Manage Cards",
@@ -342,12 +326,15 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           ]
         },
         "Account_to_Link": {
-          "type": "dropdown",
-          "required": false
+          "type": "unspecified",
+          "required": false,
+          "constraints": [
+            "selected account must be in good standing"
+          ]
         },
         "Shipping_Address": {
           "type": "unspecified",
-          "required": true,
+          "required": false,
           "constraints": [
             "address must be complete"
           ]
@@ -356,11 +343,10 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "submit_actions": [
         {
           "element_name": "Request Card",
-          "preconditions": [
-            "selected account must be in good standing"
-          ],
-          "on_success": "opens card-request ticket and shows \"Card request submitted successfully.\" with tracking ID",
-          "on_failure": "validation failures shown inline; form remains editable"
+          "type": "button",
+          "constraints": [],
+          "on_success": "opens a card-request ticket and shows \"Card request submitted successfully.\" with a tracking ID",
+          "on_failure": "displays inline validation errors and keeps form editable"
         }
       ]
     },
@@ -369,20 +355,20 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
       "fields": {
         "Select_Existing_Card": {
           "type": "dropdown",
-          "required": false
+          "required": true
         },
         "New_Spending_Limit": {
           "type": "number",
           "required": false,
           "constraints": [
             "must be numeric",
-            "must be <= policy maximum"
+            "must be within policy limit"
           ]
         },
         "Travel_Notice": {
-          "type": "unspecified",
+          "type": "repeating_group",
           "required": false,
-          "fields": {
+          "item_fields": {
             "Start_Date": {
               "type": "date",
               "required": false
@@ -391,19 +377,13 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
               "type": "date",
               "required": false
             },
-            "Destinations": {
-              "type": "repeating_group",
-              "min": 0,
-              "item_fields": {
-                "Destination": {
-                  "type": "unspecified",
-                  "required": false
-                }
-              }
+            "Destination": {
+              "type": "unspecified",
+              "required": false
             }
           },
           "constraints": [
-            "if dates provided, Start_Date must be on or before End_Date"
+            "Start_Date must be on or before End_Date"
           ]
         },
         "Card_Status": {
@@ -412,22 +392,20 @@ IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks,
           "options": [
             "Active",
             "Frozen"
-          ],
-          "constraints": [
-            "allowable card-status transitions will be validated on update"
           ]
         }
       },
       "submit_actions": [
         {
           "element_name": "Update Controls",
+          "type": "button",
           "constraints": [
-            "numeric limits validated against policy (e.g., New_Spending_Limit must be <= policy maximum)",
-            "date ranges validated (Start_Date <= End_Date)",
-            "allowable card-status transitions validated"
+            "numeric limits must be within policy",
+            "date ranges must be valid",
+            "card-status transitions must be allowable"
           ],
           "on_success": "Card controls updated successfully.",
-          "on_failure": "validation failures displayed inline; form remains editable"
+          "on_failure": "displays inline validation errors and keeps form editable"
         }
       ]
     }

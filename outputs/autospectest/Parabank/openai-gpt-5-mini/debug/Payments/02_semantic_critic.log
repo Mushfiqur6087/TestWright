@@ -1,11 +1,11 @@
 ================================================================================
-DEBUG SESSION STARTED: 2026-05-09T23:08:55.146616
+DEBUG SESSION STARTED: 2026-05-10T04:48:44.145065
 Model: openai/gpt-5-mini
 ================================================================================
 
 
 ------------------------------------------------------------
-[23:09:18] Semantic Critic - SYSTEM PROMPT
+[04:49:00] Semantic Critic - SYSTEM PROMPT
 ------------------------------------------------------------
 You are a UI-AST Semantic Critic. You receive (1) a raw functional description and (2) a generated UI-AST JSON.
 
@@ -106,7 +106,7 @@ Output ONLY the JSON object. No explanation, no markdown fencing, no preamble.
 
 
 ------------------------------------------------------------
-[23:09:18] Semantic Critic - USER PROMPT
+[04:49:00] Semantic Critic - USER PROMPT
 ------------------------------------------------------------
 <description>
 The bill-payment page houses a payment form with fields for Payee Name, Street Address, City, State, ZIP Code, Phone Number, Payee Account Number plus Confirm Account Number, Payment Amount, and Source Account (dropdown), finished by a “Pay” button. On submission, the system validates all entries, enforces account-number match, checks available funds, executes the payment, returns “Payment submitted successfully.” with a reference code, and updates balances. Errors (e.g., “Account numbers do not match,” “Insufficient funds”) are displayed inline and the form remains editable.
@@ -153,37 +153,30 @@ The bill-payment page houses a payment form with fields for Payee Name, Street A
           "type": "unspecified",
           "required": true,
           "constraints": [
-            "must match Payee_Account_Number"
+            "must match Payee_Account_Number",
+            "error_message: 'Account numbers do not match'"
           ]
         },
         "Payment_Amount": {
           "type": "number",
-          "required": true,
-          "constraints": [
-            "must be greater than 0"
-          ]
+          "required": true
         },
         "Source_Account": {
           "type": "dropdown",
           "required": true
         }
       },
-      "constraints": [
-        "Account numbers must match: Payee_Account_Number == Confirm_Account_Number",
-        "all required fields must be present and pass field-level validation on submit"
-      ],
       "submit_actions": [
         {
           "element_name": "Pay",
-          "preconditions": [
-            "sufficient funds available in selected Source_Account to cover Payment_Amount",
-            "Account numbers must match: Payee_Account_Number == Confirm_Account_Number"
-          ],
+          "type": "button",
           "constraints": [
-            "validates all entries before executing payment"
+            "Payee_Account_Number must match Confirm_Account_Number (error: 'Account numbers do not match')",
+            "available_funds_in_Source_Account >= Payment_Amount (error: 'Insufficient funds')",
+            "validates all fields before executing payment"
           ],
-          "on_success": "executes payment; returns \"Payment submitted successfully.\" with a reference code; updates balances",
-          "on_failure": "displays inline errors (e.g., \"Account numbers do not match\", \"Insufficient funds\"); form remains editable"
+          "on_success": "Payment submitted successfully. Returns a reference code and updates account balances.",
+          "on_error": "Displays inline errors (e.g., 'Account numbers do not match', 'Insufficient funds') and keeps the form editable"
         }
       ]
     }
@@ -194,27 +187,23 @@ The bill-payment page houses a payment form with fields for Payee Name, Street A
 IMPORTANT: Return your response as valid JSON only. No markdown, no code blocks, just pure JSON.
 
 ------------------------------------------------------------
-[23:09:38] Semantic Critic - LLM RESPONSE
+[04:49:07] Semantic Critic - LLM RESPONSE
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "The AST accurately captures the payment form, all specified fields, the Source Account dropdown, the Pay submit action with validation/preconditions, and success/failure behaviors; only one minor inferred constraint was added.",
+  "summary": "AST includes all interactive fields, the Pay button, validation rules (account match and funds check), and success/error behaviors as described.",
   "missing": [],
-  "phantoms": [
-    "components.Bill_Payment_Form.fields.Payment_Amount.constraints[0] (\"must be greater than 0\" constraint is an inferred rule not explicitly stated in the description)"
-  ],
+  "phantoms": [],
   "fixes": []
 }
 
 ------------------------------------------------------------
-[23:09:38] Semantic Critic - PARSED JSON
+[04:49:07] Semantic Critic - PARSED JSON
 ------------------------------------------------------------
 {
   "verdict": "yes",
-  "summary": "The AST accurately captures the payment form, all specified fields, the Source Account dropdown, the Pay submit action with validation/preconditions, and success/failure behaviors; only one minor inferred constraint was added.",
+  "summary": "AST includes all interactive fields, the Pay button, validation rules (account match and funds check), and success/error behaviors as described.",
   "missing": [],
-  "phantoms": [
-    "components.Bill_Payment_Form.fields.Payment_Amount.constraints[0] (\"must be greater than 0\" constraint is an inferred rule not explicitly stated in the description)"
-  ],
+  "phantoms": [],
   "fixes": []
 }

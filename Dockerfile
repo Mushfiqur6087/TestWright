@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # gcc needed for some litellm/tokenizer native extensions
-RUN apt-get update && apt-get install -y --no-install-recommends gcc && \
+RUN apt-get update && apt-get install -y --no-install-recommends gcc gosu && \
     rm -rf /var/lib/apt/lists/*
 
 # Run as a non-root user to avoid root-owned output files on bind mounts
@@ -28,9 +28,10 @@ RUN pip install --no-cache-dir --no-deps .
 
 RUN mkdir -p /app/outputs && chown -R app:app /app
 
-USER app
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Outputs land here; mount a host directory to persist them
 VOLUME ["/app/outputs"]
 
-ENTRYPOINT ["autospectest"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
